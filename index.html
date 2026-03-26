@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Odentara - Gestión de Clínicas Dentales</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body class="bg-gray-50 text-gray-800 font-inter">
+
+    <!-- Login Screen -->
+    <div id="login-view" class="view-section active">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="logo-container">
+                    <i class="fa-solid fa-tooth logo-icon"></i>
+                    <h2>Odentara.app</h2>
+                </div>
+                <p class="login-subtitle">Ingresa a tu cuenta</p>
+                <form id="login-form">
+                    <div class="input-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" required placeholder="admin@clinica.com">
+                    </div>
+                    <div class="input-group">
+                        <label for="password">Contraseña</label>
+                        <input type="password" id="password" required placeholder="••••••••">
+                    </div>
+                    <div class="role-selector">
+                        <label>Simular Rol:</label>
+                        <select id="role-select">
+                            <option value="superadmin">Superadmin</option>
+                            <option value="admin">Administrador</option>
+                            <option value="professional">Profesional</option>
+                            <option value="secretary">Secretaría</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full">Ingresar</button>
+                </form>
+            </div>
+            <div class="login-decoration">
+                <!-- Background decoration for premium feel -->
+                <div class="blob shape-1"></div>
+                <div class="blob shape-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Structure (Hidden until login) -->
+    <div id="app-view" class="view-section hidden flex h-screen overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col transition-all duration-300">
+            <div class="p-6 border-b border-gray-100 flex items-center gap-3">
+                <div class="w-8 h-8 rounded bg-primary-600 text-white flex items-center justify-center">
+                    <i class="fa-solid fa-tooth"></i>
+                </div>
+                <h1 class="font-bold text-lg text-gray-800 tracking-tight">Odentara</h1>
+            </div>
+
+            <nav class="flex-1 overflow-y-auto py-4" id="sidebar-nav">
+                <!-- Navigation items injected via JS based on role -->
+            </nav>
+
+            <div class="p-4 border-t border-gray-200">
+                <div
+                    class="flex items-center gap-3 user-profile cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold"
+                        id="user-initials">
+                        AD
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 truncate" id="user-name">Dr. Admin</p>
+                        <p class="text-xs text-gray-500 truncate" id="user-role-display">Superadmin</p>
+                    </div>
+                    <button id="logout-btn" class="text-gray-400 hover:text-red-500 transition-colors">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col bg-gray-50/50 overflow-hidden relative">
+            <!-- Header -->
+            <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 z-10">
+                <h2 id="page-title" class="text-xl font-semibold text-gray-800">Dashboard</h2>
+                <div class="flex items-center gap-4">
+                    <button
+                        class="relative p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dynamic Views Container -->
+            <div id="main-content" class="flex-1 overflow-y-auto p-6 scroll-smooth">
+                <!-- Dashboard / Views will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modals-container"></div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
