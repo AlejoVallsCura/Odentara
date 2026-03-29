@@ -8,8 +8,9 @@ const state = {
 // --- Database Setup ---
 const defaultData = {
     users: [
-        { id: 1, email: 'admin@odentara.com', name: 'Superadmin', role: 'superadmin', allowedProfessionals: [] },
-        { id: 2, email: 'lopez@odentara.com', name: 'Dr. López', role: 'professional', allowedProfessionals: [1] }
+        { id: 1, email: 'admin@odentara.com', name: 'Superadmin', roles: ['superadmin'], allowedProfessionals: [] },
+        { id: 2, email: 'lopez@odentara.com', name: 'Dr. López', roles: ['professional'], allowedProfessionals: [1] },
+        { id: 3, email: 'pepe@gmail.com', name: 'Pepe Secretario', roles: ['admin', 'secretary'], allowedProfessionals: [1, 2] }
     ],
     professionals: [
         { id: 1, name: 'Dr. López', schedule: { 
@@ -23,16 +24,42 @@ const defaultData = {
             3: {active: false, start: '09:00', end: '15:00'}, 4: {active: true, start: '09:00', end: '15:00'}, 
             5: {active: true, start: '09:00', end: '15:00'}, 6: {active: false, start: '', end: ''}, 
             0: {active: false, start: '', end: ''} 
+        } },
+        { id: 3, name: 'Dr. Carlos Gómez', schedule: { 
+            1: {active: true, start: '10:00', end: '18:00'}, 2: {active: true, start: '10:00', end: '18:00'}, 
+            3: {active: true, start: '10:00', end: '18:00'}, 4: {active: true, start: '10:00', end: '18:00'}, 
+            5: {active: true, start: '10:00', end: '18:00'}, 6: {active: false, start: '', end: ''}, 
+            0: {active: false, start: '', end: ''} 
         } }
     ],
     appointments: [
         { id: 1, patient: 'María Gómez', professionalId: 1, date: '2026-03-24', time: '10:00', duration: 60, status: 'confirmed', isOverbook: false },
         { id: 2, patient: 'Juan Pérez', professionalId: 2, date: '2026-03-24', time: '11:00', duration: 30, status: 'pending', isOverbook: false },
-        { id: 3, patient: 'Carlos Ruiz', professionalId: 1, date: '2026-03-24', time: '10:15', duration: 15, status: 'confirmed', isOverbook: true }
+        { id: 3, patient: 'Carlos Ruiz', professionalId: 1, date: '2026-03-24', time: '10:15', duration: 15, status: 'confirmed', isOverbook: true },
+        { id: 4, patient: 'Laura Sánchez', professionalId: 3, date: '2026-03-24', time: '09:30', duration: 60, status: 'confirmed', isOverbook: false },
+        { id: 5, patient: 'Diego Ramírez', professionalId: 2, date: '2026-03-24', time: '12:00', duration: 45, status: 'pending', isOverbook: false },
+        { id: 6, patient: 'Sofía Díaz', professionalId: 1, date: '2026-03-24', time: '13:30', duration: 30, status: 'cancelled', isOverbook: false },
+        { id: 7, patient: 'Martín Torres', professionalId: 3, date: '2026-03-24', time: '14:00', duration: 60, status: 'confirmed', isOverbook: false },
+        { id: 8, patient: 'Karina López', professionalId: 2, date: '2026-03-24', time: '15:30', duration: 30, status: 'in progress', isOverbook: false },
+        { id: 9, patient: 'Facundo Vega', professionalId: 1, date: '2026-03-24', time: '16:30', duration: 60, status: 'pending', isOverbook: false },
+        { id: 10, patient: 'Vanesa Ruiz', professionalId: 3, date: '2026-03-24', time: '17:45', duration: 30, status: 'confirmed', isOverbook: false },
+        { id: 11, patient: 'Martina Gómez', professionalId: 1, date: '2026-03-25', time: '09:00', duration: 45, status: 'confirmed', isOverbook: false },
+        { id: 12, patient: 'Bruno Álvarez', professionalId: 2, date: '2026-03-25', time: '10:30', duration: 60, status: 'pending', isOverbook: false },
+        { id: 13, patient: 'Lucía Fernández', professionalId: 3, date: '2026-03-25', time: '11:45', duration: 30, status: 'confirmed', isOverbook: false }
     ],
     patients: [
         { id: 1, name: 'María Gómez', dni: '34567890', fechaNacimiento: '1994-09-19', obraSocial: 'Sancor 4000', credencial: '1826490/00', domicilio: 'Primitivo de la Reta 513 Piso 8 Of 2 Ciudad', fichaNumero: '001', email: 'maria@example.com', phone: '261-679-1598', lastVisit: '2026-02-10', notes: 'Alergia a la penicilina', odontograma: {}, treatments: [] },
-        { id: 2, name: 'Juan Pérez', dni: '23456789', fechaNacimiento: '1985-05-12', obraSocial: 'OSDE 210', credencial: '12345678', domicilio: 'San Martin 123', fichaNumero: '002', email: 'juan@example.com', phone: '098-765-4321', lastVisit: '2026-03-01', notes: 'Sin antecedentes', odontograma: {}, treatments: [] }
+        { id: 2, name: 'Juan Pérez', dni: '23456789', fechaNacimiento: '1985-05-12', obraSocial: 'OSDE 210', credencial: '12345678', domicilio: 'San Martin 123', fichaNumero: '002', email: 'juan@example.com', phone: '098-765-4321', lastVisit: '2026-03-01', notes: 'Sin antecedentes', odontograma: {}, treatments: [] },
+        { id: 3, name: 'Laura Sánchez', dni: '45678901', fechaNacimiento: '1990-04-20', obraSocial: 'OSDE 310', credencial: '98765432', domicilio: 'Av. Libertador 1234', fichaNumero: '003', email: 'laura@example.com', phone: '261-111-2222', lastVisit: '2026-03-22', notes: '', odontograma: {}, treatments: [] },
+        { id: 4, name: 'Diego Ramírez', dni: '56789012', fechaNacimiento: '1988-08-05', obraSocial: 'SWISS MEDICAL', credencial: '11122334', domicilio: 'Calle Falsa 123', fichaNumero: '004', email: 'diego@example.com', phone: '261-333-4444', lastVisit: '2026-02-05', notes: 'Control de ortodoncia', odontograma: {}, treatments: [] },
+        { id: 5, name: 'Sofía Díaz', dni: '67890123', fechaNacimiento: '1995-12-01', obraSocial: 'Galeno', credencial: '22233445', domicilio: 'Calle Real 56', fichaNumero: '005', email: 'sofia@example.com', phone: '261-555-6666', lastVisit: '2026-01-16', notes: '', odontograma: {}, treatments: [] },
+        { id: 6, name: 'Martín Torres', dni: '78901234', fechaNacimiento: '1979-03-30', obraSocial: 'Medifé', credencial: '33344556', domicilio: 'Calle Luna 90', fichaNumero: '006', email: 'martin@example.com', phone: '261-777-8888', lastVisit: '2026-04-01', notes: 'Diabético', odontograma: {}, treatments: [] },
+        { id: 7, name: 'Karina López', dni: '89012345', fechaNacimiento: '1982-07-11', obraSocial: 'OSDE', credencial: '44455667', domicilio: 'Av. Mayo 321', fichaNumero: '007', email: 'karina@example.com', phone: '261-999-0000', lastVisit: '2026-03-10', notes: '', odontograma: {}, treatments: [] },
+        { id: 8, name: 'Facundo Vega', dni: '90123456', fechaNacimiento: '1987-02-18', obraSocial: 'Swiss Medical', credencial: '55566778', domicilio: 'Calle Sol 18', fichaNumero: '008', email: 'facundo@example.com', phone: '261-101-2020', lastVisit: '2026-02-20', notes: 'Bleeding gums', odontograma: {}, treatments: [] },
+        { id: 9, name: 'Vanesa Ruiz', dni: '01234567', fechaNacimiento: '1993-11-09', obraSocial: 'Galeno', credencial: '66677889', domicilio: 'Calle Mar 89', fichaNumero: '009', email: 'vanesa@example.com', phone: '261-303-4040', lastVisit: '2026-03-19', notes: '', odontograma: {}, treatments: [] },
+        { id: 10, name: 'Martina Gómez', dni: '11223344', fechaNacimiento: '2000-06-12', obraSocial: 'Sancor 4000', credencial: '77788990', domicilio: 'Calle Estrella 25', fichaNumero: '010', email: 'martina@example.com', phone: '261-505-6060', lastVisit: '2026-03-24', notes: '', odontograma: {}, treatments: [] },
+        { id: 11, name: 'Bruno Álvarez', dni: '22334455', fechaNacimiento: '1975-09-27', obraSocial: 'OSDE', credencial: '88899001', domicilio: 'Av. Córdoba 101', fichaNumero: '011', email: 'bruno@example.com', phone: '261-707-8080', lastVisit: '2026-03-05', notes: '', odontograma: {}, treatments: [] },
+        { id: 12, name: 'Lucía Fernández', dni: '33445566', fechaNacimiento: '1998-01-14', obraSocial: 'Medifé', credencial: '99900112', domicilio: 'Calle Internal 42', fichaNumero: '012', email: 'lucia@example.com', phone: '261-909-0101', lastVisit: '2026-03-28', notes: 'Estrés dental', odontograma: {}, treatments: [] }
     ],
     billing: [
         { id: 1, patientId: 2, professionalId: 2, type: 'income', amount: 12500, date: '2026-03-24', description: 'Consulta Dra. Martínez' },
@@ -42,17 +69,17 @@ const defaultData = {
 
 const DB = {
     init() {
-        if (!localStorage.getItem('odentara_db_v4')) {
-            localStorage.setItem('odentara_db_v4', JSON.stringify(defaultData));
+        if (!localStorage.getItem('odentara_db_v6')) {
+            localStorage.setItem('odentara_db_v6', JSON.stringify(defaultData));
         }
     },
     get(table) {
-        return JSON.parse(localStorage.getItem('odentara_db_v4'))[table] || [];
+        return JSON.parse(localStorage.getItem('odentara_db_v6'))[table] || [];
     },
     save(table, items) {
-        const db = JSON.parse(localStorage.getItem('odentara_db_v4'));
+        const db = JSON.parse(localStorage.getItem('odentara_db_v6'));
         db[table] = items;
-        localStorage.setItem('odentara_db_v4', JSON.stringify(db));
+        localStorage.setItem('odentara_db_v6', JSON.stringify(db));
     },
     add(table, item) {
         const items = this.get(table);
@@ -128,7 +155,9 @@ const pageTitle = document.getElementById('page-title');
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('login-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        login(document.getElementById('email').value, document.getElementById('role-select').value);
+        const email = document.getElementById('email').value.trim();
+        const role = document.getElementById('login-role').value;
+        login(email, role);
     });
 
     document.getElementById('logout-btn').addEventListener('click', logout);
@@ -165,15 +194,39 @@ document.addEventListener('DOMContentLoaded', () => {
     // Calendar navigation & filter
     document.addEventListener('click', (e2) => {
         if (e2.target.closest('#cal-prev')) {
-            calendarState.weekOffset--;
+            const date = new Date(calendarState.currentDate);
+            if (calendarState.viewMode === 'day') {
+                date.setDate(date.getDate() - 1);
+            } else if (calendarState.viewMode === 'week') {
+                date.setDate(date.getDate() - 7);
+            }
+            calendarState.currentDate = date.toISOString().split('T')[0];
             refreshCurrentView();
         }
         if (e2.target.closest('#cal-next')) {
-            calendarState.weekOffset++;
+            const date = new Date(calendarState.currentDate);
+            if (calendarState.viewMode === 'day') {
+                date.setDate(date.getDate() + 1);
+            } else if (calendarState.viewMode === 'week') {
+                date.setDate(date.getDate() + 7);
+            }
+            calendarState.currentDate = date.toISOString().split('T')[0];
             refreshCurrentView();
         }
         if (e2.target.closest('#cal-today')) {
-            calendarState.weekOffset = 0;
+            calendarState.currentDate = new Date().toISOString().split('T')[0];
+            refreshCurrentView();
+        }
+        if (e2.target.closest('#cal-view-day')) {
+            calendarState.viewMode = 'day';
+            refreshCurrentView();
+        }
+        if (e2.target.closest('#cal-view-week')) {
+            calendarState.viewMode = 'week';
+            refreshCurrentView();
+        }
+        if (e2.target.closest('#cal-view-month')) {
+            calendarState.viewMode = 'month';
             refreshCurrentView();
         }
     });
@@ -204,44 +257,102 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('submit', (e) => {
         if (e.target.id === 'new-user-form') {
             e.preventDefault();
-            const role = document.getElementById('u-role').value;
-            const email = document.getElementById('u-email').value;
-            const selectedOptions = Array.from(document.getElementById('u-profs').selectedOptions).map(o => parseInt(o.value));
-            DB.add('users', { email: email, name: email.split('@')[0], role: role, allowedProfessionals: selectedOptions });
+            const name = document.getElementById('u-name').value.trim();
+            const email = document.getElementById('u-email').value.trim();
+            const type = document.getElementById('u-type').value;
+
+            if (!name || !email || !type) {
+                alert('Completa nombre, email y tipo de usuario.');
+                return;
+            }
+
+            const roleNodes = Array.from(document.querySelectorAll('input[name="u-role"]:checked'));
+            const roles = roleNodes.map(r => r.value);
+            if (roles.length === 0) {
+                alert('Selecciona al menos un rol de permisos.');
+                return;
+            }
+
+            const profNodes = Array.from(document.querySelectorAll('input[name="u-profs"]:checked'));
+            const selectedProfessionals = profNodes.length > 0 ? profNodes.map(p => parseInt(p.value)) : [];
+
+            DB.add('users', {
+                name,
+                email,
+                type,
+                roles,
+                allowedProfessionals: selectedProfessionals
+            });
+            refreshCurrentView();
+        }
+
+        if (e.target.id === 'new-prof-form') {
+            e.preventDefault();
+            const name = document.getElementById('p-name').value.trim();
+            const lastName = document.getElementById('p-lastname').value.trim();
+            const specialty = document.getElementById('p-specialty').value.trim();
+            const phone = document.getElementById('p-phone').value.trim();
+            const email = document.getElementById('p-email').value.trim();
+            const status = document.getElementById('p-status').value;
+
+            if (!name || !lastName || !specialty) {
+                alert('Nombre, apellido y especialidad son obligatorios para un profesional.');
+                return;
+            }
+
+            DB.add('professionals', {
+                name: `${name} ${lastName}`,
+                firstName: name,
+                lastName,
+                specialty,
+                phone,
+                email,
+                status: status || 'activo',
+                schedule: {
+                    1: {active: true, start: '08:00', end: '16:00'},
+                    2: {active: true, start: '08:00', end: '16:00'},
+                    3: {active: true, start: '08:00', end: '16:00'},
+                    4: {active: true, start: '08:00', end: '16:00'},
+                    5: {active: true, start: '08:00', end: '16:00'},
+                    6: {active: false, start: '', end: ''},
+                    0: {active: false, start: '', end: ''}
+                }
+            });
+
             refreshCurrentView();
         }
     });
 });
 
 // --- Auth ---
-function login(email, roleSelect) {
+function login(email, selectedRole) {
+    console.log('Login attempt for:', email, 'as', selectedRole);
     const users = DB.get('users');
     let user = users.find(u => u.email === email);
     
     if (!user) {
-        if (email === 'admin@odentara.com') { 
-             user = { id: 1, email: 'admin@odentara.com', name: 'Superadmin', role: 'superadmin', allowedProfessionals: [] };
-             DB.add('users', user);
-        } else {
-             alert('Usuario sin acceso o no encontrado en la base de datos (Usa: admin@odentara.com).');
-             return;
-        }
+        console.log('Creating new user with role', selectedRole);
+        user = { id: users.length + 1, email: email, name: email.split('@')[0], roles: [selectedRole], allowedProfessionals: [] };
+        DB.add('users', user);
+    } else if (!user.roles.includes(selectedRole)) {
+        // Para testing: si el mismo email escoge otro rol, lo agregamos como rol adicional.
+        user.roles.push(selectedRole);
+        DB.update('users', user.id, { roles: user.roles });
     }
     
     state.user = { ...user };
-    document.getElementById('user-name').innerText = user.email;
-    document.getElementById('user-role-display').innerText = roleConfig[user.role].name;
+    document.getElementById('user-name').innerText = user.name;
+    document.getElementById('user-role-display').innerText = user.roles.map(r => roleConfig[r]?.name || r).join(' + ');
     document.getElementById('user-initials').innerText = user.name.substring(0, 2).toUpperCase();
     
     renderSidebar();
     
+    // Simple transition
     views.login.classList.remove('active');
-    setTimeout(() => {
-        views.login.classList.add('hidden');
-        views.app.classList.remove('hidden');
-        setTimeout(() => views.app.classList.add('active'), 10);
-        loadView('dashboard');
-    }, 250);
+    views.login.classList.add('hidden');
+    views.app.classList.remove('hidden');
+    views.app.classList.add('active');
+    loadView('dashboard');
 }
 
 function logout() {
@@ -259,7 +370,17 @@ function renderSidebar() {
     const sidebarNav = document.getElementById('sidebar-nav');
     sidebarNav.innerHTML = '';
     
-    roleConfig[state.user.role].navItems.forEach(item => {
+    // Collect unique navItems from all user roles
+    const navItems = new Map();
+    state.user.roles.forEach(role => {
+        if (roleConfig[role]) {
+            roleConfig[role].navItems.forEach(item => {
+                navItems.set(item.id, item);
+            });
+        }
+    });
+    
+    Array.from(navItems.values()).forEach(item => {
         const link = document.createElement('a');
         link.className = `nav-item ${item.id === state.currentView ? 'active' : ''}`;
         link.dataset.view = item.id;
@@ -309,9 +430,53 @@ function getProfName(id) {
     return p ? p.name : 'Desconocido';
 }
 
+function viewProfessionalCalendar(profId) {
+    const profs = DB.get('professionals');
+    profs.forEach(p => {
+        calendarState.visibleProfs[p.id] = p.id === profId;
+    });
+    loadView('appointments');
+}
+
 // --- Modal System & Forms ---
 function closeModal() {
     modalsContainer.innerHTML = '';
+}
+
+function openAppointmentViewModal(aptId) {
+    const apt = DB.get('appointments').find(a => a.id === aptId);
+    if (!apt) return;
+
+    const patient = DB.get('patients').find(p => p.name === apt.patient);
+    const prof = DB.get('professionals').find(p => p.id === apt.professionalId);
+
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3>Detalles del Turno</h3>
+                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div><strong>Paciente:</strong> ${apt.patient}</div>
+                        <div><strong>Teléfono:</strong> ${patient ? patient.phone : 'N/A'}</div>
+                        <div><strong>Profesional:</strong> ${prof ? prof.name : 'N/A'}</div>
+                        <div><strong>Especialidad:</strong> Odontología</div>
+                        <div><strong>Fecha:</strong> ${new Date(apt.date).toLocaleDateString('es-AR')}</div>
+                        <div><strong>Hora:</strong> ${apt.time} (${apt.duration} min)</div>
+                        <div><strong>Estado:</strong> <span class="badge badge-${apt.status === 'confirmed' ? 'success' : apt.status === 'pending' ? 'warning' : apt.status === 'cancelled' ? 'danger' : 'info'}">${apt.status}</span></div>
+                        <div><strong>Motivo:</strong> Consulta odontológica</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost" data-modal-close>Cerrar</button>
+                    <button type="button" class="btn btn-secondary" onclick="openAppointmentModal(${aptId})">Editar</button>
+                    <button type="button" class="btn btn-primary">Iniciar Cita</button>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function openAppointmentModal(editId = null) {
@@ -772,7 +937,8 @@ function renderDashboard() {
 
 // --- Calendar State ---
 const calendarState = {
-    weekOffset: 0,
+    currentDate: new Date().toISOString().split('T')[0],
+    viewMode: 'day', // 'day', 'week', 'month'
     visibleProfs: {}
 };
 
@@ -823,131 +989,309 @@ function renderAppointments() {
     });
 
     const allApts = DB.get('appointments');
-    const days = getWeekDays(calendarState.weekOffset);
-    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    const today = new Date().toISOString().split('T')[0];
-    const canEdit = ['secretary', 'superadmin', 'admin'].includes(state.user.role);
+    const currentDate = calendarState.currentDate;
+    const canEdit = state.user.roles.some(r => ['secretary', 'superadmin', 'admin'].includes(r));
 
-    // --- Build time labels (left gutter) ---
-    let timeLabelsHtml = '';
-    for (let h = CAL_START_HOUR; h <= CAL_END_HOUR; h++) {
-        const top = (h - CAL_START_HOUR) * 60 * CAL_PX_PER_MIN;
-        timeLabelsHtml += `<div class="cal-hour-label" style="top:${top}px">${String(h).padStart(2,'0')}:00</div>`;
-    }
-
-    // --- Build horizontal hour lines (background) ---
-    let linesHtml = '';
-    for (let h = CAL_START_HOUR; h <= CAL_END_HOUR; h++) {
-        const top = (h - CAL_START_HOUR) * 60 * CAL_PX_PER_MIN;
-        linesHtml += `<div class="cal-h-line" style="top:${top}px"></div>`;
-        if (h < CAL_END_HOUR) {
-            linesHtml += `<div class="cal-h-line cal-h-half" style="top:${top + 60 * CAL_PX_PER_MIN / 2}px"></div>`;
+    // For day view: columns per professional
+    if (calendarState.viewMode === 'day') {
+        // Build time labels (left gutter)
+        let timeLabelsHtml = '';
+        for (let h = CAL_START_HOUR; h <= CAL_END_HOUR; h++) {
+            const top = (h - CAL_START_HOUR) * 60 * CAL_PX_PER_MIN;
+            timeLabelsHtml += `<div class="cal-hour-label" style="top:${top}px">${String(h).padStart(2,'0')}:00</div>`;
         }
-    }
 
-    // --- Build day columns ---
-    let dayCols = '';
-    days.forEach(d => {
-        const iso = d.toISOString().split('T')[0];
-        const isToday = iso === today;
-        const dayLabel = dayNames[d.getDay()];
-        const dayNum = d.getDate();
+        // Build horizontal hour lines
+        let linesHtml = '';
+        for (let h = CAL_START_HOUR; h <= CAL_END_HOUR; h++) {
+            const top = (h - CAL_START_HOUR) * 60 * CAL_PX_PER_MIN;
+            linesHtml += `<div class="cal-h-line" style="top:${top}px"></div>`;
+            if (h < CAL_END_HOUR) {
+                linesHtml += `<div class="cal-h-line cal-h-half" style="top:${top + 60 * CAL_PX_PER_MIN / 2}px"></div>`;
+            }
+        }
 
-        // Get appointments for this day that are visible
-        const dayApts = allApts.filter(a =>
-            a.date === iso && calendarState.visibleProfs[a.professionalId]
-        );
+        // Build professional columns
+        let profCols = '';
+        professionals.filter(p => calendarState.visibleProfs[p.id]).forEach(p => {
+            const color = getProfColor(p.id);
+            const dayApts = allApts.filter(a => a.date === currentDate && a.professionalId === p.id);
 
-        // Build appointment blocks with absolute positioning
-        const aptBlocks = dayApts.map(apt => {
-            const color = getProfColor(apt.professionalId);
-            const profName = getProfName(apt.professionalId);
-            const [ah, am] = apt.time.split(':').map(Number);
-            const startMin = ah * 60 + am;
-            const offsetMin = startMin - CAL_START_HOUR * 60;
-            const duration = apt.isOverbook ? 15 : apt.duration;
+            // Build appointment blocks
+            const aptBlocks = dayApts.map(apt => {
+                const [ah, am] = apt.time.split(':').map(Number);
+                const startMin = ah * 60 + am;
+                const offsetMin = startMin - CAL_START_HOUR * 60;
+                const duration = apt.isOverbook ? 15 : apt.duration;
 
-            const topPx = offsetMin * CAL_PX_PER_MIN;
-            const heightPx = Math.max(duration * CAL_PX_PER_MIN, 28); // min 28px
+                const topPx = offsetMin * CAL_PX_PER_MIN;
+                const heightPx = Math.max(duration * CAL_PX_PER_MIN, 28);
 
-            return `<div class="cal-apt-block" 
-                style="background:${color.bg}; color:${color.text}; top:${topPx}px; height:${heightPx}px;"
-                title="${apt.patient} — ${profName} (${apt.duration}min)">
-                <span class="cal-apt-name">${apt.patient}</span>
-                <span class="cal-apt-meta">${profName.split(' ').pop()} · ${apt.time}</span>
-                ${canEdit ? `<div class="cal-apt-actions">
-                    <button class="cal-apt-btn btn-edit-apt" data-id="${apt.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
-                    <button class="cal-apt-btn btn-delete-apt" data-id="${apt.id}" title="Cancelar"><i class="fa-solid fa-times"></i></button>
-                </div>` : ''}
-            </div>`;
-        }).join('');
+                let statusColor = '#10b981'; // green confirmed
+                if (apt.status === 'cancelled') statusColor = '#ef4444'; // red
+                else if (apt.status === 'pending') statusColor = '#f59e0b'; // yellow
+                else if (apt.status === 'completed') statusColor = '#6b7280'; // gray
 
-        dayCols += `
-        <div class="cal-day-col">
-            <div class="cal-day-header ${isToday ? 'cal-today-header' : ''}">
-                <span class="cal-day-name">${dayLabel}</span>
-                <span class="cal-day-number ${isToday ? 'cal-today-badge' : ''}">${dayNum}</span>
-            </div>
-            <div class="cal-day-body" style="height:${CAL_TOTAL_HEIGHT}px">
-                ${aptBlocks}
-            </div>
-        </div>`;
-    });
+                return `<div class="cal-apt-block" 
+                    style="background:${statusColor}; color:#fff; top:${topPx}px; height:${heightPx}px; cursor:pointer;"
+                    onclick="openAppointmentViewModal(${apt.id})">
+                    <span class="cal-apt-name">${apt.patient}</span>
+                    <span class="cal-apt-meta">${apt.time} - ${duration}min</span>
+                    ${canEdit ? `<div class="cal-apt-actions">
+                        <button class="cal-apt-btn btn-edit-apt" data-id="${apt.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                        <button class="cal-apt-btn btn-delete-apt" data-id="${apt.id}" title="Cancelar"><i class="fa-solid fa-times"></i></button>
+                    </div>` : ''}
+                </div>`;
+            }).join('');
 
-    // --- Sidebar legend ---
-    const legendHtml = `
-        <div class="cal-legend">
-            <div class="cal-legend-title">Profesionales</div>
-            <label class="cal-legend-item">
-                <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
-                <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
-            </label>
-            ${professionals.map(p => {
-                const color = getProfColor(p.id);
-                return `<label class="cal-legend-item">
-                    <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
-                    <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
-                </label>`;
-            }).join('')}
-        </div>`;
-
-    return `
-    <div class="cal-wrapper">
-        <!-- Toolbar -->
-        <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
-            <div class="flex items-center gap-3">
-                <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
-                <span class="font-semibold text-gray-700 text-sm">
-                    ${days[0].toLocaleDateString('es-AR',{day:'numeric',month:'short'})} – ${days[6].toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'numeric'})}
-                </span>
-                <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
-                <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
-            </div>
-            ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
-        </div>
-
-        <div class="cal-layout">
-            <!-- Calendar grid -->
-            <div class="cal-scroll-wrap">
-                <div class="cal-grid-v2">
-                    <!-- Gutter + day columns header combined -->
-                    <div class="cal-gutter-col">
-                        <div class="cal-gutter-header"></div>
-                        <div class="cal-gutter-body" style="height:${CAL_TOTAL_HEIGHT}px; position:relative;">
-                            ${linesHtml}
-                            ${timeLabelsHtml}
-                        </div>
-                    </div>
-                    <!-- Day columns -->
-                    ${dayCols}
+            profCols += `
+            <div class="cal-prof-col">
+                <div class="cal-prof-header">
+                    <span class="cal-prof-name">${p.name}</span>
                 </div>
-            </div>
-            <!-- Sidebar -->
-            ${legendHtml}
-        </div>
-    </div>`;
-}
+                <div class="cal-prof-body" style="height:${CAL_TOTAL_HEIGHT}px; position:relative;">
+                    ${linesHtml}
+                    ${aptBlocks}
+                </div>
+            </div>`;
+        });
 
+        // Sidebar legend
+        const legendHtml = `
+            <div class="cal-legend">
+                <div class="cal-legend-title">Profesionales</div>
+                <label class="cal-legend-item">
+                    <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
+                    <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
+                </label>
+                ${professionals.map(p => {
+                    const color = getProfColor(p.id);
+                    return `<label class="cal-legend-item">
+                        <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
+                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
+                    </label>`;
+                }).join('')}
+            </div>`;
+
+        return `
+        <div class="cal-wrapper">
+            <!-- Toolbar -->
+            <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
+                <div class="flex items-center gap-3">
+                    <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="font-semibold text-gray-700 text-sm" id="cal-date-display">${new Date(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</span>
+                    <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
+                    <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'day' ? 'active' : ''}" id="cal-view-day">Día</button>
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'week' ? 'active' : ''}" id="cal-view-week">Semana</button>
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'month' ? 'active' : ''}" id="cal-view-month">Mes</button>
+                </div>
+                ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
+            </div>
+
+            <div class="cal-layout">
+                <!-- Calendar grid -->
+                <div class="cal-scroll-wrap">
+                    <div class="cal-grid-day">
+                        <!-- Gutter -->
+                        <div class="cal-gutter-col">
+                            <div class="cal-gutter-header"></div>
+                            <div class="cal-gutter-body" style="height:${CAL_TOTAL_HEIGHT}px; position:relative;">
+                                ${timeLabelsHtml}
+                            </div>
+                        </div>
+                        <!-- Professional columns -->
+                        ${profCols}
+                    </div>
+                </div>
+                <!-- Sidebar -->
+                ${legendHtml}
+            </div>
+        </div>`;
+    } else if (calendarState.viewMode === 'week') {
+        // Week view: days as columns, appointments listed per day
+        const startOfWeek = new Date(currentDate);
+        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(startOfWeek);
+            d.setDate(startOfWeek.getDate() + i);
+            days.push(d);
+        }
+
+        let dayCols = '';
+        days.forEach(d => {
+            const iso = d.toISOString().split('T')[0];
+            const isToday = iso === new Date().toISOString().split('T')[0];
+            const dayName = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d.getDay()];
+            const dayNum = d.getDate();
+
+            const dayApts = allApts.filter(a => a.date === iso && calendarState.visibleProfs[a.professionalId]);
+
+            const aptList = dayApts.map(apt => {
+                const profName = getProfName(apt.professionalId);
+                let statusColor = '#10b981';
+                if (apt.status === 'cancelled') statusColor = '#ef4444';
+                else if (apt.status === 'pending') statusColor = '#f59e0b';
+                else if (apt.status === 'completed') statusColor = '#6b7280';
+
+                return `<div class="cal-week-apt" style="background:${statusColor};" onclick="openAppointmentViewModal(${apt.id})">
+                    <div class="cal-week-apt-name">${apt.patient}</div>
+                    <div class="cal-week-apt-meta">${profName} · ${apt.time}</div>
+                </div>`;
+            }).join('');
+
+            dayCols += `
+            <div class="cal-day-col">
+                <div class="cal-day-header ${isToday ? 'cal-today-header' : ''}">
+                    <span class="cal-day-name">${dayName}</span>
+                    <span class="cal-day-number ${isToday ? 'cal-today-badge' : ''}">${dayNum}</span>
+                </div>
+                <div class="cal-day-body" style="height:600px; padding:0.5rem; overflow-y:auto;">
+                    ${aptList || '<div class="text-gray-400 text-sm">Sin turnos</div>'}
+                </div>
+            </div>`;
+        });
+
+        const legendHtml = `
+            <div class="cal-legend">
+                <div class="cal-legend-title">Profesionales</div>
+                <label class="cal-legend-item">
+                    <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
+                    <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
+                </label>
+                ${professionals.map(p => {
+                    const color = getProfColor(p.id);
+                    return `<label class="cal-legend-item">
+                        <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
+                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
+                    </label>`;
+                }).join('')}
+            </div>`;
+
+        return `
+        <div class="cal-wrapper">
+            <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
+                <div class="flex items-center gap-3">
+                    <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="font-semibold text-gray-700 text-sm">
+                        ${days[0].toLocaleDateString('es-AR',{day:'numeric',month:'short'})} – ${days[6].toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'numeric'})}
+                    </span>
+                    <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
+                    <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'day' ? 'active' : ''}" id="cal-view-day">Día</button>
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'week' ? 'active' : ''}" id="cal-view-week">Semana</button>
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'month' ? 'active' : ''}" id="cal-view-month">Mes</button>
+                </div>
+                ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
+            </div>
+
+            <div class="cal-layout">
+                <div class="cal-scroll-wrap">
+                    <div class="cal-grid-v2">
+                        ${dayCols}
+                    </div>
+                </div>
+                ${legendHtml}
+            </div>
+        </div>`;
+    } else if (calendarState.viewMode === 'month') {
+        const date = new Date(currentDate);
+        const month = date.getMonth();
+        const year = date.getFullYear();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startOffset = firstDay.getDay(); // sunday=0
+
+        let cells = '';
+        const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+        for (let i = 0; i < totalCells; i++) {
+            const dayNum = i - startOffset + 1;
+            let cellDate = null;
+            let isCurrentMonth = false;
+            let content = '<div class="text-gray-400 text-xs">&nbsp;</div>';
+
+            if (dayNum > 0 && dayNum <= daysInMonth) {
+                isCurrentMonth = true;
+                cellDate = new Date(year, month, dayNum);
+                const iso = cellDate.toISOString().split('T')[0];
+                let dayApts = allApts.filter(a => a.date === iso && calendarState.visibleProfs[a.professionalId]);
+                dayApts = dayApts.sort((a,b)=>a.time.localeCompare(b.time));
+
+                const aptList = dayApts.map(apt => {
+                    const profName = getProfName(apt.professionalId);
+                    let statusColor = '#10b981';
+                    if (apt.status === 'cancelled') statusColor = '#ef4444';
+                    else if (apt.status === 'pending') statusColor = '#f59e0b';
+                    else if (apt.status === 'completed') statusColor = '#6b7280';
+                    return `<div class="cal-month-apt" style="border-left:4px solid ${statusColor};" onclick="openAppointmentViewModal(${apt.id})">
+                        <span class="text-xs font-semibold">${apt.time}</span>
+                        <span class="text-xs">${apt.patient} (${profName})</span>
+                    </div>`;
+                }).join('');
+
+                content = `<div class="cal-month-daynum ${isCurrentMonth ? '' : 'text-gray-400'}">${dayNum}</div>${aptList || '<div class="text-gray-400 text-xs">Sin turnos</div>'}`;
+            }
+
+            cells += `<div class="cal-month-cell ${isCurrentMonth ? '' : 'text-gray-400'}">${content}</div>`;
+        }
+
+        const monthName = date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+
+        const legendHtml = `
+            <div class="cal-legend">...`;
+        // Reuse legend same as week/day
+        const legend = `
+            <div class="cal-legend">
+                <div class="cal-legend-title">Profesionales</div>
+                <label class="cal-legend-item">
+                    <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
+                    <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
+                </label>
+                ${professionals.map(p => {
+                    const color = getProfColor(p.id);
+                    return `<label class="cal-legend-item">
+                        <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
+                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
+                    </label>`;
+                }).join('')}
+            </div>`;
+
+        return `
+        <div class="cal-wrapper">
+            <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
+                <div class="flex items-center gap-3">
+                    <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="font-semibold text-gray-700 text-sm" id="cal-date-display">${monthName}</span>
+                    <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
+                    <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'day' ? 'active' : ''}" id="cal-view-day">Día</button>
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'week' ? 'active' : ''}" id="cal-view-week">Semana</button>
+                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'month' ? 'active' : ''}" id="cal-view-month">Mes</button>
+                </div>
+                ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
+            </div>
+
+            <div class="cal-layout">
+                <div class="cal-scroll-wrap">
+                    <div class="cal-month-grid">
+                        <div class="cal-month-row-header">Dom</div><div class="cal-month-row-header">Lun</div><div class="cal-month-row-header">Mar</div><div class="cal-month-row-header">Mié</div><div class="cal-month-row-header">Jue</div><div class="cal-month-row-header">Vie</div><div class="cal-month-row-header">Sáb</div>
+                        ${cells}
+                    </div>
+                </div>
+                ${legend}
+            </div>
+        </div>`;
+    }
+}
 
 function renderProfessionals() {
     const profs = DB.get('professionals');
@@ -966,7 +1310,7 @@ function renderProfessionals() {
                                 ${p.name}
                             </td>
                             <td>
-                                ${['superadmin', 'secretary', 'professional'].includes(state.user.role) ? `
+                                ${state.user.roles.some(r => ['superadmin', 'secretary', 'professional'].includes(r)) ? `
                                 <button class="btn btn-secondary btn-sm btn-edit-schedule" data-id="${p.id}"><i class="fa-solid fa-clock mr-1"></i> Configurar Horarios por Día</button>
                                 ` : ''}
                             </td>
@@ -984,7 +1328,7 @@ function renderPatients() {
     return `
         <div class="card mb-6 flex justify-between items-center">
             <h3 class="font-semibold px-2">Directorio Médico</h3>
-            ${['superadmin', 'secretary', 'admin'].includes(state.user.role) ? 
+            ${state.user.roles.some(r => ['superadmin', 'secretary', 'admin'].includes(r)) ? 
             '<button class="btn btn-primary" id="btn-add-patient"><i class="fa-solid fa-user-plus"></i> Nuevo Paciente</button>' : ''}
         </div>
         <input type="search" id="search-patient" placeholder="Buscar pacientes por nombre o DNI..." class="form-input mb-4 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
@@ -1006,7 +1350,7 @@ function renderPatients() {
                             <td class="text-xs text-gray-600">${p.notes || '-'}</td>
                             <td>
                                 <div class="flex gap-2">
-                                ${['superadmin', 'secretary'].includes(state.user.role) ? `
+                                ${state.user.roles.some(r => ['superadmin', 'secretary'].includes(r)) ? `
                                     <button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia Clínica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>
                                     <button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}"><i class="fa-solid fa-pen text-primary-600"></i></button>
                                     <button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}"><i class="fa-solid fa-trash text-danger"></i></button>
@@ -1077,7 +1421,7 @@ function renderBilling() {
         
         <div class="card mb-4 flex justify-between items-center">
             <h3 class="font-semibold px-2">Historial Detallado de Transacciones</h3>
-            ${['admin', 'superadmin'].includes(state.user.role) ? 
+            ${state.user.roles.some(r => ['admin', 'superadmin'].includes(r)) ? 
             '<button class="btn btn-primary" id="btn-add-tx"><i class="fa-solid fa-plus"></i> Registrar Movimiento</button>' : ''}
         </div>
         
@@ -1095,7 +1439,7 @@ function renderBilling() {
                             <td class="text-gray-700">${t.description}</td>
                             <td class="font-bold ${t.type==='income'?'text-success':'text-warning'}">$${t.amount.toLocaleString()}</td>
                             <td>
-                                ${['superadmin', 'admin'].includes(state.user.role) ? 
+                                ${state.user.roles.some(r => ['superadmin', 'admin'].includes(r)) ? 
                                 `<button class="btn btn-ghost text-danger p-1 btn-delete-tx" data-id="${t.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
                             </td>
                         </tr>
@@ -1111,63 +1455,146 @@ function renderBilling() {
 function renderSettings() {
     const users = DB.get('users');
     const profs = DB.get('professionals');
-    const isSuper = state.user.role === 'superadmin';
-    
-    let userManagementHtml = '';
-    if (isSuper) {
-        userManagementHtml = `
-            <div class="mt-8 border-t pt-6">
-                <h4 class="font-bold text-lg mb-4"><i class="fa-solid fa-users-cog"></i> Gestión de Accesos (Solo Superadmin)</h4>
-                <div class="table-container shadow-sm mb-6 max-h-60 overflow-y-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-50"><tr><th>Email</th><th>Rol</th><th>Profesionales Asignados</th><th>Acción</th></tr></thead>
-                        <tbody>
-                            ${users.map(u => `
-                                <tr>
-                                    <td class="font-medium">${u.email}</td>
-                                    <td><span class="badge ${u.role==='superadmin'?'badge-purple':'badge-info'}">${u.role}</span></td>
-                                    <td class="text-xs">${u.allowedProfessionals && u.allowedProfessionals.length > 0 ? u.allowedProfessionals.map(id => getProfName(id)).join(', ') : 'Acceso Ilimitado (Todos)'}</td>
-                                    <td>${u.id !== state.user.id ? `<button class="btn btn-ghost text-danger p-1" onclick="if(confirm('¿Eliminar usuario?')){ DB.delete('users', ${u.id}); document.querySelector('[data-view=settings]').click(); }"><i class="fa-solid fa-trash"></i></button>` : '-'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <form id="new-user-form" class="bg-gray-50 p-4 rounded border">
-                    <h5 class="font-semibold mb-3">Crear Nuevo Acceso de Usuario</h5>
-                    <div class="flex gap-4 flex-wrap">
-                        <div class="input-group flex-1 min-w-[200px]"><label>Email de Usuario (Login)</label><input type="email" id="u-email" required></div>
-                        <div class="input-group flex-1 min-w-[200px]">
-                            <label>Rol de Permisos</label>
-                            <select id="u-role" required>
-                                <option value="admin">Administrador (Cobros, Directorio)</option>
-                                <option value="secretary">Secretaría (Turnos, Directorio)</option>
-                                <option value="professional">Profesional (Sus turnos e historias)</option>
-                            </select>
-                        </div>
-                        <div class="input-group w-full">
-                            <label>Filtro de Profesionales (Mantén presionado Ctrl/Cmd para seleccionar varios)</label>
-                            <select id="u-profs" multiple class="h-24 p-2">
-                                ${profs.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
-                            </select>
-                            <p class="text-xs text-gray-500 mt-1">Si NO seleccionas ninguno, el usuario podrá ver/editar agendas y cajas de todos los profesionales.</p>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary mt-2"><i class="fa-solid fa-user-check"></i> Autorizar Usuario</button>
-                </form>
+    const isSuper = state.user.roles.includes('superadmin');
+
+    if (!isSuper) {
+        return `
+            <div class="settings-card">
+                <h3>Acceso denegado</h3>
+                <p>Solo los usuarios con rol superadmin pueden gestionar la configuración.</p>
             </div>
         `;
     }
 
-    return `<div class="card p-8">
-        <h3 class="text-xl font-bold mb-4">Configuración de Odentara.app</h3>
-        <p class="text-gray-600 mb-6">Administración general del área de negocio y reinicios de sistema.</p>
-        <button class="btn btn-danger" onclick="if(confirm('¿Borrar Base de Datos local? Ojo, esto eliminará pacientes, transacciones y turnos.')) { localStorage.removeItem('odentara_db_v4'); window.location.reload(); }">
-            <i class="fa-solid fa-triangle-exclamation"></i> Reiniciar App (Wipe)
-        </button>
-        ${userManagementHtml}
-    </div>`;
+    const userRows = users.map(u => {
+        const roles = (u.roles || (u.role ? [u.role] : [])).map(r => `
+            <span class="badge ${r === 'superadmin' ? 'badge-primary' : (r === 'admin' ? 'badge-info' : (r === 'secretary' ? 'badge-warning' : 'badge-gray'))}">${r}</span>
+        `).join(' ');
+
+        const profNames = u.allowedProfessionals && u.allowedProfessionals.length > 0
+            ? u.allowedProfessionals.map(id => `<span class="badge badge-gray">${getProfName(id)}</span>`).join(' ')
+            : `<span class="badge badge-gray">No asignado</span>`;
+
+        return `
+            <tr class="hover-row">
+                <td class="table-name"><strong>${u.name || 'Sin nombre'}</strong><br><span class="subtle">${u.email || '-'}</span></td>
+                <td>${u.type || '-'}</td>
+                <td>${roles}</td>
+                <td>${profNames}</td>
+                <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="if(confirm('¿Eliminar usuario?')){ DB.delete('users', ${u.id}); refreshCurrentView(); }"><i class="fa-solid fa-trash text-danger"></i></button></td>
+            </tr>`;
+    }).join('');
+
+    const profesionalRows = profs.map(p => {
+        const statusLabel = p.status === 'activo'
+            ? `<span class="badge badge-success">Activo</span>`
+            : `<span class="badge badge-gray">Inactivo</span>`;
+        return `
+            <tr class="hover-row">
+                <td class="table-name">${p.name}</td>
+                <td>${p.lastName || '-'}</td>
+                <td>${p.specialty || '-'}</td>
+                <td>${p.phone || '-'}</td>
+                <td>${p.email || '-'}</td>
+                <td>${statusLabel}</td>
+                <td class="text-center"><button class="btn btn-secondary btn-sm" onclick="viewProfessionalCalendar(${p.id})">Ver Calendario</button></td>
+            </tr>`;
+    }).join('');
+
+    return `
+    <div class="settings-area">
+        <div class="settings-top-grid">
+            <section class="settings-card">
+                <header>
+                    <div>
+                        <h3>Crear Nuevo Usuario</h3>
+                        <p class="subtext">Campos obligatorios: Nombre completo, Email, Tipo de usuario.</p>
+                    </div>
+                </header>
+                <form id="new-user-form" class="settings-form-row columns-1">
+                    <div class="input-group"><label>Nombre completo *</label><input type="text" id="u-name" required></div>
+                    <div class="input-group"><label>Email *</label><input type="email" id="u-email" required></div>
+                    <div class="input-group"><label>Tipo de usuario *</label><select id="u-type" required><option value="">Seleccionar...</option><option value="administrador">Administrador</option><option value="secretario">Secretario</option><option value="profesional">Profesional</option></select></div>
+
+                    <div class="settings-subsection">
+                        <h4>Roles de Permisos</h4>
+                        <p class="subtext">Selecciona uno o varios roles.</p>
+                        <div class="checkbox-group"><input type="checkbox" name="u-role" value="administrador"><label>Administrador</label></div>
+                        <div class="checkbox-group"><input type="checkbox" name="u-role" value="secretario"><label>Secretario</label></div>
+                        <div class="checkbox-group"><input type="checkbox" name="u-role" value="profesional"><label>Profesional</label></div>
+                        <div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin"><label>Superadmin</label></div>
+                    </div>
+
+                    <div class="settings-subsection">
+                        <h4>Asignar Profesionales (opcional)</h4>
+                        <p class="subtext">Se puede dejar vacío; acceso completo si no se selecciona ninguno.</p>
+                        <div class="settings-list">
+                            ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}"><label>${p.name}</label></div>`).join('')}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Guardar Usuario</button>
+                </form>
+            </section>
+
+            <section class="settings-card">
+                <header>
+                    <div>
+                        <h3>Crear Profesional</h3>
+                        <p class="subtext">Campos obligatorios: Nombre, Apellido, Especialidad.</p>
+                    </div>
+                </header>
+                <form id="new-prof-form" class="settings-form-row columns-1">
+                    <div class="input-group"><label>Nombre *</label><input type="text" id="p-name" required></div>
+                    <div class="input-group"><label>Apellido *</label><input type="text" id="p-lastname" required></div>
+                    <div class="input-group"><label>Especialidad *</label><input type="text" id="p-specialty" required></div>
+                    <div class="input-group"><label>Teléfono</label><input type="text" id="p-phone"></div>
+                    <div class="input-group"><label>Email</label><input type="email" id="p-email"></div>
+                    <div class="input-group"><label>Estado</label><select id="p-status"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+                    <button type="submit" class="btn btn-primary">Guardar Profesional</button>
+                </form>
+            </section>
+        </div>
+
+        <div class="settings-tables-grid">
+            <section class="settings-card">
+                <header><h3>Usuarios Existentes</h3></header>
+                <div class="table-container overflow-x-auto">
+                    <table class="table-modern table-compact">
+                        <thead>
+                            <tr>
+                                <th>Nombre / Email</th>
+                                <th>Tipo</th>
+                                <th>Roles</th>
+                                <th>Profesionales</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>${userRows || `<tr><td colspan="5" class="text-gray-500">No hay usuarios registrados</td></tr>`}</tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="settings-card">
+                <header><h3>Profesionales Existentes</h3></header>
+                <div class="table-container overflow-x-auto">
+                    <table class="table-modern table-compact">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Apellido</th>
+                                <th>Especialidad</th>
+                                <th>Teléfono</th>
+                                <th>Email</th>
+                                <th>Estado</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>${profesionalRows || `<tr><td colspan="7" class="text-gray-500">No hay profesionales registrados</td></tr>`}</tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+    `;
 }
 
 // --- Ficha Clínica y Odontograma ---
@@ -1194,16 +1621,19 @@ function drawTeethRow(teethArray, patientOdontograma) {
         
         let facesHtml = '';
         if(isAbsent) {
-            facesHtml = `<line x1="0" y1="0" x2="100" y2="100" stroke="#ef4444" stroke-width="8"></line>
-                         <line x1="100" y1="0" x2="0" y2="100" stroke="#ef4444" stroke-width="8"></line>`;
+            facesHtml = `
+                <rect x="0" y="0" width="100" height="100" fill="none" stroke="#ef4444" stroke-width="3" rx="8" ry="8"></rect>
+                <line x1="10" y1="10" x2="90" y2="90" stroke="#ef4444" stroke-width="8" stroke-linecap="round"></line>
+                <line x1="90" y1="10" x2="10" y2="90" stroke="#ef4444" stroke-width="8" stroke-linecap="round"></line>
+            `;
         } else {
             const getColor = (f) => {
-                if(toothData[f] === 'caries') return '#ef4444'; 
-                if(toothData[f] === 'restaurado') return '#3b82f6';
-                return 'white';
+                if(toothData[f] === 'caries') return '#3b82f6';
+                if(toothData[f] === 'restaurado') return '#ef4444';
+                return 'transparent';
             };
             facesHtml = `
-                <polygon points="0,0 100,0 75,25 25,25" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="top" fill="${getColor('top')}" stroke="#94a3b8" stroke-width="2"></polygon>
+                <polygon points="0,0 100,0 75,25 25,25" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="top" fill="${getColor('top')}" stroke="#94a3b8" stroke-width="2" pointer-events="all"></polygon>
                 <polygon points="100,0 100,100 75,75 75,25" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="right" fill="${getColor('right')}" stroke="#94a3b8" stroke-width="2"></polygon>
                 <polygon points="100,100 0,100 25,75 75,75" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="bottom" fill="${getColor('bottom')}" stroke="#94a3b8" stroke-width="2"></polygon>
                 <polygon points="0,100 0,0 25,25 25,75" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="left" fill="${getColor('left')}" stroke="#94a3b8" stroke-width="2"></polygon>
@@ -1212,10 +1642,10 @@ function drawTeethRow(teethArray, patientOdontograma) {
         }
 
         return `
-        <div class="flex flex-col items-center">
-            <span class="text-[10px] font-bold text-gray-700 w-full text-center hover:bg-red-100 cursor-pointer rounded" title="Doble clic para marcar Ausente" ondblclick="toggleAbsent(${state.currentPatientId}, ${id})">${id}</span>
+        <div class="flex flex-col items-center tooth-box" data-tooth="${id}">
+            <span class="text-[8px] md:text-[10px] font-bold text-gray-700 w-full text-center hover:bg-red-100 cursor-pointer rounded" title="Doble clic para marcar Ausente" ondblclick="toggleAbsent(${state.currentPatientId}, ${id})">${id}</span>
             <div class="relative w-8 h-8 md:w-10 md:h-10">
-                <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-sm">
+                <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-sm" style="stroke-width:2.5;">
                     ${facesHtml}
                 </svg>
             </div>
@@ -1235,7 +1665,7 @@ function renderClinicalHistory(patientId) {
     }
 
     return `
-    <div class="bg-white shadow-md rounded-lg max-w-5xl mx-auto overflow-hidden border border-gray-200" style="font-family: Arial, sans-serif;">
+    <div class="clinical-history-card bg-white rounded-xl max-w-5xl mx-auto overflow-hidden" style="font-family: Arial, sans-serif;">
         <!-- Cabecera estilo Recetario -->
         <div class="flex flex-col md:flex-row justify-between items-center p-6 border-b-2 border-primary-800 bg-primary-50">
             <div class="flex items-center gap-4 mb-4 md:mb-0">
@@ -1253,32 +1683,33 @@ function renderClinicalHistory(patientId) {
         
         <div class="p-6">
             <!-- Datos del Paciente -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-y-3 gap-x-6 text-sm mb-10 pb-6 border-b border-dashed border-gray-300">
-                <div class="col-span-2 md:col-span-4 flex flex-wrap gap-x-8 gap-y-3 bg-gray-50 p-3 rounded">
-                    <div><strong class="text-gray-600 uppercase text-xs">Obra Social / Plan:</strong><br><span class="font-medium text-base">${patient.obraSocial || '-'}</span></div>
-                    <div><strong class="text-gray-600 uppercase text-xs">Credencial:</strong><br><span class="font-medium text-base">${patient.credencial || '-'}</span></div>
-                    <div class="ml-auto"><strong class="text-gray-600 uppercase text-xs">Ficha Nº:</strong><br><span class="font-mono text-lg font-bold text-primary-700">${patient.fichaNumero || '-'}</span></div>
+            <div class="clinical-info-grid mb-10 pb-6 border-b border-dashed border-gray-300">
+                <div class="clinical-info-summary">
+                    <div><strong class="text-gray-600 uppercase text-xs">Obra Social / Plan</strong><div class="text-base font-semibold text-gray-800">${patient.obraSocial || '-'}</div></div>
+                    <div><strong class="text-gray-600 uppercase text-xs">Credencial</strong><div class="text-base font-semibold text-gray-800">${patient.credencial || '-'}</div></div>
+                    <div><strong class="text-gray-600 uppercase text-xs">Ficha N°</strong><div class="text-base font-semibold text-primary-700">${patient.fichaNumero || '-'}</div></div>
                 </div>
-                <div><strong class="text-gray-600 uppercase text-xs">Nacimiento:</strong><br>${patient.fechaNacimiento ? patient.fechaNacimiento.split('-').reverse().join('/') : '-'}</div>
-                <div><strong class="text-gray-600 uppercase text-xs">Edad:</strong><br>${age} años</div>
-                <div class="col-span-2"><strong class="text-gray-600 uppercase text-xs">Teléfono:</strong><br>${patient.phone || '-'}</div>
-                <div class="col-span-2 md:col-span-4"><strong class="text-gray-600 uppercase text-xs">Domicilio:</strong><br>${patient.domicilio || '-'}</div>
+                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Nacimiento</strong><div>${patient.fechaNacimiento ? patient.fechaNacimiento.split('-').reverse().join('/') : '-'}</div></div>
+                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Edad</strong><div>${age} años</div></div>
+                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Teléfono</strong><div>${patient.phone || '-'}</div></div>
+                <div class="clinical-info-item col-span-full"><strong class="text-gray-600 uppercase text-xs">Domicilio</strong><div>${patient.domicilio || '-'}</div></div>
             </div>
 
             <!-- ODONTOGRAMA -->
             <div class="mb-10">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma Inicial</h3>
-                    <div class="flex gap-4 text-[10px] md:text-xs">
-                        <div class="flex items-center gap-1"><div class="w-3 h-3 border border-gray-400 bg-white"></div> Sano</div>
-                        <div class="flex items-center gap-1"><div class="w-3 h-3 border border-gray-400 bg-red-500"></div> Caries</div>
-                        <div class="flex items-center gap-1"><div class="w-3 h-3 border border-gray-400 bg-blue-500"></div> Restauración</div>
-                        <div class="flex items-center gap-1"><div class="w-3 h-3 border-2 border-red-500 flex items-center justify-center font-bold text-[8px] bg-white text-red-500">X</div> Ausente</div>
+                    <div class="flex gap-2 text-xs">
+                        <span class="badge-state badge-sano">Sano</span>
+                        <span class="badge-state badge-caries">Caries</span>
+                        <span class="badge-state badge-restauracion">Restauración</span>
+                        <span class="badge-state badge-ausente">Ausente</span>
                     </div>
                 </div>
                 
-                <p class="text-[10px] text-gray-400 mb-2 text-center w-full">Haz clic en cada cara para ciclar estado (Sano -> Caries -> Restaurado). Doble clic en el NÚMERO para marcar ausente.</p>
-                <div class="flex flex-col items-center gap-6 overflow-x-auto pb-4">
+                <p class="text-xs text-gray-500 mb-2 text-center w-full">Haz clic en cada cara para ciclar estado (Sano → Caries → Restaurado). Doble clic en el NÚMERO para marcar ausente.</p>
+                <div class="odontogram-wrapper overflow-x-auto pb-4">
+                    <div class="flex flex-col items-center gap-4"> <!-- Ajuste: más compacto -->
                     <!-- Permanentes Superior -->
                     <div class="flex gap-4 md:gap-8 justify-center min-w-max">
                         <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma)} </div>
@@ -1289,7 +1720,6 @@ function renderClinicalHistory(patientId) {
                         <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma)} </div>
                         <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma)} </div>
                     </div>
-                    <hr class="w-full max-w-2xl border-gray-300">
                     <!-- Deciduos Inferior -->
                     <div class="flex gap-4 md:gap-8 justify-center min-w-max">
                         <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma)} </div>
@@ -1326,7 +1756,7 @@ function renderClinicalHistory(patientId) {
                                     <td class="py-2 px-3">${t.fecha}<br><span class="text-[10px] text-gray-500 font-medium">${t.firma}</span></td>
                                     <td class="py-2 px-3 text-gray-600">${t.observaciones}</td>
                                     <td class="py-2 px-3">
-                                    ${state.user.role !== 'secretary' ? `
+                                    ${!state.user.roles.includes('secretary') ? `
                                         <button class="btn-ghost text-red-400 hover:text-red-600 p-1" onclick="deleteTreatment(${patientId}, ${idx})"><i class="fa-solid fa-times"></i></button>
                                     ` : ''}
                                     </td>
@@ -1350,7 +1780,7 @@ function renderClinicalHistory(patientId) {
 }
 
 function attachClinicalHistoryEvents(patientId) {
-    if(state.user.role === 'secretary') return; // Read Only for clinical charting
+    if(state.user.roles.includes('secretary')) return; // Read Only for clinical charting
 
     document.querySelectorAll('.tooth-face').forEach(face => {
         face.addEventListener('click', (e) => {
@@ -1376,13 +1806,42 @@ function attachClinicalHistoryEvents(patientId) {
         });
     });
 
+    document.querySelectorAll('.tooth-box').forEach(box => {
+        box.addEventListener('click', (e) => {
+            // Evitar doble procesar click en .tooth-face, dejar que su manejador se encargue
+            if (e.target.closest('.tooth-face')) return;
+            const toothId = box.dataset.tooth;
+            const p = DB.get('patients').find(pt => pt.id === patientId);
+            if (!p.odontograma) p.odontograma = {};
+            if (!p.odontograma[toothId]) p.odontograma[toothId] = {};
+            if (p.odontograma[toothId].estado === 'ausente') return;
+
+            // Avanzar estado general por diente desde sano->caries->restaurado->sano
+            const statusOrder = ['sano', 'caries', 'restaurado'];
+            const currentGlobal = p.odontograma[toothId].estado || 'sano';
+            let nextGlobal = 'sano';
+            if (currentGlobal === 'sano') nextGlobal = 'caries';
+            else if (currentGlobal === 'caries') nextGlobal = 'restaurado';
+            else if (currentGlobal === 'restaurado') nextGlobal = 'sano';
+            p.odontograma[toothId].estado = nextGlobal;
+
+            // aplicar color de estado al centro para visual inmediato
+            if (nextGlobal === 'caries') p.odontograma[toothId].center = 'caries';
+            else if (nextGlobal === 'restaurado') p.odontograma[toothId].center = 'restaurado';
+            else delete p.odontograma[toothId].center;
+
+            DB.update('patients', patientId, { odontograma: p.odontograma });
+            loadClinicalHistory(patientId);
+        });
+    });
+
     document.getElementById('btn-add-treatment')?.addEventListener('click', () => {
         openTreatmentModal(patientId);
     });
 }
 
 window.toggleAbsent = function(patientId, toothId) {
-    if(state.user.role === 'secretary') return;
+    if(state.user.roles.includes('secretary')) return;
     const p = DB.get('patients').find(pt => pt.id === patientId);
     if(!p.odontograma) p.odontograma = {};
     if(!p.odontograma[toothId]) p.odontograma[toothId] = {};

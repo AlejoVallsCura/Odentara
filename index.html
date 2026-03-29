@@ -25,20 +25,21 @@
                 <form id="login-form">
                     <div class="input-group">
                         <label for="email">Email</label>
-                        <input type="email" id="email" required placeholder="admin@clinica.com">
+                        <input type="email" id="email" required placeholder="cualquier@email.com">
                     </div>
                     <div class="input-group">
                         <label for="password">Contraseña</label>
-                        <input type="password" id="password" required placeholder="••••••••">
+                        <input type="password" id="password" placeholder="cualquier contraseña">
                     </div>
-                    <div class="role-selector">
-                        <label>Simular Rol:</label>
-                        <select id="role-select">
+                    <div class="input-group">
+                        <label for="login-role">Rol (para pruebas)</label>
+                        <select id="login-role">
                             <option value="superadmin">Superadmin</option>
-                            <option value="admin">Administrador</option>
+                            <option value="admin">Admin</option>
                             <option value="professional">Profesional</option>
-                            <option value="secretary">Secretaría</option>
+                            <option value="secretary">Secretaria</option>
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Si el usuario NO existe, se creará con este rol. Si ya existe, su rol se preserva.</p>
                     </div>
                     <button type="submit" class="btn btn-primary w-full">Ingresar</button>
                 </form>
