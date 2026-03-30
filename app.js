@@ -37,18 +37,18 @@ const defaultData = {
     ],
     appointments: [
         { id: 1, patient: 'María Gómez', professionalId: 1, date: '2026-03-24', time: '10:00', duration: 60, status: 'confirmed', isOverbook: false },
-        { id: 2, patient: 'Juan Pérez', professionalId: 2, date: '2026-03-24', time: '11:00', duration: 30, status: 'pending', isOverbook: false },
+        { id: 2, patient: 'Juan Pérez', professionalId: 2, date: '2026-03-24', time: '11:00', duration: 30, status: 'sent', isOverbook: false },
         { id: 3, patient: 'Carlos Ruiz', professionalId: 1, date: '2026-03-24', time: '10:15', duration: 15, status: 'confirmed', isOverbook: true },
         { id: 4, patient: 'Laura Sánchez', professionalId: 3, date: '2026-03-24', time: '09:30', duration: 60, status: 'confirmed', isOverbook: false },
-        { id: 5, patient: 'Diego Ramírez', professionalId: 2, date: '2026-03-24', time: '12:00', duration: 45, status: 'pending', isOverbook: false },
+        { id: 5, patient: 'Diego Ramírez', professionalId: 2, date: '2026-03-24', time: '12:00', duration: 45, status: 'not_sent', isOverbook: false },
         { id: 6, patient: 'Sofía Díaz', professionalId: 1, date: '2026-03-24', time: '13:30', duration: 30, status: 'cancelled', isOverbook: false },
         { id: 7, patient: 'Martín Torres', professionalId: 3, date: '2026-03-24', time: '14:00', duration: 60, status: 'confirmed', isOverbook: false },
-        { id: 8, patient: 'Karina López', professionalId: 2, date: '2026-03-24', time: '15:30', duration: 30, status: 'in progress', isOverbook: false },
-        { id: 9, patient: 'Facundo Vega', professionalId: 1, date: '2026-03-24', time: '16:30', duration: 60, status: 'pending', isOverbook: false },
+        { id: 8, patient: 'Karina López', professionalId: 2, date: '2026-03-24', time: '15:30', duration: 30, status: 'sent', isOverbook: false },
+        { id: 9, patient: 'Facundo Vega', professionalId: 1, date: '2026-03-24', time: '16:30', duration: 60, status: 'not_sent', isOverbook: false },
         { id: 10, patient: 'Vanesa Ruiz', professionalId: 3, date: '2026-03-24', time: '17:45', duration: 30, status: 'confirmed', isOverbook: false },
         { id: 11, patient: 'Martina Gómez', professionalId: 1, date: '2026-03-25', time: '09:00', duration: 45, status: 'confirmed', isOverbook: false },
-        { id: 12, patient: 'Bruno Álvarez', professionalId: 2, date: '2026-03-25', time: '10:30', duration: 60, status: 'pending', isOverbook: false },
-        { id: 13, patient: 'Lucía Fernández', professionalId: 3, date: '2026-03-25', time: '11:45', duration: 30, status: 'confirmed', isOverbook: false }
+        { id: 12, patient: 'Bruno Álvarez', professionalId: 2, date: '2026-03-25', time: '10:30', duration: 60, status: 'sent', isOverbook: false },
+        { id: 13, patient: 'Lucía Fernández', professionalId: 3, date: '2026-03-25', time: '11:45', duration: 30, status: 'not_sent', isOverbook: false }
     ],
     patients: [
         { id: 1, name: 'María Gómez', dni: '34567890', fechaNacimiento: '1994-09-19', obraSocial: 'Sancor 4000', credencial: '1826490/00', domicilio: 'Primitivo de la Reta 513 Piso 8 Of 2 Ciudad', fichaNumero: '001', email: 'maria@example.com', phone: '261-679-1598', lastVisit: '2026-02-10', notes: 'Alergia a la penicilina', odontograma: {}, treatments: [] },
@@ -204,12 +204,35 @@ function normalizeIdentityEmail(email = '') {
         .replace(/[\u0300-\u036f]/g, '');
 }
 
+function normalizeDni(dni = '') {
+    return String(dni).replace(/\D/g, '');
+}
+
+function normalizePatientName(name = '') {
+    return String(name)
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ');
+}
+
 function getTodayIsoLocal() {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
+    return formatDateToLocalIso(now);
+}
+
+function formatDateToLocalIso(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+function parseLocalIsoDate(dateStr) {
+    if (!dateStr) return new Date();
+    const [year, month, day] = String(dateStr).split('-').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1);
 }
 
 function timeToMinutes(timeStr = '') {
@@ -250,13 +273,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.closest('.btn-delete-apt')) {
             const aptId = parseInt(e.target.closest('.btn-delete-apt').dataset.id);
             const apt = getAccessibleAppointments().find(item => item.id === aptId);
-            if (apt && confirm('¿Cancelar este turno?')) { DB.delete('appointments', aptId); refreshCurrentView(); }
+            if (apt && confirm('¿Cancelar este turno?')) { DB.update('appointments', aptId, { status: 'cancelled' }); refreshCurrentView(); }
         }
         
         if (e.target.closest('#btn-add-patient')) openPatientModal();
         if (e.target.closest('.btn-edit-patient')) openPatientModal(parseInt(e.target.closest('.btn-edit-patient').dataset.id));
         if (e.target.closest('.btn-delete-patient')) {
             const patientId = parseInt(e.target.closest('.btn-delete-patient').dataset.id);
+            if (!isSuperadmin()) {
+                alert('Solo el superadmin puede eliminar pacientes.');
+                return;
+            }
             if (canAccessPatient(patientId) && confirm('¿Eliminar paciente y su historial?')) { DB.delete('patients', patientId); refreshCurrentView(); }
         }
         if (e.target.closest('.btn-view-history')) {
@@ -280,27 +307,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // Calendar navigation & filter
     document.addEventListener('click', (e2) => {
         if (e2.target.closest('#cal-prev')) {
-            const date = new Date(calendarState.currentDate);
+            const date = parseLocalIsoDate(calendarState.currentDate);
             if (calendarState.viewMode === 'day') {
                 date.setDate(date.getDate() - 1);
             } else if (calendarState.viewMode === 'week') {
                 date.setDate(date.getDate() - 7);
             }
-            calendarState.currentDate = date.toISOString().split('T')[0];
+            calendarState.currentDate = formatDateToLocalIso(date);
             refreshCurrentView();
         }
         if (e2.target.closest('#cal-next')) {
-            const date = new Date(calendarState.currentDate);
+            const date = parseLocalIsoDate(calendarState.currentDate);
             if (calendarState.viewMode === 'day') {
                 date.setDate(date.getDate() + 1);
             } else if (calendarState.viewMode === 'week') {
                 date.setDate(date.getDate() + 7);
             }
-            calendarState.currentDate = date.toISOString().split('T')[0];
+            calendarState.currentDate = formatDateToLocalIso(date);
             refreshCurrentView();
         }
         if (e2.target.closest('#cal-today')) {
-            calendarState.currentDate = new Date().toISOString().split('T')[0];
+            calendarState.currentDate = getTodayIsoLocal();
             refreshCurrentView();
         }
         if (e2.target.closest('#cal-view-day')) {
@@ -501,7 +528,7 @@ function refreshCurrentView() {
 
 function formatDashboardDateLabel(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(`${dateStr}T00:00:00`);
+    const date = parseLocalIsoDate(dateStr);
     return date.toLocaleDateString('es-AR', {
         weekday: 'long',
         day: 'numeric',
@@ -611,14 +638,38 @@ function getAccessiblePatients() {
     return DB.get('patients').filter(p => allowedIds.has(p.id));
 }
 
+function normalizeAppointmentStatus(status = '') {
+    if (status === 'pending') return 'not_sent';
+    if (status === 'in progress') return 'sent';
+    return status || 'not_sent';
+}
+
+function getAppointmentStatusMeta(status) {
+    const normalized = normalizeAppointmentStatus(status);
+    if (normalized === 'confirmed') return { key: normalized, label: 'Confirmado', badge: 'badge-success', color: '#10b981' };
+    if (normalized === 'cancelled') return { key: normalized, label: 'Cancelado', badge: 'badge-danger', color: '#ef4444' };
+    if (normalized === 'sent') return { key: normalized, label: 'Enviado / Sin respuesta', badge: 'badge-info', color: '#3b82f6' };
+    return { key: 'not_sent', label: 'Sin enviar', badge: 'badge-warning', color: '#f59e0b' };
+}
+
 function getWhatsAppLink(patient, apt) {
     if (!patient || !patient.phone) return '';
     const phone = String(patient.phone).replace(/\D/g, '');
     if (!phone) return '';
-    const dateLabel = new Date(`${apt.date}T00:00:00`).toLocaleDateString('es-AR');
+    const dateLabel = parseLocalIsoDate(apt.date).toLocaleDateString('es-AR');
     const message = `Hola ${patient.name}, te escribimos de Odentara para confirmar tu turno del ${dateLabel} a las ${apt.time} con ${getProfName(apt.professionalId)}. Por favor responde CONFIRMADO o si necesitas reprogramarlo.`;
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
+
+window.markAppointmentAsSent = function(aptId) {
+    const apt = DB.get('appointments').find(item => item.id === aptId);
+    if (!apt) return;
+    const normalizedStatus = normalizeAppointmentStatus(apt.status);
+    if (normalizedStatus === 'not_sent') {
+        DB.update('appointments', aptId, { status: 'sent' });
+        if (state.currentView === 'dashboard' || state.currentView === 'appointments') refreshCurrentView();
+    }
+};
 
 function viewProfessionalCalendar(profId) {
     if (!canAccessProfessional(profId)) return;
@@ -640,6 +691,7 @@ function openAppointmentViewModal(aptId) {
 
     const patient = getPatientByAppointment(apt);
     const prof = DB.get('professionals').find(p => p.id === apt.professionalId);
+    const statusMeta = getAppointmentStatusMeta(apt.status);
 
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
@@ -653,9 +705,9 @@ function openAppointmentViewModal(aptId) {
                         <div><strong>Teléfono:</strong> ${patient ? patient.phone : 'N/A'}</div>
                         <div><strong>Profesional:</strong> ${prof ? prof.name : 'N/A'}</div>
                         <div><strong>Especialidad:</strong> Odontología</div>
-                        <div><strong>Fecha:</strong> ${new Date(apt.date).toLocaleDateString('es-AR')}</div>
+                        <div><strong>Fecha:</strong> ${parseLocalIsoDate(apt.date).toLocaleDateString('es-AR')}</div>
                         <div><strong>Hora:</strong> ${apt.time} (${apt.duration} min)</div>
-                        <div><strong>Estado:</strong> <span class="badge badge-${apt.status === 'confirmed' ? 'success' : apt.status === 'pending' ? 'warning' : apt.status === 'cancelled' ? 'danger' : 'info'}">${apt.status}</span></div>
+                        <div><strong>Estado:</strong> <span class="badge ${statusMeta.badge}">${statusMeta.label}</span></div>
                         <div><strong>Motivo:</strong> Consulta odontológica</div>
                     </div>
                 </div>
@@ -691,6 +743,7 @@ function openAppointmentModal(editId = null) {
                     <div class="modal-body">
                         <div class="input-group">
                             <label>Paciente (Solo pacientes registrados)</label>
+                            <input type="search" id="apt-patient-search" class="form-input" placeholder="Buscar por nombre o DNI...">
                             <select id="apt-patient" required>
                                 ${patients.map(p => `<option value="${p.name}" ${apt && apt.patient === p.name ? 'selected':''}>${p.name} (DNI ${p.dni})</option>`).join('')}
                             </select>
@@ -738,6 +791,36 @@ function openAppointmentModal(editId = null) {
     const sCheck = document.getElementById('apt-sobreturno');
     const dGroup = document.getElementById('duration-group');
     const durSelect = document.getElementById('apt-duration');
+    const patientSearch = document.getElementById('apt-patient-search');
+    const patientSelect = document.getElementById('apt-patient');
+    const selectedPatientName = apt ? apt.patient : patients[0]?.name;
+
+    const renderPatientOptions = (query = '') => {
+        const normalizedQuery = normalizePatientName(query);
+        const filteredPatients = normalizedQuery
+            ? patients.filter(patient => {
+                const patientName = normalizePatientName(patient.name);
+                const patientDni = normalizeDni(patient.dni);
+                return patientName.includes(normalizedQuery) || patientDni.includes(normalizeDni(query));
+            })
+            : patients;
+
+        patientSelect.innerHTML = filteredPatients.map(patient => `
+            <option value="${patient.name}" ${(patient.name === selectedPatientName || patient.name === patientSelect.value) ? 'selected' : ''}>
+                ${patient.name} (DNI ${patient.dni})
+            </option>
+        `).join('');
+
+        if (filteredPatients.length === 0) {
+            patientSelect.innerHTML = '<option value="">No se encontraron pacientes</option>';
+            patientSelect.disabled = true;
+        } else {
+            patientSelect.disabled = false;
+            if (!filteredPatients.some(patient => patient.name === patientSelect.value)) {
+                patientSelect.value = filteredPatients[0].name;
+            }
+        }
+    };
 
     const renderDurationOptions = () => {
         const isOverbook = sCheck.checked;
@@ -898,6 +981,9 @@ function openAppointmentModal(editId = null) {
         
         renderDurationOptions();
     };
+
+    renderPatientOptions();
+    patientSearch.addEventListener('input', () => renderPatientOptions(patientSearch.value));
     
     profSelect.addEventListener('change', renderTimeOptions);
     document.getElementById('apt-date').addEventListener('change', renderTimeOptions);
@@ -925,14 +1011,19 @@ function openAppointmentModal(editId = null) {
             return;
         }
 
+        if (!patientSelect.value) {
+            alert('Selecciona un paciente válido.');
+            return;
+        }
+
         const data = {
-            patient: document.getElementById('apt-patient').value,
+            patient: patientSelect.value,
             professionalId: parseInt(profSelect.value),
             date: selectedDate,
             time: selectedTime,
             duration: isOverbook ? 15 : parseInt(durSelect.value),
             isOverbook,
-            status: 'confirmed'
+            status: apt ? normalizeAppointmentStatus(apt.status) : 'not_sent'
         };
         if (editId) DB.update('appointments', editId, data);
         else DB.add('appointments', data);
@@ -1038,9 +1129,42 @@ function openPatientModal(editId = null) {
     `;
     document.getElementById('patient-form').addEventListener('submit', (e) => {
         e.preventDefault();
+        const rawName = document.getElementById('p-name').value;
+        const rawDni = document.getElementById('p-dni').value;
+        const normalizedName = normalizePatientName(rawName);
+        const normalizedDni = normalizeDni(rawDni);
+
+        if (!normalizedName) {
+            alert('Ingresa un nombre válido.');
+            return;
+        }
+
+        if (!normalizedDni) {
+            alert('Ingresa un DNI válido.');
+            return;
+        }
+
+        const duplicatedByName = DB.get('patients').find(patient =>
+            normalizePatientName(patient.name) === normalizedName && patient.id !== editId
+        );
+
+        if (duplicatedByName) {
+            alert('Ya existe un paciente cargado con ese nombre.');
+            return;
+        }
+
+        const duplicatedPatient = DB.get('patients').find(patient =>
+            normalizeDni(patient.dni) === normalizedDni && patient.id !== editId
+        );
+
+        if (duplicatedPatient) {
+            alert('Ya existe un paciente cargado con ese DNI.');
+            return;
+        }
+
         const data = {
             name: document.getElementById('p-name').value,
-            dni: document.getElementById('p-dni').value,
+            dni: normalizedDni,
             email: document.getElementById('p-email').value,
             phone: document.getElementById('p-phone').value,
             fechaNacimiento: document.getElementById('p-nacimiento').value,
@@ -1049,7 +1173,7 @@ function openPatientModal(editId = null) {
             credencial: document.getElementById('p-credencial').value,
             fichaNumero: document.getElementById('p-ficha').value,
             notes: document.getElementById('p-notes').value,
-            lastVisit: p ? p.lastVisit : new Date().toISOString().split('T')[0],
+            lastVisit: p ? p.lastVisit : getTodayIsoLocal(),
             odontograma: p ? p.odontograma : {},
             treatments: p ? p.treatments : [],
             clinicalImages: p ? (p.clinicalImages || []) : []
@@ -1106,7 +1230,7 @@ function openBillingModal() {
             type: document.getElementById('tx-type').value,
             amount: parseFloat(document.getElementById('tx-amount').value),
             description: document.getElementById('tx-desc').value,
-            date: new Date().toISOString().split('T')[0]
+            date: getTodayIsoLocal()
         });
         closeModal(); refreshCurrentView();
     });
@@ -1153,7 +1277,7 @@ function renderDashboard() {
                             <tr class="${apt.isOverbook?'tr-sobreturno':''}">
                                 <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
                                 <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
-                                <td><span class="badge ${apt.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">${apt.status}</span></td>
+                                <td><span class="badge ${getAppointmentStatusMeta(apt.status).badge}">${getAppointmentStatusMeta(apt.status).label}</span></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1165,7 +1289,7 @@ function renderDashboard() {
 
 // --- Calendar State ---
 const calendarState = {
-    currentDate: new Date().toISOString().split('T')[0],
+    currentDate: getTodayIsoLocal(),
     viewMode: 'day', // 'day', 'week', 'month'
     visibleProfs: {}
 };
@@ -1195,6 +1319,32 @@ function getAppointmentVisual(apt) {
             text: '#9a3412',
             border: '#f97316',
             accent: '#fb923c'
+        };
+    }
+
+    const statusMeta = getAppointmentStatusMeta(apt.status);
+    if (statusMeta.key === 'cancelled') {
+        return {
+            bg: '#fee2e2',
+            text: '#991b1b',
+            border: '#ef4444',
+            accent: '#f87171'
+        };
+    }
+    if (statusMeta.key === 'sent') {
+        return {
+            bg: '#dbeafe',
+            text: '#1e3a8a',
+            border: '#3b82f6',
+            accent: '#60a5fa'
+        };
+    }
+    if (statusMeta.key === 'not_sent') {
+        return {
+            bg: '#fef3c7',
+            text: '#92400e',
+            border: '#f59e0b',
+            accent: '#fbbf24'
         };
     }
 
@@ -1336,7 +1486,7 @@ function renderAppointments() {
             <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
                 <div class="flex items-center gap-3">
                     <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
-                    <span class="font-semibold text-gray-700 text-sm" id="cal-date-display">${new Date(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</span>
+                    <span class="font-semibold text-gray-700 text-sm" id="cal-date-display">${parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</span>
                     <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
                     <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
                 </div>
@@ -1369,7 +1519,7 @@ function renderAppointments() {
         </div>`;
     } else if (calendarState.viewMode === 'week') {
         // Week view: days as columns, appointments listed per day
-        const startOfWeek = new Date(currentDate);
+        const startOfWeek = parseLocalIsoDate(currentDate);
         startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday
         const days = [];
         for (let i = 0; i < 7; i++) {
@@ -1380,8 +1530,8 @@ function renderAppointments() {
 
         let dayCols = '';
         days.forEach(d => {
-            const iso = d.toISOString().split('T')[0];
-            const isToday = iso === new Date().toISOString().split('T')[0];
+            const iso = formatDateToLocalIso(d);
+            const isToday = iso === getTodayIsoLocal();
             const dayName = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d.getDay()];
             const dayNum = d.getDate();
 
@@ -1389,10 +1539,7 @@ function renderAppointments() {
 
             const aptList = dayApts.map(apt => {
                 const profName = getProfName(apt.professionalId);
-                let statusColor = '#10b981';
-                if (apt.status === 'cancelled') statusColor = '#ef4444';
-                else if (apt.status === 'pending') statusColor = '#f59e0b';
-                else if (apt.status === 'completed') statusColor = '#6b7280';
+                const statusColor = getAppointmentStatusMeta(apt.status).color;
 
                 return `<div class="cal-week-apt" style="background:${statusColor};" onclick="openAppointmentViewModal(${apt.id})">
                     <div class="cal-week-apt-name">${apt.patient}</div>
@@ -1457,7 +1604,7 @@ function renderAppointments() {
             </div>
         </div>`;
     } else if (calendarState.viewMode === 'month') {
-        const date = new Date(currentDate);
+        const date = parseLocalIsoDate(currentDate);
         const month = date.getMonth();
         const year = date.getFullYear();
         const firstDay = new Date(year, month, 1);
@@ -1477,16 +1624,13 @@ function renderAppointments() {
             if (dayNum > 0 && dayNum <= daysInMonth) {
                 isCurrentMonth = true;
                 cellDate = new Date(year, month, dayNum);
-                const iso = cellDate.toISOString().split('T')[0];
+                const iso = formatDateToLocalIso(cellDate);
                 let dayApts = allApts.filter(a => a.date === iso && calendarState.visibleProfs[a.professionalId]);
                 dayApts = dayApts.sort((a,b)=>a.time.localeCompare(b.time));
 
                 const aptList = dayApts.map(apt => {
                     const profName = getProfName(apt.professionalId);
-                    let statusColor = '#10b981';
-                    if (apt.status === 'cancelled') statusColor = '#ef4444';
-                    else if (apt.status === 'pending') statusColor = '#f59e0b';
-                    else if (apt.status === 'completed') statusColor = '#6b7280';
+                    const statusColor = getAppointmentStatusMeta(apt.status).color;
                     return `<div class="cal-month-apt" style="border-left:4px solid ${statusColor};" onclick="openAppointmentViewModal(${apt.id})">
                         <span class="text-xs font-semibold">${apt.time}</span>
                         <span class="text-xs">${apt.patient} (${profName})</span>
@@ -1610,7 +1754,7 @@ function renderPatients() {
                                 ${state.user.roles.some(r => ['superadmin', 'secretary'].includes(r)) ? `
                                     <button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia Clínica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>
                                     <button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}"><i class="fa-solid fa-pen text-primary-600"></i></button>
-                                    <button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}"><i class="fa-solid fa-trash text-danger"></i></button>
+                                    ${isSuperadmin() ? `<button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}"><i class="fa-solid fa-trash text-danger"></i></button>` : ''}
                                 ` : '<button class="btn btn-secondary btn-sm btn-view-history" data-id="'+p.id+'"><i class="fa-solid fa-eye"></i> Historia</button>'}
                                 </div>
                             </td>
@@ -1710,7 +1854,7 @@ function renderBilling() {
 function renderDashboardContent(apts, patients, todaysApts, selectedDate, selectedDateApts) {
     const now = new Date();
     const todaysOpenApts = todaysApts.filter(apt => {
-        if (apt.status === 'cancelled' || apt.status === 'completed') return false;
+        if (normalizeAppointmentStatus(apt.status) === 'cancelled') return false;
         const [hours, minutes] = apt.time.split(':').map(Number);
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
         const duration = apt.isOverbook ? 15 : (apt.duration || 0);
@@ -1757,14 +1901,14 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                         ${selectedDateApts.map(apt => {
                             const patient = getPatientByAppointment(apt);
                             const whatsappLink = getWhatsAppLink(patient, apt);
-                            const isConfirmed = apt.status === 'confirmed';
+                            const statusMeta = getAppointmentStatusMeta(apt.status);
                             return `
                                 <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}">
                                     <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
                                     <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
                                     <td>${getProfName(apt.professionalId)}</td>
-                                    <td><span class="badge ${isConfirmed ? 'badge-success' : 'badge-warning'}">${isConfirmed ? 'Confirmado' : 'Sin confirmar'}</span></td>
-                                    <td>${whatsappLink ? `<a class="btn btn-secondary btn-sm dashboard-wa-btn" href="${whatsappLink}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i> Enviar</a>` : '<span class="text-xs text-gray-400">Sin telefono</span>'}</td>
+                                    <td><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></td>
+                                    <td>${whatsappLink ? `<a class="btn btn-secondary btn-sm dashboard-wa-btn" href="${whatsappLink}" target="_blank" rel="noopener noreferrer" onclick="markAppointmentAsSent(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</a>` : '<span class="text-xs text-gray-400">Sin telefono</span>'}</td>
                                 </tr>
                             `;
                         }).join('')}
@@ -2272,9 +2416,9 @@ function renderClinicalHistory(patientId) {
 
             <!-- ODONTOGRAMA -->
             <div class="mb-10">
-                <div class="flex items-center justify-between mb-4">
+                <div class="odontogram-header mb-4">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma Inicial</h3>
-                    <div class="flex gap-2 text-xs">
+                    <div class="odontogram-legend text-xs">
                         <span class="badge-state badge-sano">Sano</span>
                         <span class="badge-state badge-caries">Caries</span>
                         <span class="badge-state badge-restauracion">Restauración</span>
@@ -2310,7 +2454,7 @@ function renderClinicalHistory(patientId) {
 
             <!-- TRATAMIENTOS -->
             <div class="mb-4">
-                <div class="flex justify-between items-center bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
+                <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Registro de Tratamientos</h3>
                     <button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-treatment"><i class="fa-solid fa-plus"></i> Añadir Fila</button>
                 </div>
@@ -2344,11 +2488,12 @@ function renderClinicalHistory(patientId) {
             </div>
 
             <div class="mb-4">
-                <div class="flex justify-between items-center bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
+                <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Imagenes Clinicas</h3>
                     ${!state.user.roles.includes('secretary') ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Agregar Imagen</button>' : ''}
                 </div>
-                <div class="clinical-images-grid">
+                <div class="clinical-images-shell">
+                    <div class="clinical-images-grid">
                     ${clinicalImages.map((image, idx) => `
                         <article class="clinical-image-card">
                             <img src="${image.dataUrl}" alt="${image.description || 'Imagen clinica'}" class="clinical-image-preview">
@@ -2360,6 +2505,7 @@ function renderClinicalHistory(patientId) {
                         </article>
                     `).join('')}
                     ${clinicalImages.length === 0 ? '<div class="clinical-image-empty">Todavia no hay imagenes cargadas en la historia clinica.</div>' : ''}
+                    </div>
                 </div>
             </div>
 
@@ -2491,19 +2637,19 @@ window.deleteClinicalImage = function(patientId, index) {
 function openTreatmentModal(patientId) {
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
-            <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-content modal-content-treatment" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>Añadir Tratamiento a Ficha</h3>
                     <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
                 </div>
                 <form id="tx-history-form">
                     <div class="modal-body">
-                        <div class="flex gap-4">
+                        <div class="treatment-form-row treatment-form-row-3">
                             <div class="input-group flex-1"><label>Diente</label><input type="text" id="tx-diente" placeholder="Ej: 18"></div>
                             <div class="input-group flex-1"><label>Cara</label><input type="text" id="tx-cara" placeholder="M, D, V, P, O"></div>
                             <div class="input-group flex-1"><label>Sector</label><input type="text" id="tx-sector" placeholder="1-6"></div>
                         </div>
-                        <div class="flex gap-4">
+                        <div class="treatment-form-row treatment-form-row-2">
                             <div class="input-group flex-1"><label>Autorización</label><input type="text" id="tx-auth" placeholder="Nº Orden"></div>
                             <div class="input-group flex-1"><label>Código OS</label><input type="text" id="tx-codigo" placeholder="Ej: 01.01"></div>
                         </div>
@@ -2543,7 +2689,7 @@ function openTreatmentModal(patientId) {
 function openClinicalImageModal(patientId) {
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
-            <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-content modal-content-patient" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>Agregar Imagen Clinica</h3>
                     <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
@@ -2552,7 +2698,7 @@ function openClinicalImageModal(patientId) {
                     <div class="modal-body">
                         <div class="input-group">
                             <label>Fecha</label>
-                            <input type="date" id="clinical-image-date" value="${new Date().toISOString().split('T')[0]}" required>
+                            <input type="date" id="clinical-image-date" value="${getTodayIsoLocal()}" required>
                         </div>
                         <div class="input-group">
                             <label>Descripcion</label>

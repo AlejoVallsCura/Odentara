@@ -359,6 +359,11 @@ body {
     gap: 0.75rem;
 }
 
+.clinical-info-grid > .clinical-edit-grid,
+.clinical-info-grid > .clinical-edit-actions {
+    grid-column: 1 / -1;
+}
+
 .clinical-static-value {
     margin-top: 0.55rem;
     font-size: 1rem;
@@ -374,29 +379,38 @@ body {
 
 .clinical-edit-actions {
     display: flex;
-    justify-content: flex-end;
-    margin-top: 1rem;
+    justify-content: flex-start;
+    margin-top: 0.55rem;
+    margin-bottom: 0.55rem;
+    padding-top: 0.1rem;
+}
+
+.clinical-edit-actions .btn {
+    min-width: 220px;
 }
 
 .odontogram-wrapper {
     max-width: 100%;
     transform: scale(0.8);
     transform-origin: top center;
-    padding: 0.8rem;
+    padding: 1.15rem 1.1rem 1.35rem;
+    margin-bottom: 1.8rem;
     background: #fff;
     border-radius: 1rem;
     border: 1px solid #cbd5e1;
 }
 
 .odontogram-wrapper .flex {
-    gap: 0.24rem;
+    gap: 0.38rem;
 }
 
 .tooth-box {
     width: 50px;
-    height: 66px;
+    height: 74px;
     min-width: 50px;
     cursor: pointer;
+    justify-content: flex-start;
+    padding-top: 0.32rem;
 }
 
 .tooth-box svg {
@@ -412,9 +426,33 @@ body {
     pointer-events: all;
 }
 
+.tooth-box > span {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.14rem;
+    line-height: 1;
+    letter-spacing: 0.02em;
+}
+
 .odontogram-wrapper .tooth-box > div {
     min-height: 30px;
     min-width: 30px;
+}
+
+.badge-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+}
+
+#btn-add-treatment {
+    padding-inline: 0.95rem;
+    margin-left: auto;
+    margin-top: 0.35rem;
+    margin-bottom: 0.45rem;
 }
 
 @media screen and (max-width: 1024px) {
@@ -423,14 +461,32 @@ body {
     }
     .tooth-box {
         width: 32px;
-        height: 44px;
+        height: 52px;
         min-width: 32px;
+        padding-top: 0.24rem;
     }
 }
 
 .clinical-history-card {
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
     border: 1px solid #e2e8f0;
+}
+
+.odontogram-header,
+.treatments-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.odontogram-legend {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    flex-wrap: wrap;
 }
 
 .clinical-section-title {
@@ -446,9 +502,9 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    padding: 0.3rem 0.55rem;
+    padding: 0.42rem 0.72rem;
     border-radius: 999px;
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: 700;
 }
 
@@ -487,9 +543,35 @@ body {
     }
 }
 
-@media screen and (max-width: 640px) {
+@media screen and (max-width: 540px) {
     .settings-card {
         padding: 0.85rem;
+    }
+
+    .odontogram-header,
+    .treatments-header {
+        align-items: stretch;
+    }
+
+    .odontogram-legend {
+        justify-content: flex-start;
+        gap: 0.5rem;
+    }
+
+    #btn-add-treatment {
+        margin-left: 0;
+        align-self: flex-start;
+    }
+
+    .treatment-form-row-3,
+    .treatment-form-row-2 {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-content-patient #patient-form .modal-body > .flex.gap-4:nth-child(2),
+    .modal-content-patient #patient-form .modal-body > .flex.gap-4:nth-child(3),
+    .modal-content-patient #patient-form .modal-body > .flex.gap-4:nth-child(5) {
+        grid-template-columns: 1fr;
     }
 
     .table-header {
@@ -705,6 +787,16 @@ body {
     border-color: var(--primary-400);
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
 }
+#apt-patient-search {
+    margin-bottom: 0.65rem;
+    border-radius: 0.85rem;
+    border-color: var(--gray-200);
+    background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
+}
+#apt-patient-search:focus {
+    border-color: var(--primary-400);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+}
 #p-general-notes {
     border-radius: 0.85rem;
     background: rgba(255, 251, 235, 0.75);
@@ -779,6 +871,33 @@ body {
 }
 .modal-body {
     padding: 1.5rem;
+}
+.modal-content-treatment {
+    max-width: 720px;
+}
+.modal-content-patient {
+    max-width: 760px;
+}
+.modal-content-patient #patient-form .modal-body > .flex.gap-4 {
+    display: grid;
+    gap: 1rem;
+}
+.modal-content-patient #patient-form .modal-body > .flex.gap-4:nth-child(2),
+.modal-content-patient #patient-form .modal-body > .flex.gap-4:nth-child(3) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.modal-content-patient #patient-form .modal-body > .flex.gap-4:nth-child(5) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.treatment-form-row {
+    display: grid;
+    gap: 1rem;
+}
+.treatment-form-row-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.treatment-form-row-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .modal-footer {
     padding: 1.25rem 1.5rem;
@@ -1599,6 +1718,13 @@ tr:hover td {
     gap: 1rem;
 }
 
+.clinical-images-shell {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 1rem;
+    padding: 1rem;
+}
+
 .clinical-image-card {
     background: #fff;
     border: 1px solid var(--gray-200);
@@ -1640,12 +1766,17 @@ tr:hover td {
 }
 
 .clinical-image-empty {
+    grid-column: 1 / -1;
+    min-height: 112px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border: 1px dashed var(--gray-300);
     border-radius: 1rem;
     padding: 1.5rem;
     text-align: center;
     color: var(--gray-500);
-    background: #fff;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
 /* ===== CALENDAR DAY VIEW ===== */
