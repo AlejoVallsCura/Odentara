@@ -2,15 +2,18 @@
 const state = {
     user: null, 
     currentView: 'dashboard',
-    sidebarOpen: true
+    sidebarOpen: true,
+    settingsSubView: 'create-user',
+    dashboardDate: null
 };
 
 // --- Database Setup ---
 const defaultData = {
     users: [
-        { id: 1, email: 'admin@odentara.com', name: 'Superadmin', roles: ['superadmin'], allowedProfessionals: [] },
-        { id: 2, email: 'lopez@odentara.com', name: 'Dr. López', roles: ['professional'], allowedProfessionals: [1] },
-        { id: 3, email: 'pepe@gmail.com', name: 'Pepe Secretario', roles: ['admin', 'secretary'], allowedProfessionals: [1, 2] }
+        { id: 1, email: 'admin@odontara.com', name: 'Superadmin Odontara', roles: ['superadmin'], allowedProfessionals: [] },
+        { id: 2, email: 'lopez@odontara.com', name: 'Dr. López', roles: ['professional'], allowedProfessionals: [1] },
+        { id: 3, email: 'secretaria@odontara.com', name: 'Secretaría General', roles: ['secretary'], allowedProfessionals: [] },
+        { id: 4, email: 'administracion@odontara.com', name: 'Administrador General', roles: ['admin'], allowedProfessionals: [] }
     ],
     professionals: [
         { id: 1, name: 'Dr. López', schedule: { 
@@ -72,6 +75,35 @@ const DB = {
         if (!localStorage.getItem('odentara_db_v6')) {
             localStorage.setItem('odentara_db_v6', JSON.stringify(defaultData));
         }
+        this.ensureSeedData();
+    },
+    ensureSeedData() {
+        const db = JSON.parse(localStorage.getItem('odentara_db_v6'));
+        if (!db) return;
+
+        const mergeBy = (currentItems = [], seedItems = [], getKey) => {
+            const merged = [...currentItems];
+            const existingKeys = new Set(currentItems.map(item => getKey(item)));
+            let nextId = currentItems.length > 0
+                ? Math.max(...currentItems.map(item => item.id || 0)) + 1
+                : 1;
+
+            seedItems.forEach(seedItem => {
+                const key = getKey(seedItem);
+                if (!existingKeys.has(key)) {
+                    merged.push({ ...seedItem, id: nextId++ });
+                    existingKeys.add(key);
+                }
+            });
+
+            return merged;
+        };
+
+        db.users = mergeBy(db.users, defaultData.users, item => item.email);
+        db.professionals = mergeBy(db.professionals, defaultData.professionals, item => item.name);
+        db.patients = mergeBy(db.patients, defaultData.patients, item => item.dni);
+
+        localStorage.setItem('odentara_db_v6', JSON.stringify(db));
     },
     get(table) {
         return JSON.parse(localStorage.getItem('odentara_db_v6'))[table] || [];
@@ -151,13 +183,60 @@ const modalsContainer = document.getElementById('modals-container');
 const mainContent = document.getElementById('main-content');
 const pageTitle = document.getElementById('page-title');
 
+function setElementText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.innerText = value;
+}
+
+function setPageTitle(title) {
+    if (pageTitle) pageTitle.innerText = title;
+}
+
+function getPageTitle() {
+    return pageTitle ? pageTitle.innerText : '';
+}
+
+function normalizeIdentityEmail(email = '') {
+    return String(email)
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+function getTodayIsoLocal() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function timeToMinutes(timeStr = '') {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+    return (hours * 60) + minutes;
+}
+
+function getCurrentMinutes() {
+    const now = new Date();
+    return (now.getHours() * 60) + now.getMinutes();
+}
+
+function isPastDate(dateStr) {
+    return Boolean(dateStr) && dateStr < getTodayIsoLocal();
+}
+
+function isTodayDate(dateStr) {
+    return Boolean(dateStr) && dateStr === getTodayIsoLocal();
+}
+
 // --- Events ---
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('login-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const email = document.getElementById('email').value.trim();
-        const role = document.getElementById('login-role').value;
-        login(email, role);
+        login(email);
     });
 
     document.getElementById('logout-btn').addEventListener('click', logout);
@@ -169,25 +248,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.closest('#btn-add-apt')) openAppointmentModal();
         if (e.target.closest('.btn-edit-apt')) openAppointmentModal(parseInt(e.target.closest('.btn-edit-apt').dataset.id));
         if (e.target.closest('.btn-delete-apt')) {
-            if (confirm('¿Cancelar este turno?')) { DB.delete('appointments', e.target.closest('.btn-delete-apt').dataset.id); refreshCurrentView(); }
+            const aptId = parseInt(e.target.closest('.btn-delete-apt').dataset.id);
+            const apt = getAccessibleAppointments().find(item => item.id === aptId);
+            if (apt && confirm('¿Cancelar este turno?')) { DB.delete('appointments', aptId); refreshCurrentView(); }
         }
         
         if (e.target.closest('#btn-add-patient')) openPatientModal();
         if (e.target.closest('.btn-edit-patient')) openPatientModal(parseInt(e.target.closest('.btn-edit-patient').dataset.id));
         if (e.target.closest('.btn-delete-patient')) {
-            if (confirm('¿Eliminar paciente y su historial?')) { DB.delete('patients', e.target.closest('.btn-delete-patient').dataset.id); refreshCurrentView(); }
+            const patientId = parseInt(e.target.closest('.btn-delete-patient').dataset.id);
+            if (canAccessPatient(patientId) && confirm('¿Eliminar paciente y su historial?')) { DB.delete('patients', patientId); refreshCurrentView(); }
         }
         if (e.target.closest('.btn-view-history')) {
-            loadClinicalHistory(parseInt(e.target.closest('.btn-view-history').dataset.id));
+            const patientId = parseInt(e.target.closest('.btn-view-history').dataset.id);
+            if (canAccessPatient(patientId)) loadClinicalHistory(patientId);
         }
 
         if (e.target.closest('#btn-add-tx')) openBillingModal();
         if (e.target.closest('.btn-delete-tx')) {
-            if (confirm('¿Eliminar transacción?')) { DB.delete('billing', e.target.closest('.btn-delete-tx').dataset.id); refreshCurrentView(); }
+            const txId = parseInt(e.target.closest('.btn-delete-tx').dataset.id);
+            const tx = DB.get('billing').find(item => item.id === txId);
+            if (tx && canAccessProfessional(tx.professionalId) && confirm('¿Eliminar transacción?')) { DB.delete('billing', txId); refreshCurrentView(); }
         }
         
         if (e.target.closest('.btn-edit-schedule')) {
-            openScheduleModal(parseInt(e.target.closest('.btn-edit-schedule').dataset.id));
+            const profId = parseInt(e.target.closest('.btn-edit-schedule').dataset.id);
+            if (canAccessProfessional(profId)) openScheduleModal(profId);
         }
     });
 
@@ -230,6 +316,13 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshCurrentView();
         }
     });
+
+    document.addEventListener('change', (e3) => {
+        if (e3.target.id === 'dashboard-date-filter') {
+            state.dashboardDate = e3.target.value || getTodayIsoLocal();
+            if (state.currentView === 'dashboard') refreshCurrentView();
+        }
+    });
     document.addEventListener('change', (e2) => {
         if (e2.target.id === 'cal-all-profs') {
             const checked = e2.target.checked;
@@ -251,6 +344,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const text = row.innerText.toLowerCase();
                 row.style.display = text.includes(term) ? '' : 'none';
             });
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        const settingsButton = e.target.closest('[data-settings-view]');
+        if (settingsButton) {
+            state.settingsSubView = settingsButton.dataset.settingsView;
+            refreshCurrentView();
         }
     });
 
@@ -325,26 +426,23 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- Auth ---
-function login(email, selectedRole) {
-    console.log('Login attempt for:', email, 'as', selectedRole);
+function login(email) {
+    const normalizedEmail = normalizeIdentityEmail(email);
     const users = DB.get('users');
-    let user = users.find(u => u.email === email);
-    
+    const user = users.find(u => normalizeIdentityEmail(u.email) === normalizedEmail);
+
     if (!user) {
-        console.log('Creating new user with role', selectedRole);
-        user = { id: users.length + 1, email: email, name: email.split('@')[0], roles: [selectedRole], allowedProfessionals: [] };
-        DB.add('users', user);
-    } else if (!user.roles.includes(selectedRole)) {
-        // Para testing: si el mismo email escoge otro rol, lo agregamos como rol adicional.
-        user.roles.push(selectedRole);
-        DB.update('users', user.id, { roles: user.roles });
+        alert('Usuario no encontrado. Usa uno de los perfiles de prueba habilitados o crea el usuario desde Configuración.');
+        return;
     }
-    
+
     state.user = { ...user };
-    document.getElementById('user-name').innerText = user.name;
-    document.getElementById('user-role-display').innerText = user.roles.map(r => roleConfig[r]?.name || r).join(' + ');
-    document.getElementById('user-initials').innerText = user.name.substring(0, 2).toUpperCase();
-    
+    state.dashboardDate = getTodayIsoLocal();
+    const roleLabel = user.roles.map(r => roleConfig[r]?.name || r).join(' + ');
+    const initials = user.name.substring(0, 2).toUpperCase();
+    setElementText('user-name', user.name);
+    setElementText('user-role-display', roleLabel);
+    setElementText('user-initials', initials);
     renderSidebar();
     
     // Simple transition
@@ -357,6 +455,7 @@ function login(email, selectedRole) {
 
 function logout() {
     state.user = null;
+    state.dashboardDate = null;
     views.app.classList.remove('active');
     setTimeout(() => {
         views.app.classList.add('hidden');
@@ -397,12 +496,22 @@ function renderSidebar() {
 }
 
 function refreshCurrentView() {
-    loadView(state.currentView, pageTitle.innerText);
+    loadView(state.currentView, getPageTitle());
+}
+
+function formatDashboardDateLabel(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(`${dateStr}T00:00:00`);
+    return date.toLocaleDateString('es-AR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+    });
 }
 
 function loadView(viewId, title = 'Dashboard') {
     state.currentView = viewId;
-    pageTitle.innerText = title;
+    setPageTitle(title);
     mainContent.innerHTML = '';
     
     const content = document.createElement('div');
@@ -413,7 +522,7 @@ function loadView(viewId, title = 'Dashboard') {
     else if (viewId === 'professionals') content.innerHTML = renderProfessionals();
     else if (viewId === 'patients') content.innerHTML = renderPatients();
     else if (viewId === 'billing') content.innerHTML = renderBilling();
-    else if (viewId === 'settings') content.innerHTML = renderSettings();
+    else if (viewId === 'settings') content.innerHTML = renderSettingsSubpages();
     else if (viewId === 'patient-history') content.innerHTML = ''; // Se inyecta después por loadClinicalHistory
     else content.innerHTML = renderPlaceholder(viewId);
     
@@ -430,7 +539,89 @@ function getProfName(id) {
     return p ? p.name : 'Desconocido';
 }
 
+function getPatientByAppointment(apt) {
+    return DB.get('patients').find(p => p.name === apt.patient) || null;
+}
+
+function isSuperadmin() {
+    return !!state.user && state.user.roles.includes('superadmin');
+}
+
+function isProfessionalUser() {
+    return !!state.user && state.user.roles.includes('professional');
+}
+
+function getAccessibleProfessionalIds() {
+    const allProfs = DB.get('professionals');
+    if (!state.user) return [];
+    if (isSuperadmin()) return allProfs.map(p => p.id);
+
+    const explicitAllowed = Array.isArray(state.user.allowedProfessionals) ? state.user.allowedProfessionals : [];
+
+    if (isProfessionalUser()) {
+        if (explicitAllowed.length > 0) return explicitAllowed;
+        return allProfs
+            .filter(p => p.name === state.user.name || (p.email && p.email === state.user.email))
+            .map(p => p.id);
+    }
+
+    if (explicitAllowed.length > 0) return explicitAllowed;
+
+    return allProfs.map(p => p.id);
+}
+
+function canAccessProfessional(profId) {
+    return getAccessibleProfessionalIds().includes(parseInt(profId));
+}
+
+function getAccessibleProfessionals() {
+    const allowedIds = new Set(getAccessibleProfessionalIds());
+    return DB.get('professionals').filter(p => allowedIds.has(p.id));
+}
+
+function getAccessibleAppointments() {
+    const allowedIds = new Set(getAccessibleProfessionalIds());
+    return DB.get('appointments').filter(apt => allowedIds.has(apt.professionalId));
+}
+
+function getAccessiblePatientIds() {
+    if (isSuperadmin()) {
+        return DB.get('patients').map(p => p.id);
+    }
+
+    const ids = new Set();
+    getAccessibleAppointments().forEach(apt => {
+        const patient = getPatientByAppointment(apt);
+        if (patient) ids.add(patient.id);
+    });
+
+    DB.get('billing')
+        .filter(tx => canAccessProfessional(tx.professionalId))
+        .forEach(tx => ids.add(tx.patientId));
+
+    return Array.from(ids);
+}
+
+function canAccessPatient(patientId) {
+    return getAccessiblePatientIds().includes(parseInt(patientId));
+}
+
+function getAccessiblePatients() {
+    const allowedIds = new Set(getAccessiblePatientIds());
+    return DB.get('patients').filter(p => allowedIds.has(p.id));
+}
+
+function getWhatsAppLink(patient, apt) {
+    if (!patient || !patient.phone) return '';
+    const phone = String(patient.phone).replace(/\D/g, '');
+    if (!phone) return '';
+    const dateLabel = new Date(`${apt.date}T00:00:00`).toLocaleDateString('es-AR');
+    const message = `Hola ${patient.name}, te escribimos de Odentara para confirmar tu turno del ${dateLabel} a las ${apt.time} con ${getProfName(apt.professionalId)}. Por favor responde CONFIRMADO o si necesitas reprogramarlo.`;
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
 function viewProfessionalCalendar(profId) {
+    if (!canAccessProfessional(profId)) return;
     const profs = DB.get('professionals');
     profs.forEach(p => {
         calendarState.visibleProfs[p.id] = p.id === profId;
@@ -444,10 +635,10 @@ function closeModal() {
 }
 
 function openAppointmentViewModal(aptId) {
-    const apt = DB.get('appointments').find(a => a.id === aptId);
+    const apt = getAccessibleAppointments().find(a => a.id === aptId);
     if (!apt) return;
 
-    const patient = DB.get('patients').find(p => p.name === apt.patient);
+    const patient = getPatientByAppointment(apt);
     const prof = DB.get('professionals').find(p => p.id === apt.professionalId);
 
     modalsContainer.innerHTML = `
@@ -455,7 +646,6 @@ function openAppointmentViewModal(aptId) {
             <div class="modal-content" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>Detalles del Turno</h3>
-                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
                 </div>
                 <div class="modal-body">
                     <div class="grid grid-cols-2 gap-4 mb-4">
@@ -470,7 +660,8 @@ function openAppointmentViewModal(aptId) {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-ghost" data-modal-close>Cerrar</button>
+                    <button type="button" class="btn btn-ghost" onclick="closeModal()">Cerrar</button>
+                    ${patient ? `<button type="button" class="btn btn-secondary" onclick="closeModal(); loadClinicalHistory(${patient.id})">Historia Clinica</button>` : ''}
                     <button type="button" class="btn btn-secondary" onclick="openAppointmentModal(${aptId})">Editar</button>
                     <button type="button" class="btn btn-primary">Iniciar Cita</button>
                 </div>
@@ -480,11 +671,10 @@ function openAppointmentViewModal(aptId) {
 }
 
 function openAppointmentModal(editId = null) {
-    const apt = editId ? DB.get('appointments').find(a => a.id === editId) : null;
-    const patients = DB.get('patients');
-    const allProfs = DB.get('professionals');
-    const allowed = state.user.allowedProfessionals || [];
-    const professionals = allowed.length > 0 ? allProfs.filter(p => allowed.includes(p.id)) : allProfs;
+    const apt = editId ? getAccessibleAppointments().find(a => a.id === editId) : null;
+    if (editId && !apt) return;
+    const patients = getAccessiblePatients();
+    const professionals = getAccessibleProfessionals();
     
     if (patients.length === 0) {
         alert("Atención: Necesitas crear al menos un paciente en el directorio antes de agendar un turno.");
@@ -496,7 +686,6 @@ function openAppointmentModal(editId = null) {
             <div class="modal-content" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>${editId ? 'Editar Turno' : 'Nuevo Turno'}</h3>
-                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
                 </div>
                 <form id="apt-form">
                     <div class="modal-body">
@@ -513,7 +702,7 @@ function openAppointmentModal(editId = null) {
                             </select>
                         </div>
                         <div class="flex gap-4">
-                            <div class="input-group flex-1"><label>Fecha</label><input type="date" id="apt-date" value="${apt ? apt.date : new Date().toISOString().split('T')[0]}" required></div>
+                            <div class="input-group flex-1"><label>Fecha</label><input type="date" id="apt-date" min="${getTodayIsoLocal()}" value="${apt ? apt.date : getTodayIsoLocal()}" required></div>
                             <div class="input-group flex-1">
                                 <label>Hora (Intervalos de 15m)</label>
                                 <select id="apt-time" required></select>
@@ -536,7 +725,7 @@ function openAppointmentModal(editId = null) {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-ghost" data-modal-close>Cancelar</button>
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
                         <button type="submit" class="btn btn-primary">Guardar</button>
                     </div>
                 </form>
@@ -622,6 +811,13 @@ function openAppointmentModal(editId = null) {
         const profId = parseInt(profSelect.value);
         const dateStr = document.getElementById('apt-date').value;
         const isOverbook = sCheck.checked;
+
+        if (isPastDate(dateStr)) {
+            timeSelect.innerHTML = '<option value="">No se pueden asignar turnos en fechas pasadas</option>';
+            timeSelect.disabled = true;
+            durSelect.innerHTML = '<option value="">-</option>';
+            return;
+        }
         
         const prof = DB.get('professionals').find(p => p.id === profId);
         if(!prof || !dateStr) {
@@ -657,11 +853,17 @@ function openAppointmentModal(editId = null) {
         
         const normalIntervals = intervals.filter(i => !i.isOverbook);
         const overbookIntervals = intervals.filter(i => i.isOverbook);
+        const currentMinutes = getCurrentMinutes();
+        const isToday = isTodayDate(dateStr);
         
         let foundSelected = false;
         const minDuration = isOverbook ? 15 : 30; // Assuming minimum valid normal duration is 30 mins
         
         for (let t = startMinBase; t + minDuration <= endMin; t += 15) {
+            if (isToday && !isOverbook && t < currentMinutes) {
+                continue;
+            }
+
             let overlap = false;
             const pStart = t;
             const pEndMin = t + minDuration;
@@ -708,13 +910,28 @@ function openAppointmentModal(editId = null) {
     
     document.getElementById('apt-form').addEventListener('submit', (e) => {
         e.preventDefault();
+        const selectedDate = document.getElementById('apt-date').value;
+        const selectedTime = timeSelect.value;
+        const isOverbook = sCheck.checked;
+        const selectedMinutes = timeToMinutes(selectedTime);
+
+        if (isPastDate(selectedDate)) {
+            alert('No se pueden sacar turnos para días anteriores.');
+            return;
+        }
+
+        if (isTodayDate(selectedDate) && !isOverbook && selectedMinutes !== null && selectedMinutes < getCurrentMinutes()) {
+            alert('Ese horario ya pasó. Para horarios pasados del día de hoy solo se permiten sobreturnos.');
+            return;
+        }
+
         const data = {
             patient: document.getElementById('apt-patient').value,
             professionalId: parseInt(profSelect.value),
-            date: document.getElementById('apt-date').value,
-            time: timeSelect.value,
-            duration: sCheck.checked ? 15 : parseInt(durSelect.value),
-            isOverbook: sCheck.checked,
+            date: selectedDate,
+            time: selectedTime,
+            duration: isOverbook ? 15 : parseInt(durSelect.value),
+            isOverbook,
             status: 'confirmed'
         };
         if (editId) DB.update('appointments', editId, data);
@@ -724,6 +941,7 @@ function openAppointmentModal(editId = null) {
 }
 
 function openScheduleModal(profId) {
+    if (!canAccessProfessional(profId)) return;
     const prof = DB.get('professionals').find(x => x.id === profId);
     
     const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -753,7 +971,6 @@ function openScheduleModal(profId) {
             <div class="modal-content w-auto max-w-2xl" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>Horarios Diarios de ${prof.name}</h3>
-                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
                 </div>
                 <form id="schedule-form">
                     <div class="modal-body max-h-[60vh] overflow-y-auto">
@@ -761,7 +978,7 @@ function openScheduleModal(profId) {
                         ${daysHtml}
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-ghost" data-modal-close>Cancelar</button>
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
                         <button type="submit" class="btn btn-primary">Actualizar Agenda</button>
                     </div>
                 </form>
@@ -784,13 +1001,13 @@ function openScheduleModal(profId) {
 }
 
 function openPatientModal(editId = null) {
-    const p = editId ? DB.get('patients').find(x => x.id === editId) : null;
+    const p = editId ? getAccessiblePatients().find(x => x.id === editId) : null;
+    if (editId && !p) return;
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
             <div class="modal-content" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>${editId ? 'Editar Paciente' : 'Nuevo Paciente'}</h3>
-                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
                 </div>
                 <form id="patient-form">
                     <div class="modal-body">
@@ -811,7 +1028,10 @@ function openPatientModal(editId = null) {
                         </div>
                         <div class="input-group"><label>Observaciones Médicas / Alergias</label><input type="text" id="p-notes" value="${p?p.notes||'':''}"></div>
                     </div>
-                    <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar Paciente</button></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar Paciente</button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -831,7 +1051,8 @@ function openPatientModal(editId = null) {
             notes: document.getElementById('p-notes').value,
             lastVisit: p ? p.lastVisit : new Date().toISOString().split('T')[0],
             odontograma: p ? p.odontograma : {},
-            treatments: p ? p.treatments : []
+            treatments: p ? p.treatments : [],
+            clinicalImages: p ? (p.clinicalImages || []) : []
         };
         if (editId) DB.update('patients', editId, data); else DB.add('patients', data);
         closeModal(); refreshCurrentView();
@@ -839,10 +1060,8 @@ function openPatientModal(editId = null) {
 }
 
 function openBillingModal() {
-    const patients = DB.get('patients');
-    const allProfs = DB.get('professionals');
-    const allowed = state.user.allowedProfessionals || [];
-    const professionals = allowed.length > 0 ? allProfs.filter(p => allowed.includes(p.id)) : allProfs;
+    const patients = getAccessiblePatients();
+    const professionals = getAccessibleProfessionals();
 
     if (patients.length === 0) { alert("Debes crear pacientes primero en el directorio."); return; }
 
@@ -872,7 +1091,7 @@ function openBillingModal() {
                         <div class="input-group"><label>Concepto / Descripción</label><input type="text" id="tx-desc" required placeholder="Ej: Tratamiento conducto, Pago parcial..."></div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-ghost" data-modal-close>Cancelar</button>
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
                         <button type="submit" class="btn btn-primary">Registrar en Cuenta Corriente</button>
                     </div>
                 </form>
@@ -895,8 +1114,17 @@ function openBillingModal() {
 
 // --- Views Rendering ---
 function renderDashboard() {
-    const apts = DB.get('appointments');
-    const patients = DB.get('patients');
+    const apts = getAccessibleAppointments();
+    const patients = getAccessiblePatients();
+    const today = getTodayIsoLocal();
+    const todaysApts = apts
+        .filter(apt => apt.date === today)
+        .sort((a, b) => a.time.localeCompare(b.time));
+    const selectedDate = state.dashboardDate || today;
+    const selectedDateApts = apts
+        .filter(apt => apt.date === selectedDate)
+        .sort((a, b) => a.time.localeCompare(b.time));
+    return renderDashboardContent(apts, patients, todaysApts, selectedDate, selectedDateApts);
     return `
         <div class="metrics-grid">
             <div class="card metric-card">
@@ -958,6 +1186,26 @@ function getProfColor(profId) {
     return PROF_COLORS[idx % PROF_COLORS.length] || { bg: '#6b7280', text: '#fff' };
 }
 
+function getAppointmentVisual(apt) {
+    const profColor = getProfColor(apt.professionalId);
+
+    if (apt.isOverbook) {
+        return {
+            bg: '#fff7ed',
+            text: '#9a3412',
+            border: '#f97316',
+            accent: '#fb923c'
+        };
+    }
+
+    return {
+        bg: profColor.bg,
+        text: profColor.text,
+        border: profColor.bg,
+        accent: profColor.bg
+    };
+}
+
 function getWeekDays(offset = 0) {
     const today = new Date();
     const dayOfWeek = today.getDay();
@@ -980,15 +1228,13 @@ const CAL_PX_PER_MIN = 2;   // Each minute = 2px → 1 hour = 120px
 const CAL_TOTAL_HEIGHT = CAL_TOTAL_MINS * CAL_PX_PER_MIN;    // 1440px
 
 function renderAppointments() {
-    const allProfs = DB.get('professionals');
-    const allowed = state.user.allowedProfessionals || [];
-    const professionals = allowed.length > 0 ? allProfs.filter(p => allowed.includes(p.id)) : allProfs;
+    const professionals = getAccessibleProfessionals();
 
     professionals.forEach(p => {
         if (calendarState.visibleProfs[p.id] === undefined) calendarState.visibleProfs[p.id] = true;
     });
 
-    const allApts = DB.get('appointments');
+    const allApts = getAccessibleAppointments();
     const currentDate = calendarState.currentDate;
     const canEdit = state.user.roles.some(r => ['secretary', 'superadmin', 'admin'].includes(r));
 
@@ -1015,32 +1261,43 @@ function renderAppointments() {
         let profCols = '';
         professionals.filter(p => calendarState.visibleProfs[p.id]).forEach(p => {
             const color = getProfColor(p.id);
-            const dayApts = allApts.filter(a => a.date === currentDate && a.professionalId === p.id);
+            const dayApts = allApts
+                .filter(a => a.date === currentDate && a.professionalId === p.id)
+                .sort((a, b) => {
+                    const timeDiff = a.time.localeCompare(b.time);
+                    if (timeDiff !== 0) return timeDiff;
+                    if (a.isOverbook === b.isOverbook) return 0;
+                    return a.isOverbook ? -1 : 1;
+                });
 
             // Build appointment blocks
             const aptBlocks = dayApts.map(apt => {
+                const patient = getPatientByAppointment(apt);
                 const [ah, am] = apt.time.split(':').map(Number);
                 const startMin = ah * 60 + am;
                 const offsetMin = startMin - CAL_START_HOUR * 60;
                 const duration = apt.isOverbook ? 15 : apt.duration;
-
                 const topPx = offsetMin * CAL_PX_PER_MIN;
                 const heightPx = Math.max(duration * CAL_PX_PER_MIN, 28);
+                const visual = getAppointmentVisual(apt);
+                const blockClasses = `cal-apt-block ${apt.isOverbook ? 'cal-apt-overbook' : ''}`;
+                const blockStyle = apt.isOverbook
+                    ? `background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border}; top:${topPx}px; height:${heightPx}px; cursor:pointer;`
+                    : `background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border}; top:${topPx}px; height:${heightPx}px; cursor:pointer;`;
 
-                let statusColor = '#10b981'; // green confirmed
-                if (apt.status === 'cancelled') statusColor = '#ef4444'; // red
-                else if (apt.status === 'pending') statusColor = '#f59e0b'; // yellow
-                else if (apt.status === 'completed') statusColor = '#6b7280'; // gray
-
-                return `<div class="cal-apt-block" 
-                    style="background:${statusColor}; color:#fff; top:${topPx}px; height:${heightPx}px; cursor:pointer;"
+                return `<div class="${blockClasses}" 
+                    style="${blockStyle}"
                     onclick="openAppointmentViewModal(${apt.id})">
                     <span class="cal-apt-name">${apt.patient}</span>
                     <span class="cal-apt-meta">${apt.time} - ${duration}min</span>
+                    ${apt.isOverbook ? '<span class="cal-apt-tag">Sobreturno</span>' : ''}
                     ${canEdit ? `<div class="cal-apt-actions">
+                        ${patient ? `<button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia clinica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>` : ''}
                         <button class="cal-apt-btn btn-edit-apt" data-id="${apt.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
                         <button class="cal-apt-btn btn-delete-apt" data-id="${apt.id}" title="Cancelar"><i class="fa-solid fa-times"></i></button>
-                    </div>` : ''}
+                    </div>` : `${patient ? `<div class="cal-apt-actions cal-apt-actions-readonly">
+                        <button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia clinica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>
+                    </div>` : ''}`}
                 </div>`;
             }).join('');
 
@@ -1294,7 +1551,7 @@ function renderAppointments() {
 }
 
 function renderProfessionals() {
-    const profs = DB.get('professionals');
+    const profs = getAccessibleProfessionals();
     return `
         <div class="card mb-6 flex justify-between items-center">
             <h3 class="font-semibold px-2">Configuración de Horarios de Atención</h3>
@@ -1324,7 +1581,7 @@ function renderProfessionals() {
 }
 
 function renderPatients() {
-    const patients = DB.get('patients').sort((a,b)=>a.name.localeCompare(b.name));
+    const patients = getAccessiblePatients().sort((a,b)=>a.name.localeCompare(b.name));
     return `
         <div class="card mb-6 flex justify-between items-center">
             <h3 class="font-semibold px-2">Directorio Médico</h3>
@@ -1366,10 +1623,8 @@ function renderPatients() {
 }
 
 function renderBilling() {
-    const allowed = state.user.allowedProfessionals || [];
-    const allTxs = DB.get('billing');
-    const txs = allowed.length > 0 ? allTxs.filter(t => allowed.includes(t.professionalId)) : allTxs;
-    const patients = DB.get('patients');
+    const txs = DB.get('billing').filter(t => canAccessProfessional(t.professionalId));
+    const patients = getAccessiblePatients();
     
     const ingresos = txs.filter(t=>t.type==='income').reduce((sum,t)=>sum+t.amount,0);
     const deudas = txs.filter(t=>t.type==='debt').reduce((sum,t)=>sum+t.amount,0);
@@ -1449,6 +1704,261 @@ function renderBilling() {
                 </tbody>
             </table>
         </div>
+    `;
+}
+
+function renderDashboardContent(apts, patients, todaysApts, selectedDate, selectedDateApts) {
+    const now = new Date();
+    const todaysOpenApts = todaysApts.filter(apt => {
+        if (apt.status === 'cancelled' || apt.status === 'completed') return false;
+        const [hours, minutes] = apt.time.split(':').map(Number);
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
+        const duration = apt.isOverbook ? 15 : (apt.duration || 0);
+        const end = new Date(start.getTime() + duration * 60000);
+        return end > now;
+    });
+    const patientsTodayCount = new Set(todaysOpenApts.map(apt => apt.patient)).size;
+    const activeTurnsCount = todaysOpenApts.length;
+    const activeOverbooksCount = todaysOpenApts.filter(apt => apt.isOverbook).length;
+    const selectedLabel = formatDashboardDateLabel(selectedDate);
+    const selectedTitle = selectedDate === getTodayIsoLocal() ? 'Turnos de Hoy' : 'Turnos Programados';
+
+    return `
+        <div class="metrics-grid">
+            <div class="card metric-card">
+                <div class="metric-icon metric-blue"><i class="fa-solid fa-users"></i></div>
+                <div class="metric-info"><h3>Pacientes de Hoy</h3><p>${patientsTodayCount}</p></div>
+            </div>
+            <div class="card metric-card">
+                <div class="metric-icon metric-green"><i class="fa-solid fa-calendar-check"></i></div>
+                <div class="metric-info"><h3>Turnos Activos</h3><p>${activeTurnsCount}</p></div>
+            </div>
+            <div class="card metric-card">
+                <div class="metric-icon metric-purple"><i class="fa-solid fa-bolt" style="color:var(--purple)"></i></div>
+                <div class="metric-info"><h3>Sobreturnos</h3><p>${activeOverbooksCount}</p></div>
+            </div>
+        </div>
+
+        <div class="table-container shadow-sm mt-6 border border-gray-200">
+            <div class="table-header">
+                <div>
+                    <h3>${selectedTitle}</h3>
+                    <p class="dashboard-date-label">${selectedLabel}</p>
+                </div>
+                <div class="dashboard-date-filter-wrap">
+                    <label for="dashboard-date-filter" class="dashboard-date-filter-label">Fecha</label>
+                    <input type="date" id="dashboard-date-filter" class="dashboard-date-filter" value="${selectedDate}">
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead><tr><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Confirmacion</th><th>Whatsapp</th></tr></thead>
+                    <tbody>
+                        ${selectedDateApts.map(apt => {
+                            const patient = getPatientByAppointment(apt);
+                            const whatsappLink = getWhatsAppLink(patient, apt);
+                            const isConfirmed = apt.status === 'confirmed';
+                            return `
+                                <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}">
+                                    <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
+                                    <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
+                                    <td>${getProfName(apt.professionalId)}</td>
+                                    <td><span class="badge ${isConfirmed ? 'badge-success' : 'badge-warning'}">${isConfirmed ? 'Confirmado' : 'Sin confirmar'}</span></td>
+                                    <td>${whatsappLink ? `<a class="btn btn-secondary btn-sm dashboard-wa-btn" href="${whatsappLink}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i> Enviar</a>` : '<span class="text-xs text-gray-400">Sin telefono</span>'}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                        ${selectedDateApts.length === 0 ? '<tr><td colspan="5" class="text-center py-6 text-gray-500">No hay turnos para la fecha seleccionada.</td></tr>' : ''}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function renderSettingsSubpages() {
+    const users = DB.get('users');
+    const profs = DB.get('professionals');
+    const isSuper = state.user.roles.includes('superadmin');
+
+    if (!isSuper) {
+        return `
+            <div class="settings-card">
+                <h3>Acceso denegado</h3>
+                <p>Solo los usuarios con rol superadmin pueden gestionar la configuraciÃ³n.</p>
+            </div>
+        `;
+    }
+
+    const userRows = users.map(u => {
+        const roles = (u.roles || (u.role ? [u.role] : [])).map(r => `
+            <span class="badge ${r === 'superadmin' ? 'badge-primary' : (r === 'admin' ? 'badge-info' : (r === 'secretary' ? 'badge-warning' : 'badge-gray'))}">${r}</span>
+        `).join(' ');
+
+        const profNames = u.allowedProfessionals && u.allowedProfessionals.length > 0
+            ? u.allowedProfessionals.map(id => `<span class="badge badge-gray">${getProfName(id)}</span>`).join(' ')
+            : `<span class="badge badge-gray">No asignado</span>`;
+
+        return `
+            <tr class="hover-row">
+                <td class="table-name"><strong>${u.name || 'Sin nombre'}</strong><br><span class="subtle">${u.email || '-'}</span></td>
+                <td>${u.type || '-'}</td>
+                <td>${roles}</td>
+                <td>${profNames}</td>
+                <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="if(confirm('Â¿Eliminar usuario?')){ DB.delete('users', ${u.id}); refreshCurrentView(); }"><i class="fa-solid fa-trash text-danger"></i></button></td>
+            </tr>`;
+    }).join('');
+
+    const profesionalRows = profs.map(p => {
+        const statusLabel = p.status === 'activo'
+            ? `<span class="badge badge-success">Activo</span>`
+            : `<span class="badge badge-gray">Inactivo</span>`;
+        return `
+            <tr class="hover-row">
+                <td class="table-name">${p.name}</td>
+                <td>${p.lastName || '-'}</td>
+                <td>${p.specialty || '-'}</td>
+                <td>${p.phone || '-'}</td>
+                <td>${p.email || '-'}</td>
+                <td>${statusLabel}</td>
+                <td class="text-center"><button class="btn btn-secondary btn-sm" onclick="viewProfessionalCalendar(${p.id})">Ver Calendario</button></td>
+            </tr>`;
+    }).join('');
+
+    const settingsSections = [
+        { id: 'create-user', label: 'Crear usuario', icon: 'fa-user-plus', description: 'Alta de nuevos usuarios y permisos.' },
+        { id: 'create-professional', label: 'Crear profesional', icon: 'fa-user-doctor', description: 'Registro de profesionales y datos base.' },
+        { id: 'users-list', label: 'Usuarios existentes', icon: 'fa-users-gear', description: 'Listado de usuarios y accesos asignados.' },
+        { id: 'professionals-list', label: 'Profesionales existentes', icon: 'fa-address-card', description: 'Vista de profesionales y acceso al calendario.' }
+    ];
+
+    const activeSection = settingsSections.some(section => section.id === state.settingsSubView)
+        ? state.settingsSubView
+        : 'create-user';
+    state.settingsSubView = activeSection;
+
+    const settingsContent = {
+        'create-user': `
+            <section class="settings-card settings-panel-card">
+                <header>
+                    <div>
+                        <h3>Crear Nuevo Usuario</h3>
+                        <p class="subtext">Campos obligatorios: Nombre completo, Email, Tipo de usuario.</p>
+                    </div>
+                </header>
+                <form id="new-user-form" class="settings-form-row columns-1">
+                    <div class="input-group"><label>Nombre completo *</label><input type="text" id="u-name" required></div>
+                    <div class="input-group"><label>Email *</label><input type="email" id="u-email" required></div>
+                    <div class="input-group"><label>Tipo de usuario *</label><select id="u-type" required><option value="">Seleccionar...</option><option value="administrador">Administrador</option><option value="secretario">Secretario</option><option value="profesional">Profesional</option></select></div>
+
+                    <div class="settings-subsection">
+                        <h4>Roles de Permisos</h4>
+                        <p class="subtext">Selecciona uno o varios roles.</p>
+                        <div class="settings-list settings-list-static">
+                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="administrador"><label>Administrador</label></div>
+                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="secretario"><label>Secretario</label></div>
+                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="profesional"><label>Profesional</label></div>
+                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin"><label>Superadmin</label></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-subsection">
+                        <h4>Asignar Profesionales (opcional)</h4>
+                        <p class="subtext">Se puede dejar vacÃ­o; acceso completo si no se selecciona ninguno.</p>
+                        <div class="settings-list">
+                            ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}"><label>${p.name}</label></div>`).join('')}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Guardar Usuario</button>
+                </form>
+            </section>
+        `,
+        'create-professional': `
+            <section class="settings-card settings-panel-card">
+                <header>
+                    <div>
+                        <h3>Crear Profesional</h3>
+                        <p class="subtext">Campos obligatorios: Nombre, Apellido, Especialidad.</p>
+                    </div>
+                </header>
+                <form id="new-prof-form" class="settings-form-row columns-1">
+                    <div class="input-group"><label>Nombre *</label><input type="text" id="p-name" required></div>
+                    <div class="input-group"><label>Apellido *</label><input type="text" id="p-lastname" required></div>
+                    <div class="input-group"><label>Especialidad *</label><input type="text" id="p-specialty" required></div>
+                    <div class="input-group"><label>TelÃ©fono</label><input type="text" id="p-phone"></div>
+                    <div class="input-group"><label>Email</label><input type="email" id="p-email"></div>
+                    <div class="input-group"><label>Estado</label><select id="p-status"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+                    <button type="submit" class="btn btn-primary">Guardar Profesional</button>
+                </form>
+            </section>
+        `,
+        'users-list': `
+            <section class="settings-card settings-panel-card">
+                <header><h3>Usuarios Existentes</h3></header>
+                <div class="table-container overflow-x-auto">
+                    <table class="table-modern table-compact">
+                        <thead>
+                            <tr>
+                                <th>Nombre / Email</th>
+                                <th>Tipo</th>
+                                <th>Roles</th>
+                                <th>Profesionales</th>
+                                <th>AcciÃ³n</th>
+                            </tr>
+                        </thead>
+                        <tbody>${userRows || `<tr><td colspan="5" class="text-gray-500">No hay usuarios registrados</td></tr>`}</tbody>
+                    </table>
+                </div>
+            </section>
+        `,
+        'professionals-list': `
+            <section class="settings-card settings-panel-card">
+                <header><h3>Profesionales Existentes</h3></header>
+                <div class="table-container overflow-x-auto">
+                    <table class="table-modern table-compact">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Apellido</th>
+                                <th>Especialidad</th>
+                                <th>TelÃ©fono</th>
+                                <th>Email</th>
+                                <th>Estado</th>
+                                <th>AcciÃ³n</th>
+                            </tr>
+                        </thead>
+                        <tbody>${profesionalRows || `<tr><td colspan="7" class="text-gray-500">No hay profesionales registrados</td></tr>`}</tbody>
+                    </table>
+                </div>
+            </section>
+        `
+    };
+
+    return `
+    <div class="settings-area">
+        <section class="settings-card settings-nav-card">
+            <div class="settings-nav-header">
+                <div>
+                    <h3>Subpaginas de Configuracion</h3>
+                    <p class="subtext">Elegi una seccion para trabajar dentro de Configuracion.</p>
+                </div>
+            </div>
+
+            <div class="settings-subnav">
+                ${settingsSections.map(section => `
+                    <button type="button" class="settings-subnav-item ${section.id === activeSection ? 'active' : ''}" data-settings-view="${section.id}">
+                        <i class="fa-solid ${section.icon}"></i>
+                        <span>${section.label}</span>
+                        <small>${section.description}</small>
+                    </button>
+                `).join('')}
+            </div>
+        </section>
+
+        <div class="settings-subpage-content">
+            ${settingsContent[activeSection]}
+        </div>
+    </div>
     `;
 }
 
@@ -1600,6 +2110,7 @@ function renderSettings() {
 // --- Ficha Clínica y Odontograma ---
 
 function loadClinicalHistory(patientId) {
+    if (!canAccessPatient(patientId)) return;
     state.currentView = 'patient-history';
     state.currentPatientId = patientId;
     pageTitle.innerText = 'Ficha Odontológica';
@@ -1609,8 +2120,71 @@ function loadClinicalHistory(patientId) {
     content.className = 'animate-fade-in';
     content.innerHTML = renderClinicalHistory(patientId);
     mainContent.appendChild(content);
-    
+    enhanceClinicalPatientEditor(patientId);
+
     attachClinicalHistoryEvents(patientId);
+}
+
+function enhanceClinicalPatientEditor(patientId) {
+    const patient = DB.get('patients').find(p => p.id === patientId);
+    if (!patient) return;
+
+    let age = '-';
+    if (patient.fechaNacimiento) {
+        const diff = Date.now() - new Date(patient.fechaNacimiento).getTime();
+        age = Math.abs(new Date(diff).getUTCFullYear() - 1970);
+    }
+
+    const container = document.querySelector('.clinical-info-grid');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="clinical-edit-grid">
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">Nombre</strong>
+                <input class="form-input clinical-readonly" type="text" value="${patient.name || ''}" disabled>
+            </div>
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">DNI</strong>
+                <input class="form-input clinical-readonly" type="text" value="${patient.dni || ''}" disabled>
+            </div>
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">Nacimiento</strong>
+                <input class="form-input" type="date" id="clinical-fecha-nacimiento" value="${patient.fechaNacimiento || ''}">
+            </div>
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">Edad</strong>
+                <div class="clinical-static-value">${age} años</div>
+            </div>
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">Telefono</strong>
+                <input class="form-input" type="text" id="clinical-phone" value="${patient.phone || ''}">
+            </div>
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">Email</strong>
+                <input class="form-input" type="email" id="clinical-email" value="${patient.email || ''}">
+            </div>
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">Obra Social / Plan</strong>
+                <input class="form-input" type="text" id="clinical-obra-social" value="${patient.obraSocial || ''}">
+            </div>
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">Credencial</strong>
+                <input class="form-input" type="text" id="clinical-credencial" value="${patient.credencial || ''}">
+            </div>
+            <div class="clinical-info-item">
+                <strong class="text-gray-600 uppercase text-xs">Ficha N°</strong>
+                <input class="form-input" type="text" id="clinical-ficha-numero" value="${patient.fichaNumero || ''}">
+            </div>
+            <div class="clinical-info-item col-span-full">
+                <strong class="text-gray-600 uppercase text-xs">Domicilio</strong>
+                <input class="form-input" type="text" id="clinical-domicilio" value="${patient.domicilio || ''}">
+            </div>
+        </div>
+        <div class="clinical-edit-actions">
+            <button class="btn btn-secondary btn-sm" onclick="savePatientDetails(${patientId})">Guardar Datos del Paciente</button>
+        </div>
+    `;
 }
 
 function drawTeethRow(teethArray, patientOdontograma) {
@@ -1657,6 +2231,7 @@ function drawTeethRow(teethArray, patientOdontograma) {
 function renderClinicalHistory(patientId) {
     const patient = DB.get('patients').find(p => p.id === patientId);
     if(!patient) return '<p>Paciente no encontrado</p>';
+    const clinicalImages = (patient.clinicalImages || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     let age = '-';
     if(patient.fechaNacimiento) {
@@ -1768,6 +2343,26 @@ function renderClinicalHistory(patientId) {
                 </div>
             </div>
 
+            <div class="mb-4">
+                <div class="flex justify-between items-center bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
+                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Imagenes Clinicas</h3>
+                    ${!state.user.roles.includes('secretary') ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Agregar Imagen</button>' : ''}
+                </div>
+                <div class="clinical-images-grid">
+                    ${clinicalImages.map((image, idx) => `
+                        <article class="clinical-image-card">
+                            <img src="${image.dataUrl}" alt="${image.description || 'Imagen clinica'}" class="clinical-image-preview">
+                            <div class="clinical-image-body">
+                                <div class="clinical-image-date">${image.date ? image.date.split('-').reverse().join('/') : 'Sin fecha'}</div>
+                                <p class="clinical-image-description">${image.description || 'Sin descripcion'}</p>
+                                ${!state.user.roles.includes('secretary') ? `<button class="btn btn-ghost btn-sm clinical-image-delete" onclick="deleteClinicalImage(${patientId}, ${idx})"><i class="fa-solid fa-trash"></i> Eliminar</button>` : ''}
+                            </div>
+                        </article>
+                    `).join('')}
+                    ${clinicalImages.length === 0 ? '<div class="clinical-image-empty">Todavia no hay imagenes cargadas en la historia clinica.</div>' : ''}
+                </div>
+            </div>
+
             <!-- NOTAS -->
             <div class="mt-8 bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
                 <h3 class="font-bold text-yellow-800 mb-2 uppercase text-xs"><i class="fa-solid fa-notes-medical"></i> Observaciones Generales y Alergias</h3>
@@ -1838,6 +2433,10 @@ function attachClinicalHistoryEvents(patientId) {
     document.getElementById('btn-add-treatment')?.addEventListener('click', () => {
         openTreatmentModal(patientId);
     });
+
+    document.getElementById('btn-add-clinical-image')?.addEventListener('click', () => {
+        openClinicalImageModal(patientId);
+    });
 }
 
 window.toggleAbsent = function(patientId, toothId) {
@@ -1857,11 +2456,34 @@ window.savePatientNotes = function(patientId) {
     alert('Notas guardadas');
 };
 
+window.savePatientDetails = function(patientId) {
+    DB.update('patients', patientId, {
+        fechaNacimiento: document.getElementById('clinical-fecha-nacimiento')?.value || '',
+        phone: document.getElementById('clinical-phone')?.value || '',
+        email: document.getElementById('clinical-email')?.value || '',
+        obraSocial: document.getElementById('clinical-obra-social')?.value || '',
+        credencial: document.getElementById('clinical-credencial')?.value || '',
+        fichaNumero: document.getElementById('clinical-ficha-numero')?.value || '',
+        domicilio: document.getElementById('clinical-domicilio')?.value || ''
+    });
+    loadClinicalHistory(patientId);
+};
+
 window.deleteTreatment = function(patientId, index) {
     if(confirm('¿Eliminar registro de tratamiento?')) {
         const p = DB.get('patients').find(pt => pt.id === patientId);
         p.treatments.splice(index, 1);
         DB.update('patients', patientId, { treatments: p.treatments });
+        loadClinicalHistory(patientId);
+    }
+};
+
+window.deleteClinicalImage = function(patientId, index) {
+    if(confirm('Â¿Eliminar imagen clÃ­nica?')) {
+        const p = DB.get('patients').find(pt => pt.id === patientId);
+        const images = (p.clinicalImages || []).slice();
+        images.splice(index, 1);
+        DB.update('patients', patientId, { clinicalImages: images });
         loadClinicalHistory(patientId);
     }
 };
@@ -1888,7 +2510,7 @@ function openTreatmentModal(patientId) {
                         <div class="input-group"><label>Observaciones</label><input type="text" id="tx-obs" placeholder="Detalles del procedimiento..." required></div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-ghost" data-modal-close>Cancelar</button>
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
                         <button type="submit" class="btn btn-primary">Añadir a Tabla</button>
                     </div>
                 </form>
@@ -1917,3 +2539,71 @@ function openTreatmentModal(patientId) {
         loadClinicalHistory(patientId);
     });
 }
+
+function openClinicalImageModal(patientId) {
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3>Agregar Imagen Clinica</h3>
+                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
+                </div>
+                <form id="clinical-image-form">
+                    <div class="modal-body">
+                        <div class="input-group">
+                            <label>Fecha</label>
+                            <input type="date" id="clinical-image-date" value="${new Date().toISOString().split('T')[0]}" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Descripcion</label>
+                            <input type="text" id="clinical-image-description" placeholder="Ej: Radiografia panoramica inicial" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Imagenes</label>
+                            <input type="file" id="clinical-image-file" accept="image/*" multiple required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar Imagenes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('clinical-image-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('clinical-image-file');
+        const files = Array.from(fileInput.files || []);
+
+        if (files.length === 0) {
+            alert('Selecciona al menos una imagen.');
+            return;
+        }
+
+        const selectedDate = document.getElementById('clinical-image-date').value;
+        const selectedDescription = document.getElementById('clinical-image-description').value.trim();
+
+        Promise.all(files.map(file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({
+                date: selectedDate,
+                description: selectedDescription,
+                dataUrl: reader.result
+            });
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        }))).then(newImages => {
+            const p = DB.get('patients').find(pt => pt.id === patientId);
+            const images = (p.clinicalImages || []).slice();
+            images.push(...newImages);
+            DB.update('patients', patientId, { clinicalImages: images });
+            closeModal();
+            loadClinicalHistory(patientId);
+        }).catch(() => {
+            alert('No se pudieron cargar una o mas imagenes.');
+        });
+    });
+}
+
