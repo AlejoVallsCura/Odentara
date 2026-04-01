@@ -182,6 +182,9 @@ const views = { login: document.getElementById('login-view'), app: document.getE
 const modalsContainer = document.getElementById('modals-container');
 const mainContent = document.getElementById('main-content');
 const pageTitle = document.getElementById('page-title');
+const appSidebar = document.getElementById('app-sidebar');
+const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+const sidebarToggle = document.getElementById('sidebar-toggle');
 
 function setElementText(id, value) {
     const el = document.getElementById(id);
@@ -194,6 +197,26 @@ function setPageTitle(title) {
 
 function getPageTitle() {
     return pageTitle ? pageTitle.innerText : '';
+}
+
+function isMobileLayout() {
+    return window.innerWidth <= 1024;
+}
+
+function syncSidebarLayout() {
+    if (!views.app) return;
+    if (isMobileLayout()) {
+        views.app.classList.toggle('sidebar-open', !!state.sidebarOpen);
+        if (sidebarBackdrop) sidebarBackdrop.classList.toggle('hidden', !state.sidebarOpen);
+    } else {
+        views.app.classList.remove('sidebar-open');
+        if (sidebarBackdrop) sidebarBackdrop.classList.add('hidden');
+    }
+}
+
+function setSidebarOpen(isOpen) {
+    state.sidebarOpen = !!isOpen;
+    syncSidebarLayout();
 }
 
 function normalizeIdentityEmail(email = '') {
@@ -215,6 +238,10 @@ function normalizePatientName(name = '') {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/\s+/g, ' ');
+}
+
+function getPatientOptionLabel(patient) {
+    return `${patient.name} | DNI ${patient.dni}`;
 }
 
 function getTodayIsoLocal() {
@@ -263,6 +290,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('logout-btn').addEventListener('click', logout);
+    sidebarToggle?.addEventListener('click', () => setSidebarOpen(!state.sidebarOpen));
+    sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
+    window.addEventListener('resize', syncSidebarLayout);
+    setSidebarOpen(!isMobileLayout());
     
     document.addEventListener('click', (e) => {
         if (e.target.matches('.modal-overlay') || e.target.closest('[data-modal-close]')) closeModal();
@@ -471,6 +502,7 @@ function login(email) {
     setElementText('user-role-display', roleLabel);
     setElementText('user-initials', initials);
     renderSidebar();
+    setSidebarOpen(!isMobileLayout());
     
     // Simple transition
     views.login.classList.remove('active');
@@ -483,6 +515,7 @@ function login(email) {
 function logout() {
     state.user = null;
     state.dashboardDate = null;
+    setSidebarOpen(false);
     views.app.classList.remove('active');
     setTimeout(() => {
         views.app.classList.add('hidden');
@@ -517,6 +550,7 @@ function renderSidebar() {
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             link.classList.add('active');
             loadView(item.id, item.label);
+            if (isMobileLayout()) setSidebarOpen(false);
         });
         sidebarNav.appendChild(link);
     });
@@ -540,6 +574,7 @@ function loadView(viewId, title = 'Dashboard') {
     state.currentView = viewId;
     setPageTitle(title);
     mainContent.innerHTML = '';
+    syncSidebarLayout();
     
     const content = document.createElement('div');
     content.className = 'animate-fade-in';
@@ -743,10 +778,10 @@ function openAppointmentModal(editId = null) {
                     <div class="modal-body">
                         <div class="input-group">
                             <label>Paciente (Solo pacientes registrados)</label>
-                            <input type="search" id="apt-patient-search" class="form-input" placeholder="Buscar por nombre o DNI...">
-                            <select id="apt-patient" required>
-                                ${patients.map(p => `<option value="${p.name}" ${apt && apt.patient === p.name ? 'selected':''}>${p.name} (DNI ${p.dni})</option>`).join('')}
-                            </select>
+                            <input type="search" id="apt-patient" class="form-input" list="apt-patient-list" placeholder="Buscar por nombre o DNI..." value="${apt ? getPatientOptionLabel(patients.find(patient => patient.name === apt.patient) || { name: apt.patient, dni: '' }) : ''}" required>
+                            <datalist id="apt-patient-list">
+                                ${patients.map(patient => `<option value="${getPatientOptionLabel(patient)}"></option>`).join('')}
+                            </datalist>
                         </div>
                         <div class="input-group">
                             <label>Profesional</label>
@@ -791,36 +826,7 @@ function openAppointmentModal(editId = null) {
     const sCheck = document.getElementById('apt-sobreturno');
     const dGroup = document.getElementById('duration-group');
     const durSelect = document.getElementById('apt-duration');
-    const patientSearch = document.getElementById('apt-patient-search');
-    const patientSelect = document.getElementById('apt-patient');
-    const selectedPatientName = apt ? apt.patient : patients[0]?.name;
-
-    const renderPatientOptions = (query = '') => {
-        const normalizedQuery = normalizePatientName(query);
-        const filteredPatients = normalizedQuery
-            ? patients.filter(patient => {
-                const patientName = normalizePatientName(patient.name);
-                const patientDni = normalizeDni(patient.dni);
-                return patientName.includes(normalizedQuery) || patientDni.includes(normalizeDni(query));
-            })
-            : patients;
-
-        patientSelect.innerHTML = filteredPatients.map(patient => `
-            <option value="${patient.name}" ${(patient.name === selectedPatientName || patient.name === patientSelect.value) ? 'selected' : ''}>
-                ${patient.name} (DNI ${patient.dni})
-            </option>
-        `).join('');
-
-        if (filteredPatients.length === 0) {
-            patientSelect.innerHTML = '<option value="">No se encontraron pacientes</option>';
-            patientSelect.disabled = true;
-        } else {
-            patientSelect.disabled = false;
-            if (!filteredPatients.some(patient => patient.name === patientSelect.value)) {
-                patientSelect.value = filteredPatients[0].name;
-            }
-        }
-    };
+    const patientInput = document.getElementById('apt-patient');
 
     const renderDurationOptions = () => {
         const isOverbook = sCheck.checked;
@@ -982,9 +988,6 @@ function openAppointmentModal(editId = null) {
         renderDurationOptions();
     };
 
-    renderPatientOptions();
-    patientSearch.addEventListener('input', () => renderPatientOptions(patientSearch.value));
-    
     profSelect.addEventListener('change', renderTimeOptions);
     document.getElementById('apt-date').addEventListener('change', renderTimeOptions);
     timeSelect.addEventListener('change', renderDurationOptions);
@@ -1011,13 +1014,23 @@ function openAppointmentModal(editId = null) {
             return;
         }
 
-        if (!patientSelect.value) {
+        const patientSearchValue = patientInput.value.trim();
+        const matchedPatient = patients.find(patient => {
+            const optionLabel = normalizePatientName(getPatientOptionLabel(patient));
+            const patientName = normalizePatientName(patient.name);
+            const patientDni = normalizeDni(patient.dni);
+            const normalizedValue = normalizePatientName(patientSearchValue);
+            const normalizedValueDni = normalizeDni(patientSearchValue);
+            return optionLabel === normalizedValue || patientName === normalizedValue || patientDni === normalizedValueDni;
+        });
+
+        if (!matchedPatient) {
             alert('Selecciona un paciente válido.');
             return;
         }
 
         const data = {
-            patient: patientSelect.value,
+            patient: matchedPatient.name,
             professionalId: parseInt(profSelect.value),
             date: selectedDate,
             time: selectedTime,
@@ -1370,6 +1383,148 @@ function getWeekDays(offset = 0) {
     return days;
 }
 
+function isCompactAppointmentsLayout() {
+    return window.innerWidth <= 1024;
+}
+
+function renderCalendarFilterLegend(professionals) {
+    return `
+        <div class="cal-legend ${isCompactAppointmentsLayout() ? 'cal-legend-mobile' : ''}">
+            <div class="cal-legend-title">Profesionales</div>
+            <label class="cal-legend-item">
+                <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
+                <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
+            </label>
+            ${professionals.map(p => {
+                const color = getProfColor(p.id);
+                return `<label class="cal-legend-item">
+                    <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
+                    <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
+                </label>`;
+            }).join('')}
+        </div>`;
+}
+
+function renderAppointmentCompactCard(apt) {
+    const patient = getPatientByAppointment(apt);
+    const statusMeta = getAppointmentStatusMeta(apt.status);
+    const visual = getAppointmentVisual(apt);
+    return `
+        <article class="cal-mobile-card ${apt.isOverbook ? 'is-overbook' : ''}" style="border-left-color:${visual.border}">
+            <div class="cal-mobile-card-top">
+                <div>
+                    <div class="cal-mobile-card-time">${apt.time}</div>
+                    <div class="cal-mobile-card-duration">${apt.duration} min</div>
+                </div>
+                <div class="cal-mobile-card-badges">
+                    <span class="badge ${statusMeta.badge}">${statusMeta.label}</span>
+                    ${apt.isOverbook ? '<span class="badge badge-purple">Sobreturno</span>' : ''}
+                </div>
+            </div>
+            <div class="cal-mobile-card-name">${apt.patient}</div>
+            <div class="cal-mobile-card-prof">${getProfName(apt.professionalId)}</div>
+            <div class="cal-mobile-card-actions">
+                ${patient ? `<button class="btn btn-ghost btn-sm" onclick="loadClinicalHistory(${patient.id})">Historia</button>` : ''}
+                <button class="btn btn-secondary btn-sm" onclick="openAppointmentViewModal(${apt.id})">Ver</button>
+                ${state.user.roles.some(r => ['secretary', 'superadmin', 'admin'].includes(r)) ? `<button class="btn btn-primary btn-sm" onclick="openAppointmentModal(${apt.id})">Editar</button>` : ''}
+            </div>
+        </article>
+    `;
+}
+
+function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit) {
+    const legendHtml = renderCalendarFilterLegend(professionals);
+    const toolbar = `
+        <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+                <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
+                <span class="font-semibold text-gray-700 text-sm" id="cal-date-display">${parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
+                <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
+            </div>
+            <div class="flex items-center gap-2">
+                <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'day' ? 'active' : ''}" id="cal-view-day">Día</button>
+                <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'week' ? 'active' : ''}" id="cal-view-week">Semana</button>
+                <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'month' ? 'active' : ''}" id="cal-view-month">Mes</button>
+            </div>
+            ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
+        </div>`;
+
+    let sectionsHtml = '';
+
+    if (calendarState.viewMode === 'day') {
+        const visibleProfs = professionals.filter(p => calendarState.visibleProfs[p.id]);
+        sectionsHtml = visibleProfs.map(prof => {
+            const profApts = allApts
+                .filter(apt => apt.date === currentDate && apt.professionalId === prof.id)
+                .sort((a, b) => a.time.localeCompare(b.time));
+            return `
+                <section class="cal-mobile-section">
+                    <header class="cal-mobile-section-header">${prof.name}</header>
+                    <div class="cal-mobile-list">
+                        ${profApts.length ? profApts.map(renderAppointmentCompactCard).join('') : '<div class="cal-mobile-empty">Sin turnos para este profesional.</div>'}
+                    </div>
+                </section>
+            `;
+        }).join('');
+    } else if (calendarState.viewMode === 'week') {
+        const startOfWeek = parseLocalIsoDate(currentDate);
+        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+        const days = Array.from({ length: 7 }, (_, index) => {
+            const day = new Date(startOfWeek);
+            day.setDate(startOfWeek.getDate() + index);
+            return day;
+        });
+        sectionsHtml = days.map(day => {
+            const iso = formatDateToLocalIso(day);
+            const dayApts = allApts
+                .filter(apt => apt.date === iso && calendarState.visibleProfs[apt.professionalId])
+                .sort((a, b) => a.time.localeCompare(b.time));
+            return `
+                <section class="cal-mobile-section">
+                    <header class="cal-mobile-section-header">${day.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</header>
+                    <div class="cal-mobile-list">
+                        ${dayApts.length ? dayApts.map(renderAppointmentCompactCard).join('') : '<div class="cal-mobile-empty">Sin turnos.</div>'}
+                    </div>
+                </section>
+            `;
+        }).join('');
+    } else {
+        const baseDate = parseLocalIsoDate(currentDate);
+        const month = baseDate.getMonth();
+        const year = baseDate.getFullYear();
+        const monthApts = allApts
+            .filter(apt => {
+                const aptDate = parseLocalIsoDate(apt.date);
+                return aptDate.getMonth() === month && aptDate.getFullYear() === year && calendarState.visibleProfs[apt.professionalId];
+            })
+            .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+
+        const grouped = monthApts.reduce((acc, apt) => {
+            acc[apt.date] ||= [];
+            acc[apt.date].push(apt);
+            return acc;
+        }, {});
+
+        sectionsHtml = Object.keys(grouped).length
+            ? Object.entries(grouped).map(([dateStr, items]) => `
+                <section class="cal-mobile-section">
+                    <header class="cal-mobile-section-header">${parseLocalIsoDate(dateStr).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</header>
+                    <div class="cal-mobile-list">${items.map(renderAppointmentCompactCard).join('')}</div>
+                </section>
+            `).join('')
+            : '<div class="cal-mobile-empty cal-mobile-empty-root">No hay turnos para este mes.</div>';
+    }
+
+    return `
+        <div class="cal-wrapper cal-wrapper-mobile">
+            ${toolbar}
+            ${legendHtml}
+            <div class="cal-mobile-sections">${sectionsHtml}</div>
+        </div>
+    `;
+}
+
 // Calendar constants
 const CAL_START_HOUR = 8;   // 8:00
 const CAL_END_HOUR   = 20;  // 20:00
@@ -1387,6 +1542,10 @@ function renderAppointments() {
     const allApts = getAccessibleAppointments();
     const currentDate = calendarState.currentDate;
     const canEdit = state.user.roles.some(r => ['secretary', 'superadmin', 'admin'].includes(r));
+
+    if (isCompactAppointmentsLayout()) {
+        return renderAppointmentsCompact(professionals, allApts, currentDate, canEdit);
+    }
 
     // For day view: columns per professional
     if (calendarState.viewMode === 'day') {
@@ -1464,21 +1623,7 @@ function renderAppointments() {
         });
 
         // Sidebar legend
-        const legendHtml = `
-            <div class="cal-legend">
-                <div class="cal-legend-title">Profesionales</div>
-                <label class="cal-legend-item">
-                    <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
-                    <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
-                </label>
-                ${professionals.map(p => {
-                    const color = getProfColor(p.id);
-                    return `<label class="cal-legend-item">
-                        <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
-                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
-                    </label>`;
-                }).join('')}
-            </div>`;
+        const legendHtml = renderCalendarFilterLegend(professionals);
 
         return `
         <div class="cal-wrapper">
@@ -1559,21 +1704,7 @@ function renderAppointments() {
             </div>`;
         });
 
-        const legendHtml = `
-            <div class="cal-legend">
-                <div class="cal-legend-title">Profesionales</div>
-                <label class="cal-legend-item">
-                    <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
-                    <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
-                </label>
-                ${professionals.map(p => {
-                    const color = getProfColor(p.id);
-                    return `<label class="cal-legend-item">
-                        <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
-                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
-                    </label>`;
-                }).join('')}
-            </div>`;
+        const legendHtml = renderCalendarFilterLegend(professionals);
 
         return `
         <div class="cal-wrapper">
@@ -1645,24 +1776,7 @@ function renderAppointments() {
 
         const monthName = date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
 
-        const legendHtml = `
-            <div class="cal-legend">...`;
-        // Reuse legend same as week/day
-        const legend = `
-            <div class="cal-legend">
-                <div class="cal-legend-title">Profesionales</div>
-                <label class="cal-legend-item">
-                    <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
-                    <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
-                </label>
-                ${professionals.map(p => {
-                    const color = getProfColor(p.id);
-                    return `<label class="cal-legend-item">
-                        <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
-                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
-                    </label>`;
-                }).join('')}
-            </div>`;
+        const legend = renderCalendarFilterLegend(professionals);
 
         return `
         <div class="cal-wrapper">
