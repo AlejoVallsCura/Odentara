@@ -1,9 +1,10 @@
 const express = require("express");
 
 const prisma = require("../lib/prisma");
+const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
-const { canEditClinicalData } = require("../lib/permissions");
+const { canEditClinicalData, canViewClinicalData } = require("../lib/permissions");
 
 const router = express.Router();
 
@@ -21,9 +22,14 @@ function serializeImage(image) {
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    if (!canViewClinicalData(req.permissions)) {
+      return res.status(403).json({ ok: false, error: "No tenes permisos para ver imágenes clínicas." });
+    }
+
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
     const images = await prisma.clinicalImage.findMany({
       where: {
+        deletedAt: null,
         ...(patientId ? { patientId } : {}),
         patient: buildPatientAccessWhere(req.permissions),
       },
@@ -65,6 +71,7 @@ router.post("/", requireAuth, async (req, res) => {
           imageUrl: String(item.imageUrl).trim(),
           description: item.description ? String(item.description).trim() : null,
           takenAt: item.takenAt ? new Date(item.takenAt) : null,
+          deletedAt: null,
         },
       });
 
@@ -86,6 +93,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     const existing = await prisma.clinicalImage.findFirst({
       where: {
         id: Number(req.params.id),
+        deletedAt: null,
         patient: buildPatientAccessWhere(req.permissions),
       },
     });
@@ -100,6 +108,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         imageUrl: req.body.imageUrl ? String(req.body.imageUrl).trim() : existing.imageUrl,
         description: req.body.description !== undefined ? (req.body.description ? String(req.body.description).trim() : null) : existing.description,
         takenAt: req.body.takenAt !== undefined ? (req.body.takenAt ? new Date(req.body.takenAt) : null) : existing.takenAt,
+        deletedAt: null,
       },
     });
 
@@ -118,6 +127,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     const existing = await prisma.clinicalImage.findFirst({
       where: {
         id: Number(req.params.id),
+        deletedAt: null,
         patient: buildPatientAccessWhere(req.permissions),
       },
       select: { id: true },
@@ -127,7 +137,18 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Imagen clínica no encontrada o sin acceso." });
     }
 
-    await prisma.clinicalImage.delete({ where: { id: existing.id } });
+    const beforeData = await prisma.clinicalImage.findUnique({
+      where: { id: existing.id },
+    });
+
+    await prisma.clinicalImage.update({
+      where: { id: existing.id },
+      data: { deletedAt: new Date() },
+    });
+
+    await logDeleteAudit(prisma, req.user.id, "ClinicalImage", existing.id, {
+      image: beforeData,
+    });
     return res.json({ ok: true, message: "Imagen clínica eliminada correctamente." });
   } catch (_error) {
     return res.status(400).json({ ok: false, error: "No se pudo eliminar la imagen clínica." });

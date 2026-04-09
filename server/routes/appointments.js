@@ -1,6 +1,7 @@
 const express = require("express");
 
 const prisma = require("../lib/prisma");
+const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
   canAccessWholeClinic,
@@ -138,19 +139,19 @@ async function validateAppointmentPayload(
 
   const patient = await prisma.patient.findUnique({
     where: { id: payload.patientId },
-    select: { id: true },
+    select: { id: true, deletedAt: true },
   });
 
-  if (!patient) {
+  if (!patient || patient.deletedAt) {
     return "El paciente seleccionado no existe.";
   }
 
   const professional = await prisma.professional.findUnique({
     where: { id: payload.professionalId },
-    select: { id: true, active: true },
+    select: { id: true, active: true, deletedAt: true },
   });
 
-  if (!professional || !professional.active) {
+  if (!professional || professional.deletedAt || !professional.active) {
     return "El profesional seleccionado no existe o está inactivo.";
   }
 
@@ -183,6 +184,7 @@ async function validateAppointmentPayload(
       professionalId: payload.professionalId,
       date: parseDateOnly(payload.date),
       startTime: parseDateTime(payload.date, payload.time),
+      deletedAt: null,
       ...(currentAppointmentId ? { id: { not: currentAppointmentId } } : {}),
     },
     select: { id: true, isOverbook: true },
@@ -327,6 +329,7 @@ router.post("/", requireAuth, async (req, res) => {
         confirmationResponseAt: payload.confirmationResponseAt,
         cancellationReason: payload.cancellationReason,
         notes: payload.notes,
+        deletedAt: null,
       },
       include: {
         patient: {
@@ -428,6 +431,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         confirmationResponseAt: payload.confirmationResponseAt,
         cancellationReason: payload.cancellationReason,
         notes: payload.notes,
+        deletedAt: null,
       },
       include: {
         patient: {
@@ -469,8 +473,24 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Turno no encontrado o sin acceso." });
     }
 
-    await prisma.appointment.delete({
+    const existing = await prisma.appointment.findUnique({
       where: { id: appointment.id },
+      include: {
+        patient: true,
+        professional: true,
+      },
+    });
+
+    await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: {
+        status: "cancelled",
+        deletedAt: new Date(),
+      },
+    });
+
+    await logDeleteAudit(prisma, req.user.id, "Appointment", appointment.id, {
+      appointment: existing,
     });
 
     return res.json({

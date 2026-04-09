@@ -3,7 +3,7 @@ const express = require("express");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
-const { canEditClinicalData } = require("../lib/permissions");
+const { canEditClinicalData, canViewClinicalData } = require("../lib/permissions");
 
 const router = express.Router();
 
@@ -27,6 +27,10 @@ function serializeRecord(record) {
 
 router.get("/:patientId", requireAuth, async (req, res) => {
   try {
+    if (!canViewClinicalData(req.permissions)) {
+      return res.status(403).json({ ok: false, error: "No tenes permisos para ver historia clínica." });
+    }
+
     const patientId = Number(req.params.patientId);
     const patient = await prisma.patient.findFirst({
       where: {

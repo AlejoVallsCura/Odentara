@@ -1,6 +1,7 @@
 const express = require("express");
 
 const prisma = require("../lib/prisma");
+const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
 const {
@@ -62,6 +63,7 @@ router.get("/", requireAuth, async (req, res) => {
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
     const entries = await prisma.billingEntry.findMany({
       where: {
+        deletedAt: null,
         ...(patientId ? { patientId } : {}),
         patient: buildPatientAccessWhere(req.permissions),
       },
@@ -121,6 +123,7 @@ router.post("/", requireAuth, async (req, res) => {
         currency: req.body.currency ? String(req.body.currency).trim().toUpperCase() : "ARS",
         description: req.body.description ? String(req.body.description).trim() : null,
         date: req.body.date ? new Date(req.body.date) : new Date(),
+        deletedAt: null,
       },
       include: {
         patient: { select: { id: true, fullName: true, dni: true } },
@@ -143,6 +146,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     const existing = await prisma.billingEntry.findFirst({
       where: {
         id: Number(req.params.id),
+        deletedAt: null,
         patient: buildPatientAccessWhere(req.permissions),
       },
     });
@@ -182,6 +186,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         currency: req.body.currency ? String(req.body.currency).trim().toUpperCase() : existing.currency,
         description: req.body.description !== undefined ? (req.body.description ? String(req.body.description).trim() : null) : existing.description,
         date: req.body.date ? new Date(req.body.date) : existing.date,
+        deletedAt: null,
       },
       include: {
         patient: { select: { id: true, fullName: true, dni: true } },
@@ -204,6 +209,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     const existing = await prisma.billingEntry.findFirst({
       where: {
         id: Number(req.params.id),
+        deletedAt: null,
         patient: buildPatientAccessWhere(req.permissions),
       },
       select: { id: true },
@@ -213,7 +219,22 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Movimiento no encontrado o sin acceso." });
     }
 
-    await prisma.billingEntry.delete({ where: { id: existing.id } });
+    const beforeData = await prisma.billingEntry.findUnique({
+      where: { id: existing.id },
+      include: {
+        patient: true,
+        professional: true,
+      },
+    });
+
+    await prisma.billingEntry.update({
+      where: { id: existing.id },
+      data: { deletedAt: new Date() },
+    });
+
+    await logDeleteAudit(prisma, req.user.id, "BillingEntry", existing.id, {
+      entry: beforeData,
+    });
     return res.json({ ok: true, message: "Movimiento eliminado correctamente." });
   } catch (_error) {
     return res.status(400).json({ ok: false, error: "No se pudo eliminar el movimiento." });

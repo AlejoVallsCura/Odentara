@@ -1,11 +1,13 @@
 const express = require("express");
 
 const prisma = require("../lib/prisma");
+const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
   canAccessWholeClinic,
   getAccessibleProfessionalIds,
   canManageProfessionals,
+  canManageProfessionalSchedules,
   canViewProfessionals,
 } = require("../lib/permissions");
 
@@ -13,7 +15,7 @@ const router = express.Router();
 
 function buildProfessionalAccessWhere(permissions) {
   if (canAccessWholeClinic(permissions)) {
-    return {};
+    return { deletedAt: null };
   }
 
   const ids = getAccessibleProfessionalIds(permissions);
@@ -21,7 +23,10 @@ function buildProfessionalAccessWhere(permissions) {
     return { id: -1 };
   }
 
-  return { id: { in: ids } };
+  return {
+    id: { in: ids },
+    deletedAt: null,
+  };
 }
 
 function serializeProfessional(professional) {
@@ -217,6 +222,7 @@ router.post("/", requireAuth, async (req, res) => {
         phone,
         color,
         active,
+        deletedAt: null,
         schedules: schedules.length > 0 ? { create: schedules } : undefined,
         scheduleExceptions: exceptions.length > 0 ? { create: exceptions } : undefined,
       },
@@ -250,13 +256,13 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
-    if (!canManageProfessionals(req.permissions)) {
+    if (!canManageProfessionalSchedules(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para editar profesionales." });
     }
 
     const professionalId = Number(req.params.id);
-    const existing = await prisma.professional.findUnique({
-      where: { id: professionalId },
+    const existing = await prisma.professional.findFirst({
+      where: { id: professionalId, deletedAt: null },
       include: {
         schedules: true,
         scheduleExceptions: true,
@@ -267,12 +273,21 @@ router.put("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Profesional no encontrado." });
     }
 
-    const fullName = String(req.body.fullName || "").trim();
-    const specialty = req.body.specialty ? String(req.body.specialty).trim() : null;
-    const email = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
-    const phone = req.body.phone ? String(req.body.phone).trim() : null;
-    const color = req.body.color ? String(req.body.color).trim() : null;
-    const active = req.body.active !== undefined ? Boolean(req.body.active) : existing.active;
+    const canEditCoreData = canManageProfessionals(req.permissions);
+    const fullName = canEditCoreData ? String(req.body.fullName || "").trim() : existing.fullName;
+    const specialty = canEditCoreData
+      ? (req.body.specialty ? String(req.body.specialty).trim() : null)
+      : existing.specialty;
+    const email = canEditCoreData
+      ? (req.body.email ? String(req.body.email).trim().toLowerCase() : null)
+      : existing.email;
+    const phone = canEditCoreData
+      ? (req.body.phone ? String(req.body.phone).trim() : null)
+      : existing.phone;
+    const color = canEditCoreData
+      ? (req.body.color ? String(req.body.color).trim() : null)
+      : existing.color;
+    const active = canEditCoreData && req.body.active !== undefined ? Boolean(req.body.active) : existing.active;
     const schedules = normalizeSchedules(req.body.schedules || []);
     const exceptions = normalizeExceptions(req.body.exceptions || []);
 
@@ -280,7 +295,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: "El nombre del profesional es obligatorio." });
     }
 
-    if (email) {
+    if (canEditCoreData && email) {
       const existingByEmail = await prisma.professional.findFirst({
         where: { email, id: { not: professionalId } },
       });
@@ -298,6 +313,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         phone,
         color,
         active,
+        deletedAt: null,
         schedules: {
           deleteMany: {},
           create: schedules,
@@ -341,8 +357,29 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar profesionales." });
     }
 
-    await prisma.professional.delete({
-      where: { id: Number(req.params.id) },
+    const professionalId = Number(req.params.id);
+    const existing = await prisma.professional.findFirst({
+      where: { id: professionalId, deletedAt: null },
+      include: {
+        schedules: true,
+        scheduleExceptions: true,
+      },
+    });
+
+    if (!existing || existing.deletedAt) {
+      return res.status(404).json({ ok: false, error: "Profesional no encontrado." });
+    }
+
+    await prisma.professional.update({
+      where: { id: professionalId },
+      data: {
+        active: false,
+        deletedAt: new Date(),
+      },
+    });
+
+    await logDeleteAudit(prisma, req.user.id, "Professional", professionalId, {
+      professional: existing,
     });
 
     return res.json({

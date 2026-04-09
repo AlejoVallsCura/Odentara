@@ -13,8 +13,8 @@ const { requireAuth } = require("../middleware/auth");
 const router = express.Router();
 
 async function getUserByEmail(email) {
-  return prisma.user.findUnique({
-    where: { email },
+  return prisma.user.findFirst({
+    where: { email, deletedAt: null },
     include: {
       roles: { include: { role: true } },
       professionalScopes: true,

@@ -28,6 +28,10 @@ function canManageProfessionals(permissions) {
   return hasRole(permissions, "superadmin") || hasRole(permissions, "admin");
 }
 
+function canManageProfessionalSchedules(permissions) {
+  return canManageProfessionals(permissions) || hasRole(permissions, "secretary");
+}
+
 function canViewProfessionals(permissions) {
   return (
     canManageProfessionals(permissions) ||
@@ -66,11 +70,14 @@ function canManageBilling(permissions) {
 }
 
 function canEditClinicalData(permissions) {
+  return hasRole(permissions, "professional");
+}
+
+function canViewClinicalData(permissions) {
   return (
-    hasRole(permissions, "superadmin") ||
+    hasRole(permissions, "professional") ||
     hasRole(permissions, "admin") ||
-    hasRole(permissions, "secretary") ||
-    hasRole(permissions, "professional")
+    hasRole(permissions, "superadmin")
   );
 }
 
@@ -88,11 +95,13 @@ module.exports = {
   getAccessibleProfessionalIds,
   canManagePatients,
   canManageProfessionals,
+  canManageProfessionalSchedules,
   canViewProfessionals,
   canManageAppointments,
   canEditAppointments,
   canViewBilling,
   canManageBilling,
+  canViewClinicalData,
   canEditClinicalData,
   canEditPatient,
   canDeletePatient,

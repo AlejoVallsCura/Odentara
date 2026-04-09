@@ -12,8 +12,8 @@ async function requireAuth(req, res, next) {
 
     const payload = verifyToken(token);
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
+    const user = await prisma.user.findFirst({
+      where: { id: payload.userId, deletedAt: null },
       include: {
         roles: { include: { role: true } },
         professionalScopes: true,

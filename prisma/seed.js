@@ -358,12 +358,16 @@ async function upsertProfessionals() {
         email: professional.email,
         specialty: professional.specialty,
         color: professional.color,
+        active: true,
+        deletedAt: null,
       },
       create: {
         fullName: professional.fullName,
         email: professional.email,
         specialty: professional.specialty,
         color: professional.color,
+        active: true,
+        deletedAt: null,
       },
     });
 
@@ -392,12 +396,14 @@ async function upsertUsers() {
         fullName: userData.fullName,
         passwordHash,
         active: true,
+        deletedAt: null,
       },
       create: {
         email: userData.email,
         fullName: userData.fullName,
         passwordHash,
         active: true,
+        deletedAt: null,
       },
     });
 
@@ -466,6 +472,7 @@ async function upsertPatients() {
         credentialNumber: patient.credentialNumber,
         chartNumber: patient.chartNumber,
         active: true,
+        deletedAt: null,
       },
       create: {
         fullName: patient.fullName,
@@ -485,6 +492,7 @@ async function upsertPatients() {
         credentialNumber: patient.credentialNumber,
         chartNumber: patient.chartNumber,
         active: true,
+        deletedAt: null,
       },
     });
 
@@ -552,6 +560,7 @@ async function upsertAppointments() {
           confirmationResponseAt: appointment.confirmationResponseAt,
           notes: appointment.notes,
           createdByUserId: createdByUser?.id || null,
+          deletedAt: null,
         },
       });
       continue;
@@ -571,6 +580,7 @@ async function upsertAppointments() {
         confirmationSentAt: appointment.confirmationSentAt,
         confirmationResponseAt: appointment.confirmationResponseAt,
         notes: appointment.notes,
+        deletedAt: null,
       },
     });
   }
@@ -616,6 +626,7 @@ async function upsertTreatments() {
         insuranceCode: treatment.insuranceCode,
         observations: treatment.observations,
         performedAt: treatment.performedAt,
+        deletedAt: null,
       },
     });
   }
@@ -639,6 +650,7 @@ async function upsertClinicalImages() {
         imageUrl: image.imageUrl,
         description: image.description,
         takenAt: image.takenAt,
+        deletedAt: null,
       },
     });
   }
@@ -687,6 +699,7 @@ async function upsertBillingEntries() {
         currency: entry.currency,
         description: entry.description,
         date: entry.date,
+        deletedAt: null,
       },
     });
   }

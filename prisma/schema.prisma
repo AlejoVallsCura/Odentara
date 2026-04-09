@@ -70,6 +70,7 @@ model User {
   passwordHash             String?
   fullName                 String
   active                   Boolean                 @default(true)
+  deletedAt                DateTime?
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
   roles                    UserRole[]
@@ -109,6 +110,7 @@ model Professional {
   phone               String?
   color               String?
   active              Boolean                        @default(true)
+  deletedAt           DateTime?
   userId              Int?                           @unique
   createdAt           DateTime                       @default(now())
   updatedAt           DateTime                       @updatedAt
@@ -122,6 +124,7 @@ model Professional {
 
   @@index([fullName])
   @@index([active])
+  @@index([deletedAt])
 }
 
 model UserProfessionalScope {
@@ -149,6 +152,7 @@ model Patient {
   credentialNumber String?
   chartNumber     String?          @unique
   active          Boolean          @default(true)
+  deletedAt       DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   appointments    Appointment[]
@@ -160,6 +164,7 @@ model Patient {
   @@index([fullName])
   @@index([normalizedName])
   @@index([phone])
+  @@index([deletedAt])
 }
 
 model Appointment {
@@ -177,6 +182,7 @@ model Appointment {
   confirmationResponseAt DateTime?
   cancellationReason    String?
   notes                 String?
+  deletedAt             DateTime?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
   patient               Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
@@ -189,6 +195,7 @@ model Appointment {
   @@index([professionalId, date])
   @@index([status, date])
   @@index([date, startTime])
+  @@index([deletedAt])
 }
 
 model ProfessionalAvailability {
@@ -260,6 +267,7 @@ model Treatment {
   insuranceCode        String?
   observations         String?
   performedAt          DateTime      @default(now())
+  deletedAt            DateTime?
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   patient              Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -270,6 +278,7 @@ model Treatment {
   @@index([patientId, performedAt])
   @@index([professionalId, performedAt])
   @@index([appointmentId])
+  @@index([deletedAt])
 }
 
 model ClinicalImage {
@@ -279,12 +288,14 @@ model ClinicalImage {
   imageUrl         String
   description      String?
   takenAt          DateTime?
+  deletedAt        DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
   uploadedByUser   User?     @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
 
   @@index([patientId, createdAt])
+  @@index([deletedAt])
 }
 
 model BillingEntry {
@@ -298,6 +309,7 @@ model BillingEntry {
   currency         String           @default("ARS")
   description      String?
   date             DateTime
+  deletedAt        DateTime?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   patient          Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -308,6 +320,7 @@ model BillingEntry {
   @@index([patientId, date])
   @@index([professionalId, date])
   @@index([type, date])
+  @@index([deletedAt])
 }
 
 model AuditLog {

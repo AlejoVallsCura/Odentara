@@ -1,10 +1,10 @@
 const express = require("express");
 
 const prisma = require("../lib/prisma");
+const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
+const { buildPatientAccessWhere } = require("../lib/access");
 const {
-  canAccessWholeClinic,
-  getAccessibleProfessionalIds,
   canManagePatients,
   canEditPatient,
   canDeletePatient,
@@ -23,26 +23,6 @@ function normalizePatientName(value = "") {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ");
-}
-
-function buildPatientAccessWhere(permissions) {
-  if (canAccessWholeClinic(permissions)) {
-    return {};
-  }
-
-  const professionalIds = getAccessibleProfessionalIds(permissions);
-
-  if (professionalIds.length === 0) {
-    return { id: -1 };
-  }
-
-  return {
-    OR: [
-      { appointments: { some: { professionalId: { in: professionalIds } } } },
-      { treatments: { some: { professionalId: { in: professionalIds } } } },
-      { billingEntries: { some: { professionalId: { in: professionalIds } } } },
-    ],
-  };
 }
 
 function serializePatient(patient) {
@@ -104,6 +84,7 @@ async function validatePatientUniqueness(payload, currentPatientId = null) {
   const existingByDni = await prisma.patient.findFirst({
     where: {
       dni: payload.dni,
+      deletedAt: null,
       ...(currentPatientId ? { id: { not: currentPatientId } } : {}),
     },
     select: { id: true, fullName: true, dni: true },
@@ -116,6 +97,7 @@ async function validatePatientUniqueness(payload, currentPatientId = null) {
   const existingByName = await prisma.patient.findFirst({
     where: {
       normalizedName: normalizePatientName(payload.fullName),
+      deletedAt: null,
       ...(currentPatientId ? { id: { not: currentPatientId } } : {}),
     },
     select: { id: true, fullName: true },
@@ -256,6 +238,7 @@ router.post("/", requireAuth, async (req, res) => {
         credentialNumber: payload.credentialNumber,
         chartNumber: payload.chartNumber,
         active: payload.active,
+        deletedAt: null,
         clinicalRecord: {
           create: {
             summaryNotes: payload.summaryNotes,
@@ -349,6 +332,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         credentialNumber: payload.credentialNumber,
         chartNumber: payload.chartNumber,
         active: payload.active,
+        deletedAt: null,
         clinicalRecord: existingPatient.clinicalRecord
           ? {
               update: {
@@ -400,8 +384,28 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
     const patientId = Number(req.params.id);
 
-    await prisma.patient.delete({
+    const existingPatient = await prisma.patient.findUnique({
       where: { id: patientId },
+      include: { clinicalRecord: true },
+    });
+
+    if (!existingPatient || existingPatient.deletedAt) {
+      return res.status(404).json({
+        ok: false,
+        error: "Paciente no encontrado.",
+      });
+    }
+
+    await prisma.patient.update({
+      where: { id: patientId },
+      data: {
+        active: false,
+        deletedAt: new Date(),
+      },
+    });
+
+    await logDeleteAudit(prisma, req.user.id, "Patient", patientId, {
+      patient: existingPatient,
     });
 
     return res.json({

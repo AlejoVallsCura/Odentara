@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 
 const prisma = require("../lib/prisma");
+const { logDeleteAudit } = require("../lib/audit");
 const { normalizeEmail, serializeUser, buildPermissionSummary } = require("../lib/auth");
 const { requireAuth, requireAnyRole } = require("../middleware/auth");
 
@@ -37,6 +38,7 @@ function normalizeRequestedRoles(rawRoles = []) {
 router.get("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (_req, res) => {
   try {
     const users = await prisma.user.findMany({
+      where: { deletedAt: null },
       orderBy: { id: "asc" },
       include: {
         roles: { include: { role: true } },
@@ -98,6 +100,13 @@ router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (re
       return res.status(400).json({
         ok: false,
         error: "Selecciona al menos un rol para el usuario.",
+      });
+    }
+
+    if (!req.permissions?.isSuperadmin && requestedRoles.includes("superadmin")) {
+      return res.status(403).json({
+        ok: false,
+        error: "Solo un superadmin puede crear usuarios con rol superadmin.",
       });
     }
 
@@ -193,6 +202,80 @@ router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (re
     return res.status(500).json({
       ok: false,
       error: "No se pudo crear el usuario.",
+    });
+  }
+});
+
+router.delete("/:id", requireAuth, requireAnyRole(["superadmin", "admin"]), async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Usuario invalido.",
+      });
+    }
+
+    if (req.user.id === userId) {
+      return res.status(400).json({
+        ok: false,
+        error: "No podes eliminar tu propio usuario mientras estas logueado.",
+      });
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        id: userId,
+        deletedAt: null,
+      },
+      include: {
+        roles: { include: { role: true } },
+        professionalScopes: true,
+        assignedProfessional: true,
+      },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({
+        ok: false,
+        error: "Usuario no encontrado.",
+      });
+    }
+
+    const targetRoles = existingUser.roles.map((item) => item.role.code);
+    if (!req.permissions?.isSuperadmin && targetRoles.includes("superadmin")) {
+      return res.status(403).json({
+        ok: false,
+        error: "Solo un superadmin puede eliminar usuarios superadmin.",
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        active: false,
+        deletedAt: new Date(),
+      },
+    });
+
+    await logDeleteAudit(prisma, req.user.id, "User", userId, {
+      user: {
+        id: existingUser.id,
+        email: existingUser.email,
+        fullName: existingUser.fullName,
+        roles: existingUser.roles.map((item) => item.role.code),
+      },
+    });
+
+    return res.json({
+      ok: true,
+      message: "Usuario archivado correctamente.",
+    });
+  } catch (_error) {
+    return res.status(500).json({
+      ok: false,
+      error: "No se pudo eliminar el usuario.",
     });
   }
 });

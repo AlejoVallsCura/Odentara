@@ -1,9 +1,15 @@
 const express = require("express");
 
 const prisma = require("../lib/prisma");
+const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
-const { canEditClinicalData, canAccessWholeClinic, getAccessibleProfessionalIds } = require("../lib/permissions");
+const {
+  canEditClinicalData,
+  canViewClinicalData,
+  canAccessWholeClinic,
+  getAccessibleProfessionalIds,
+} = require("../lib/permissions");
 
 const router = express.Router();
 
@@ -51,9 +57,14 @@ async function ensureAccessibleAppointment(permissions, appointmentId, patientId
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    if (!canViewClinicalData(req.permissions)) {
+      return res.status(403).json({ ok: false, error: "No tenes permisos para ver tratamientos." });
+    }
+
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
     const treatments = await prisma.treatment.findMany({
       where: {
+        deletedAt: null,
         ...(patientId ? { patientId } : {}),
         patient: buildPatientAccessWhere(req.permissions),
       },
@@ -110,6 +121,7 @@ router.post("/", requireAuth, async (req, res) => {
         insuranceCode: req.body.insuranceCode ? String(req.body.insuranceCode).trim() : null,
         observations: req.body.observations ? String(req.body.observations).trim() : null,
         performedAt: req.body.performedAt ? new Date(req.body.performedAt) : new Date(),
+        deletedAt: null,
       },
       include: {
         patient: { select: { id: true, fullName: true, dni: true } },
@@ -132,6 +144,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     const existing = await prisma.treatment.findFirst({
       where: {
         id: Number(req.params.id),
+        deletedAt: null,
         patient: buildPatientAccessWhere(req.permissions),
       },
     });
@@ -174,6 +187,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         insuranceCode: req.body.insuranceCode !== undefined ? (req.body.insuranceCode ? String(req.body.insuranceCode).trim() : null) : existing.insuranceCode,
         observations: req.body.observations !== undefined ? (req.body.observations ? String(req.body.observations).trim() : null) : existing.observations,
         performedAt: req.body.performedAt ? new Date(req.body.performedAt) : existing.performedAt,
+        deletedAt: null,
       },
       include: {
         patient: { select: { id: true, fullName: true, dni: true } },
@@ -196,6 +210,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     const existing = await prisma.treatment.findFirst({
       where: {
         id: Number(req.params.id),
+        deletedAt: null,
         patient: buildPatientAccessWhere(req.permissions),
       },
       select: { id: true },
@@ -205,7 +220,22 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Tratamiento no encontrado o sin acceso." });
     }
 
-    await prisma.treatment.delete({ where: { id: existing.id } });
+    const beforeData = await prisma.treatment.findUnique({
+      where: { id: existing.id },
+      include: {
+        patient: true,
+        professional: true,
+      },
+    });
+
+    await prisma.treatment.update({
+      where: { id: existing.id },
+      data: { deletedAt: new Date() },
+    });
+
+    await logDeleteAudit(prisma, req.user.id, "Treatment", existing.id, {
+      treatment: beforeData,
+    });
     return res.json({ ok: true, message: "Tratamiento eliminado correctamente." });
   } catch (_error) {
     return res.status(400).json({ ok: false, error: "No se pudo eliminar el tratamiento." });

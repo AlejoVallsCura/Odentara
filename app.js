@@ -141,12 +141,140 @@ function repairDomText(root = document.body) {
     });
 }
 
+let feedbackToastRoot = null;
+let feedbackDialogRoot = null;
+
+function ensureFeedbackUi() {
+    if (!feedbackToastRoot) {
+        feedbackToastRoot = document.createElement('div');
+        feedbackToastRoot.id = 'feedback-toast-root';
+        feedbackToastRoot.className = 'feedback-toast-root';
+        document.body.appendChild(feedbackToastRoot);
+    }
+
+    if (!feedbackDialogRoot) {
+        feedbackDialogRoot = document.createElement('div');
+        feedbackDialogRoot.id = 'feedback-dialog-root';
+        feedbackDialogRoot.className = 'feedback-dialog-root';
+        document.body.appendChild(feedbackDialogRoot);
+    }
+
+    return { feedbackToastRoot, feedbackDialogRoot };
+}
+
+function showToast(message, options = {}) {
+    const { type = 'info', duration = 3200 } = options;
+    const { feedbackToastRoot } = ensureFeedbackUi();
+    const toast = document.createElement('div');
+    toast.className = `feedback-toast feedback-toast-${type}`;
+    toast.innerHTML = `
+        <div class="feedback-toast-icon">
+            <i class="fa-solid ${type === 'success' ? 'fa-check' : type === 'error' ? 'fa-circle-exclamation' : 'fa-bell'}"></i>
+        </div>
+        <div class="feedback-toast-copy">${repairMojibakeString(String(message ?? ''))}</div>
+    `;
+
+    feedbackToastRoot.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('is-visible'));
+
+    const removeToast = () => {
+        toast.classList.remove('is-visible');
+        window.setTimeout(() => toast.remove(), 180);
+    };
+
+    window.setTimeout(removeToast, duration);
+    toast.addEventListener('click', removeToast);
+}
+
+function showDialog(message, options = {}) {
+    const {
+        title = 'Odentara',
+        variant = 'info',
+        confirmText = 'Aceptar',
+        cancelText = null,
+        dismissible = true
+    } = options;
+
+    const { feedbackDialogRoot } = ensureFeedbackUi();
+    const overlay = document.createElement('div');
+    overlay.className = 'feedback-dialog-overlay';
+    overlay.innerHTML = `
+        <div class="feedback-dialog feedback-dialog-${variant}" role="dialog" aria-modal="true" aria-label="${repairMojibakeString(title)}">
+            <div class="feedback-dialog-badge">
+                <i class="fa-solid ${variant === 'danger' ? 'fa-trash' : variant === 'error' ? 'fa-circle-exclamation' : variant === 'success' ? 'fa-check' : 'fa-bell'}"></i>
+            </div>
+            <div class="feedback-dialog-copy">
+                <p class="feedback-dialog-eyebrow">${repairMojibakeString(title)}</p>
+                <p class="feedback-dialog-message">${repairMojibakeString(String(message ?? ''))}</p>
+            </div>
+            <div class="feedback-dialog-actions">
+                ${cancelText ? `<button type="button" class="btn btn-ghost feedback-dialog-cancel">${repairMojibakeString(cancelText)}</button>` : ''}
+                <button type="button" class="btn btn-primary feedback-dialog-confirm">${repairMojibakeString(confirmText)}</button>
+            </div>
+        </div>
+    `;
+
+    feedbackDialogRoot.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('is-visible'));
+
+    return new Promise((resolve) => {
+        const cleanup = (result) => {
+            overlay.classList.remove('is-visible');
+            document.removeEventListener('keydown', onKeyDown);
+            window.setTimeout(() => {
+                overlay.remove();
+                resolve(result);
+            }, 180);
+        };
+
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape' && dismissible) {
+                cleanup(false);
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+
+        overlay.querySelector('.feedback-dialog-confirm')?.addEventListener('click', () => cleanup(true));
+        overlay.querySelector('.feedback-dialog-cancel')?.addEventListener('click', () => cleanup(false));
+
+        if (dismissible) {
+            overlay.addEventListener('click', (event) => {
+                if (event.target === overlay) {
+                    cleanup(false);
+                }
+            });
+        }
+    });
+}
+
+function showAlert(message, options = {}) {
+    return showDialog(message, {
+        title: options.title || 'Odentara',
+        variant: options.variant || 'info',
+        confirmText: options.confirmText || 'Aceptar',
+        dismissible: true
+    });
+}
+
+function showConfirm(message, options = {}) {
+    return showDialog(message, {
+        title: options.title || 'Confirmar acción',
+        variant: options.variant || 'danger',
+        confirmText: options.confirmText || 'Confirmar',
+        cancelText: options.cancelText || 'Cancelar',
+        dismissible: true
+    });
+}
+
 function setupMojibakeAutoRepair() {
-    const nativeAlert = window.alert.bind(window);
     const nativeConfirm = window.confirm.bind(window);
 
-    window.alert = (message) => nativeAlert(repairMojibakeString(String(message ?? '')));
+    window.alert = (message) => showAlert(message);
     window.confirm = (message) => nativeConfirm(repairMojibakeString(String(message ?? '')));
+    window.appAlert = showAlert;
+    window.appConfirm = showConfirm;
+    window.appToast = showToast;
 
     const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
@@ -446,10 +574,17 @@ async function apiFetch(path, options = {}) {
         headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-        ...options,
-        headers
-    });
+    let response;
+    try {
+        response = await fetch(`${API_BASE_URL}${path}`, {
+            ...options,
+            headers
+        });
+    } catch (_error) {
+        const connectionError = new Error('No se pudo conectar con el servidor. Verifica que el backend esté iniciado en localhost:3001.');
+        connectionError.status = 0;
+        throw connectionError;
+    }
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -460,6 +595,25 @@ async function apiFetch(path, options = {}) {
     }
 
     return data;
+}
+
+async function deleteViaApiOrLocal({ path, localTable, localId, fallbackAction, sync = true }) {
+    if (state.authToken) {
+        await apiFetch(path, { method: 'DELETE' });
+        if (sync) {
+            await syncBackendSnapshotToLocalDb();
+        }
+        return;
+    }
+
+    if (typeof fallbackAction === 'function') {
+        fallbackAction();
+        return;
+    }
+
+    if (localTable && localId !== undefined) {
+        DB.delete(localTable, localId);
+    }
 }
 
 function applyAuthenticatedUiState() {
@@ -518,9 +672,92 @@ function mapApiPatientToLegacy(patient = {}) {
         phone: patient.phone || '',
         lastVisit: '',
         notes: patient.clinicalRecord?.summaryNotes || patient.clinicalRecord?.medicalNotes || '',
+        allergies: patient.clinicalRecord?.allergies || '',
+        medicalNotes: patient.clinicalRecord?.medicalNotes || '',
         odontograma: {},
-        treatments: []
+        treatments: [],
+        clinicalImages: []
     };
+}
+
+function mapApiTreatmentToLegacy(treatment = {}) {
+    return {
+        id: treatment.id,
+        diente: treatment.tooth || '',
+        cara: treatment.face || '',
+        sector: treatment.sector || '',
+        autorizacion: treatment.authorizationNumber || '',
+        codigo: treatment.insuranceCode || '',
+        observaciones: treatment.observations || '',
+        fecha: treatment.performedAt ? new Date(treatment.performedAt).toLocaleDateString('es-AR') : '',
+        firma: treatment.professional?.fullName || state.user?.fullName || state.user?.name || ''
+    };
+}
+
+function mapApiClinicalImageToLegacy(image = {}) {
+    return {
+        id: image.id,
+        date: image.takenAt
+            ? formatDateToLocalIso(new Date(image.takenAt))
+            : image.createdAt
+                ? formatDateToLocalIso(new Date(image.createdAt))
+                : '',
+        description: image.description || '',
+        dataUrl: image.imageUrl || ''
+    };
+}
+
+function upsertLocalItem(table, item) {
+    const items = DB.get(table);
+    const index = items.findIndex((entry) => entry.id === item.id);
+
+    if (index >= 0) {
+        items[index] = {
+            ...items[index],
+            ...item
+        };
+    } else {
+        items.push(item);
+    }
+
+    DB.save(table, items);
+}
+
+async function syncPatientClinicalData(patientId) {
+    const patient = DB.get('patients').find((item) => item.id === patientId);
+    if (!state.authToken) return patient;
+
+    const [patientRes, treatmentsRes, imagesRes] = await Promise.all([
+        apiFetch(`/patients/${patientId}`),
+        apiFetch(`/treatments?patientId=${patientId}`),
+        apiFetch(`/clinical-images?patientId=${patientId}`)
+    ]);
+
+    const mappedPatient = mapApiPatientToLegacy(patientRes.patient || {});
+    const mergedPatient = {
+        ...(patient || {}),
+        ...mappedPatient,
+        odontograma: patient?.odontograma || {},
+        treatments: (treatmentsRes.treatments || []).map(mapApiTreatmentToLegacy),
+        clinicalImages: (imagesRes.images || []).map(mapApiClinicalImageToLegacy),
+        notes: patientRes.patient?.clinicalRecord?.summaryNotes || '',
+        allergies: patientRes.patient?.clinicalRecord?.allergies || '',
+        medicalNotes: patientRes.patient?.clinicalRecord?.medicalNotes || ''
+    };
+
+    upsertLocalItem('patients', mergedPatient);
+    return mergedPatient;
+}
+
+function buildProfessionalSchedulesPayload(schedule = {}) {
+    return Object.entries(schedule)
+        .map(([weekday, values]) => ({
+            weekday: Number(weekday),
+            startTime: values?.start || '',
+            endTime: values?.end || '',
+            active: Boolean(values?.active)
+        }))
+        .filter(item => item.startTime && item.endTime);
 }
 
 function buildPatientApiPayload(values = {}) {
@@ -704,7 +941,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.closest('.btn-delete-apt')) {
             const aptId = parseInt(e.target.closest('.btn-delete-apt').dataset.id);
             const apt = getAccessibleAppointments().find(item => item.id === aptId);
-            if (apt && confirm('�Cancelar este turno?')) { DB.update('appointments', aptId, { status: 'cancelled' }); refreshCurrentView(); }
+            if (apt && await showConfirm('¿Eliminar este turno?', { title: 'Eliminar turno', confirmText: 'Eliminar' })) {
+                try {
+                    await deleteViaApiOrLocal({
+                        path: `/appointments/${aptId}`,
+                        localTable: 'appointments',
+                        localId: aptId
+                    });
+                    refreshCurrentView();
+                } catch (error) {
+                    alert(error.message || 'No se pudo eliminar el turno.');
+                }
+            }
         }
         
         if (e.target.closest('#btn-add-patient')) openPatientModal();
@@ -715,7 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Solo el superadmin puede eliminar pacientes.');
                 return;
             }
-            if (canAccessPatient(patientId) && confirm('¿Eliminar paciente y su historial?')) {
+            if (canAccessPatient(patientId) && await showConfirm('¿Eliminar paciente y su historial?', { title: 'Eliminar paciente', confirmText: 'Eliminar' })) {
                 try {
                     if (state.authToken) {
                         await apiFetch(`/patients/${patientId}`, { method: 'DELETE' });
@@ -731,6 +979,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (e.target.closest('.btn-view-history')) {
             const patientId = parseInt(e.target.closest('.btn-view-history').dataset.id);
+            if (!canViewClinicalHistoryUi()) {
+                showAlert('El secretario no puede acceder a la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+                return;
+            }
             if (canAccessPatient(patientId)) loadClinicalHistory(patientId);
         }
 
@@ -738,7 +990,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.closest('.btn-delete-tx')) {
             const txId = parseInt(e.target.closest('.btn-delete-tx').dataset.id);
             const tx = DB.get('billing').find(item => item.id === txId);
-            if (tx && canAccessProfessional(tx.professionalId) && confirm('�Eliminar transacci�n?')) { DB.delete('billing', txId); refreshCurrentView(); }
+            if (tx && canAccessProfessional(tx.professionalId) && await showConfirm('¿Eliminar transacción?', { title: 'Eliminar transacción', confirmText: 'Eliminar' })) {
+                try {
+                    await deleteViaApiOrLocal({
+                        path: `/billing/${txId}`,
+                        localTable: 'billing',
+                        localId: txId
+                    });
+                    refreshCurrentView();
+                } catch (error) {
+                    alert(error.message || 'No se pudo eliminar la transacción.');
+                }
+            }
         }
         
         if (e.target.closest('.btn-edit-schedule')) {
@@ -879,7 +1142,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 e.target.reset();
-                alert('Usuario creado correctamente.');
+                showToast('Usuario creado correctamente.', { type: 'success' });
             } catch (error) {
                 alert(error.message || 'No se pudo crear el usuario.');
             }
@@ -967,7 +1230,10 @@ async function login(email, password) {
         await syncBackendSnapshotToLocalDb();
         applyAuthenticatedUiState();
     } catch (error) {
-        alert(error.payload?.error || 'No se pudo iniciar sesi�n.');
+        const message = error.status === 0
+            ? 'No se pudo conectar con el servidor de Odentara. Inicia el backend en localhost:3001 e intenta nuevamente.'
+            : (error.payload?.error || error.message || 'No se pudo iniciar sesión.');
+        showAlert(message, { title: 'Error de inicio de sesión', variant: 'error' });
     }
 }
 
@@ -1106,6 +1372,10 @@ function getAccessibleAppointments() {
 }
 
 function getAccessiblePatientIds() {
+    if (state.authToken) {
+        return DB.get('patients').map(p => p.id);
+    }
+
     if (isSuperadmin()) {
         return DB.get('patients').map(p => p.id);
     }
@@ -1128,8 +1398,20 @@ function canAccessPatient(patientId) {
 }
 
 function getAccessiblePatients() {
+    if (state.authToken) {
+        return DB.get('patients');
+    }
+
     const allowedIds = new Set(getAccessiblePatientIds());
     return DB.get('patients').filter(p => allowedIds.has(p.id));
+}
+
+function canEditClinicalHistoryUi() {
+    return !!state.user && state.user.roles.includes('professional');
+}
+
+function canViewClinicalHistoryUi() {
+    return !!state.user && !state.user.roles.includes('secretary');
 }
 
 function normalizeAppointmentStatus(status = '') {
@@ -1155,12 +1437,29 @@ function getWhatsAppLink(patient, apt) {
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
-window.markAppointmentAsSent = function(aptId) {
+window.markAppointmentAsSent = async function(aptId) {
     const apt = DB.get('appointments').find(item => item.id === aptId);
     if (!apt) return;
     const normalizedStatus = normalizeAppointmentStatus(apt.status);
     if (normalizedStatus === 'not_sent') {
-        DB.update('appointments', aptId, { status: 'sent' });
+        try {
+            if (state.authToken) {
+                await apiFetch(`/appointments/${aptId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        status: 'sent',
+                        confirmationChannel: 'whatsapp',
+                        confirmationSentAt: new Date().toISOString()
+                    })
+                });
+                await syncBackendSnapshotToLocalDb();
+            } else {
+                DB.update('appointments', aptId, { status: 'sent' });
+            }
+        } catch (error) {
+            showAlert(error.message || 'No se pudo actualizar el estado del turno.', { title: 'Turnos', variant: 'error' });
+            return;
+        }
         if (state.currentView === 'dashboard' || state.currentView === 'appointments') refreshCurrentView();
     }
 };
@@ -1207,7 +1506,7 @@ function openAppointmentViewModal(aptId) {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-ghost" onclick="closeModal()">Cerrar</button>
-                    ${patient ? `<button type="button" class="btn btn-secondary" onclick="closeModal(); loadClinicalHistory(${patient.id})">Historia Clinica</button>` : ''}
+                    ${patient && canViewClinicalHistoryUi() ? `<button type="button" class="btn btn-secondary" onclick="closeModal(); loadClinicalHistory(${patient.id})">Historia Clinica</button>` : ''}
                     <button type="button" class="btn btn-secondary" onclick="openAppointmentModal(${aptId})">Editar</button>
                     <button type="button" class="btn btn-primary">Iniciar Cita</button>
                 </div>
@@ -1456,7 +1755,7 @@ function openAppointmentModal(editId = null) {
     sCheck.addEventListener('change', toggleDur); 
     toggleDur(); // Also calls renderTimeOptions
     
-    document.getElementById('apt-form').addEventListener('submit', (e) => {
+    document.getElementById('apt-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const selectedDate = document.getElementById('apt-date').value;
         const selectedTime = timeSelect.value;
@@ -1490,6 +1789,7 @@ function openAppointmentModal(editId = null) {
 
         const data = {
             patient: matchedPatient.name,
+            patientId: matchedPatient.id,
             professionalId: parseInt(profSelect.value),
             date: selectedDate,
             time: selectedTime,
@@ -1497,9 +1797,41 @@ function openAppointmentModal(editId = null) {
             isOverbook,
             status: apt ? normalizeAppointmentStatus(apt.status) : 'not_sent'
         };
-        if (editId) DB.update('appointments', editId, data);
-        else DB.add('appointments', data);
-        closeModal(); refreshCurrentView();
+        try {
+            if (state.authToken) {
+                const payload = {
+                    patientId: data.patientId,
+                    professionalId: data.professionalId,
+                    date: data.date,
+                    time: data.time,
+                    durationMinutes: data.duration,
+                    isOverbook: data.isOverbook,
+                    status: data.status
+                };
+
+                if (editId) {
+                    await apiFetch(`/appointments/${editId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    await apiFetch('/appointments', {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                await syncBackendSnapshotToLocalDb();
+            } else {
+                if (editId) DB.update('appointments', editId, data);
+                else DB.add('appointments', data);
+            }
+
+            closeModal();
+            refreshCurrentView();
+        } catch (error) {
+            showAlert(error.message || 'No se pudo guardar el turno.', { title: 'Turnos', variant: 'error' });
+        }
     });
 }
 
@@ -1548,7 +1880,7 @@ function openScheduleModal(profId) {
             </div>
         </div>
     `;
-    document.getElementById('schedule-form').addEventListener('submit', (e) => {
+    document.getElementById('schedule-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const newSched = {};
         for(let i=0; i<7; i++) {
@@ -1558,8 +1890,30 @@ function openScheduleModal(profId) {
                 end: document.getElementById(`sch-end-${i}`).value
             };
         }
-        DB.update('professionals', profId, { schedule: newSched });
-        closeModal(); refreshCurrentView();
+        try {
+            if (state.authToken) {
+                await apiFetch(`/professionals/${profId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        fullName: prof.name,
+                        specialty: prof.specialty || '',
+                        email: prof.email || '',
+                        phone: prof.phone || '',
+                        color: prof.color || '#6366f1',
+                        active: prof.active !== false && prof.status !== 'inactivo',
+                        schedules: buildProfessionalSchedulesPayload(newSched)
+                    })
+                });
+                await syncBackendSnapshotToLocalDb();
+            } else {
+                DB.update('professionals', profId, { schedule: newSched });
+            }
+
+            closeModal();
+            refreshCurrentView();
+        } catch (error) {
+            alert(error.message || 'No se pudieron guardar los horarios.');
+        }
     });
 }
 
@@ -1568,23 +1922,23 @@ function openPatientModal(editId = null) {
     if (editId && !p) return;
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
-            <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-content modal-content-patient" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>${editId ? 'Editar Paciente' : 'Nuevo Paciente'}</h3>
                 </div>
                 <form id="patient-form">
                     <div class="modal-body">
                         <div class="input-group"><label>Nombre y Apellido *</label><input type="text" id="p-name" value="${p?p.name:''}" required></div>
-                        <div class="flex gap-4">
+                        <div class="patient-form-row patient-form-row-2">
                             <div class="input-group flex-1"><label>DNI *</label><input type="text" id="p-dni" value="${p?p.dni||'':''}" required></div>
                             <div class="input-group flex-1"><label>Tel�fono (Celular) *</label><input type="text" id="p-phone" value="${p?p.phone||'':''}" required></div>
                         </div>
-                        <div class="flex gap-4">
+                        <div class="patient-form-row patient-form-row-2">
                             <div class="input-group flex-1"><label>Fecha de Nacimiento</label><input type="date" id="p-nacimiento" value="${p?p.fechaNacimiento||'':''}"></div>
                             <div class="input-group flex-1"><label>Email</label><input type="email" id="p-email" value="${p?p.email||'':''}"></div>
                         </div>
                         <div class="input-group"><label>Domicilio</label><input type="text" id="p-domicilio" value="${p?p.domicilio||'':''}"></div>
-                        <div class="flex gap-4">
+                        <div class="patient-form-row patient-form-row-3">
                             <div class="input-group flex-1"><label>Obra Social / Plan</label><input type="text" id="p-obrasocial" value="${p?p.obraSocial||'':''}"></div>
                             <div class="input-group flex-1"><label>Credencial</label><input type="text" id="p-credencial" value="${p?p.credencial||'':''}"></div>
                             <div class="input-group flex-1"><label>Ficha N�</label><input type="text" id="p-ficha" value="${p?p.fichaNumero||'':''}"></div>
@@ -1716,17 +2070,33 @@ function openBillingModal() {
             </div>
         </div>
     `;
-    document.getElementById('tx-form').addEventListener('submit', (e) => {
+    document.getElementById('tx-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        DB.add('billing', {
+        const data = {
             patientId: parseInt(document.getElementById('tx-patient').value),
             professionalId: parseInt(document.getElementById('tx-prof').value),
             type: document.getElementById('tx-type').value,
             amount: parseFloat(document.getElementById('tx-amount').value),
             description: document.getElementById('tx-desc').value,
             date: getTodayIsoLocal()
-        });
-        closeModal(); refreshCurrentView();
+        };
+
+        try {
+            if (state.authToken) {
+                await apiFetch('/billing', {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                await syncBackendSnapshotToLocalDb();
+            } else {
+                DB.add('billing', data);
+            }
+
+            closeModal();
+            refreshCurrentView();
+        } catch (error) {
+            showAlert(error.message || 'No se pudo registrar el movimiento.', { title: 'Facturación', variant: 'error' });
+        }
     });
 }
 
@@ -1905,7 +2275,7 @@ function renderAppointmentCompactCard(apt) {
             <div class="cal-mobile-card-name">${apt.patient}</div>
             <div class="cal-mobile-card-prof">${getProfName(apt.professionalId)}</div>
             <div class="cal-mobile-card-actions">
-                ${patient ? `<button class="btn btn-ghost btn-sm" onclick="loadClinicalHistory(${patient.id})">Historia</button>` : ''}
+                ${patient && canViewClinicalHistoryUi() ? `<button class="btn btn-ghost btn-sm" onclick="loadClinicalHistory(${patient.id})">Historia</button>` : ''}
                 <button class="btn btn-secondary btn-sm" onclick="openAppointmentViewModal(${apt.id})">Ver</button>
                 ${state.user.roles.some(r => ['secretary', 'superadmin', 'admin'].includes(r)) ? `<button class="btn btn-primary btn-sm" onclick="openAppointmentModal(${apt.id})">Editar</button>` : ''}
             </div>
@@ -2082,10 +2452,10 @@ function renderAppointments() {
                     <span class="cal-apt-meta">${apt.time} - ${duration}min</span>
                     ${apt.isOverbook ? '<span class="cal-apt-tag">Sobreturno</span>' : ''}
                     ${canEdit ? `<div class="cal-apt-actions">
-                        ${patient ? `<button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia clinica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>` : ''}
+                        ${patient && canViewClinicalHistoryUi() ? `<button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia clinica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>` : ''}
                         <button class="cal-apt-btn btn-edit-apt" data-id="${apt.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
                         <button class="cal-apt-btn btn-delete-apt" data-id="${apt.id}" title="Cancelar"><i class="fa-solid fa-times"></i></button>
-                    </div>` : `${patient ? `<div class="cal-apt-actions cal-apt-actions-readonly">
+                    </div>` : `${patient && canViewClinicalHistoryUi() ? `<div class="cal-apt-actions cal-apt-actions-readonly">
                         <button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia clinica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>
                     </div>` : ''}`}
                 </div>`;
@@ -2231,28 +2601,37 @@ function renderAppointments() {
             const dayNum = i - startOffset + 1;
             let cellDate = null;
             let isCurrentMonth = false;
-            let content = '<div class="text-gray-400 text-xs">&nbsp;</div>';
+            let content = '<div class="cal-month-empty-slot"></div>';
 
             if (dayNum > 0 && dayNum <= daysInMonth) {
                 isCurrentMonth = true;
                 cellDate = new Date(year, month, dayNum);
                 const iso = formatDateToLocalIso(cellDate);
+                const isToday = iso === getTodayIsoLocal();
                 let dayApts = allApts.filter(a => a.date === iso && calendarState.visibleProfs[a.professionalId]);
                 dayApts = dayApts.sort((a,b)=>a.time.localeCompare(b.time));
 
                 const aptList = dayApts.map(apt => {
                     const profName = getProfName(apt.professionalId);
-                    const statusColor = getAppointmentStatusMeta(apt.status).color;
-                    return `<div class="cal-month-apt" style="border-left:4px solid ${statusColor};" onclick="openAppointmentViewModal(${apt.id})">
-                        <span class="text-xs font-semibold">${apt.time}</span>
-                        <span class="text-xs">${apt.patient} (${profName})</span>
-                    </div>`;
+                    const visual = getAppointmentVisual(apt);
+                    return `<button type="button" class="cal-month-apt ${apt.isOverbook ? 'is-overbook' : ''}" style="border-left-color:${visual.border}; background:${visual.bg}; color:${visual.text};" onclick="openAppointmentViewModal(${apt.id})">
+                        <span class="cal-month-apt-time">${apt.time}</span>
+                        <span class="cal-month-apt-name">${apt.patient}</span>
+                        <span class="cal-month-apt-prof">${profName}</span>
+                    </button>`;
                 }).join('');
 
-                content = `<div class="cal-month-daynum ${isCurrentMonth ? '' : 'text-gray-400'}">${dayNum}</div>${aptList || '<div class="text-gray-400 text-xs">Sin turnos</div>'}`;
+                content = `
+                    <div class="cal-month-dayhead ${isToday ? 'is-today' : ''}">
+                        <span class="cal-month-daynum">${dayNum}</span>
+                    </div>
+                    <div class="cal-month-daybody">
+                        ${aptList || '<div class="cal-month-dayempty">Sin turnos</div>'}
+                    </div>
+                `;
             }
 
-            cells += `<div class="cal-month-cell ${isCurrentMonth ? '' : 'text-gray-400'}">${content}</div>`;
+            cells += `<div class="cal-month-cell ${isCurrentMonth ? '' : 'is-outside-month'}">${content}</div>`;
         }
 
         const monthName = date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
@@ -2278,9 +2657,19 @@ function renderAppointments() {
 
             <div class="cal-layout">
                 <div class="cal-scroll-wrap">
-                    <div class="cal-month-grid">
-                        <div class="cal-month-row-header">Dom</div><div class="cal-month-row-header">Lun</div><div class="cal-month-row-header">Mar</div><div class="cal-month-row-header">MiÃ©</div><div class="cal-month-row-header">Jue</div><div class="cal-month-row-header">Vie</div><div class="cal-month-row-header">SÃ¡b</div>
+                    <div class="cal-month-board">
+                        <div class="cal-month-weekdays">
+                            <div class="cal-month-weekday">Dom</div>
+                            <div class="cal-month-weekday">Lun</div>
+                            <div class="cal-month-weekday">Mar</div>
+                            <div class="cal-month-weekday">MiÃ©</div>
+                            <div class="cal-month-weekday">Jue</div>
+                            <div class="cal-month-weekday">Vie</div>
+                            <div class="cal-month-weekday">SÃ¡b</div>
+                        </div>
+                        <div class="cal-month-grid">
                         ${cells}
+                        </div>
                     </div>
                 </div>
                 ${legend}
@@ -2306,7 +2695,7 @@ function renderProfessionals() {
                                 ${p.name}
                             </td>
                             <td>
-                                ${state.user.roles.some(r => ['superadmin', 'secretary', 'professional'].includes(r)) ? `
+                                ${state.user.roles.some(r => ['superadmin', 'admin', 'secretary'].includes(r)) ? `
                                 <button class="btn btn-secondary btn-sm btn-edit-schedule" data-id="${p.id}"><i class="fa-solid fa-clock mr-1"></i> Configurar Horarios por DÃ­a</button>
                                 ` : ''}
                             </td>
@@ -2347,10 +2736,10 @@ function renderPatients() {
                             <td>
                                 <div class="flex gap-2">
                                 ${state.user.roles.some(r => ['superadmin', 'secretary'].includes(r)) ? `
-                                    <button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia ClÃ­nica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>
+                                    ${canViewClinicalHistoryUi() ? `<button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia ClÃ­nica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>` : ''}
                                     <button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}"><i class="fa-solid fa-pen text-primary-600"></i></button>
                                     ${isSuperadmin() ? `<button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}"><i class="fa-solid fa-trash text-danger"></i></button>` : ''}
-                                ` : '<button class="btn btn-secondary btn-sm btn-view-history" data-id="'+p.id+'"><i class="fa-solid fa-eye"></i> Historia</button>'}
+                                ` : `${canViewClinicalHistoryUi() ? '<button class="btn btn-secondary btn-sm btn-view-history" data-id="'+p.id+'"><i class="fa-solid fa-eye"></i> Historia</button>' : ''}`}
                                 </div>
                             </td>
                         </tr>
@@ -2519,12 +2908,13 @@ function renderSettingsSubpages() {
     const users = DB.get('users');
     const profs = DB.get('professionals');
     const isSuper = state.user.roles.includes('superadmin');
+    const canManageSettings = state.user.roles.some(role => ['superadmin', 'admin'].includes(role));
 
-    if (!isSuper) {
+    if (!canManageSettings) {
         return `
             <div class="settings-card">
                 <h3>Acceso denegado</h3>
-                <p>Solo los usuarios con rol superadmin pueden gestionar la configuraciÃƒÂ³n.</p>
+                <p>Solo los usuarios con rol superadmin o admin pueden gestionar la configuraciÃƒÂ³n.</p>
             </div>
         `;
     }
@@ -2544,7 +2934,7 @@ function renderSettingsSubpages() {
                 <td>${u.type || '-'}</td>
                 <td>${roles}</td>
                 <td>${profNames}</td>
-                <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="if(confirm('��Eliminar usuario?')){ DB.delete('users', ${u.id}); refreshCurrentView(); }"><i class="fa-solid fa-trash text-danger"></i></button></td>
+                <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash text-danger"></i></button></td>
             </tr>`;
     }).join('');
 
@@ -2598,7 +2988,7 @@ function renderSettingsSubpages() {
                             <div class="checkbox-group"><input type="checkbox" name="u-role" value="administrador"><label>Administrador</label></div>
                             <div class="checkbox-group"><input type="checkbox" name="u-role" value="secretario"><label>Secretario</label></div>
                             <div class="checkbox-group"><input type="checkbox" name="u-role" value="profesional"><label>Profesional</label></div>
-                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin"><label>Superadmin</label></div>
+                            ${isSuper ? '<div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin"><label>Superadmin</label></div>' : ''}
                         </div>
                     </div>
 
@@ -2706,12 +3096,13 @@ function renderSettings() {
     const users = DB.get('users');
     const profs = DB.get('professionals');
     const isSuper = state.user.roles.includes('superadmin');
+    const canManageSettings = state.user.roles.some(role => ['superadmin', 'admin'].includes(role));
 
-    if (!isSuper) {
+    if (!canManageSettings) {
         return `
             <div class="settings-card">
                 <h3>Acceso denegado</h3>
-                <p>Solo los usuarios con rol superadmin pueden gestionar la configuraciÃ³n.</p>
+                <p>Solo los usuarios con rol superadmin o admin pueden gestionar la configuraciÃ³n.</p>
             </div>
         `;
     }
@@ -2731,7 +3122,7 @@ function renderSettings() {
                 <td>${u.type || '-'}</td>
                 <td>${roles}</td>
                 <td>${profNames}</td>
-                <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="if(confirm('�Eliminar usuario?')){ DB.delete('users', ${u.id}); refreshCurrentView(); }"><i class="fa-solid fa-trash text-danger"></i></button></td>
+                <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash text-danger"></i></button></td>
             </tr>`;
     }).join('');
 
@@ -2773,7 +3164,7 @@ function renderSettings() {
                         <div class="checkbox-group"><input type="checkbox" name="u-role" value="administrador"><label>Administrador</label></div>
                         <div class="checkbox-group"><input type="checkbox" name="u-role" value="secretario"><label>Secretario</label></div>
                         <div class="checkbox-group"><input type="checkbox" name="u-role" value="profesional"><label>Profesional</label></div>
-                        <div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin"><label>Superadmin</label></div>
+                        ${isSuper ? '<div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin"><label>Superadmin</label></div>' : ''}
                     </div>
 
                     <div class="settings-subsection">
@@ -2850,13 +3241,25 @@ function renderSettings() {
 
 // --- Ficha ClÃ­nica y Odontograma ---
 
-function loadClinicalHistory(patientId) {
+async function loadClinicalHistory(patientId) {
     if (!canAccessPatient(patientId)) return;
+    if (!canViewClinicalHistoryUi()) {
+        showAlert('El secretario no puede acceder a la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
     state.currentView = 'patient-history';
     state.currentPatientId = patientId;
     pageTitle.innerText = 'Ficha OdontolÃ³gica';
-    mainContent.innerHTML = '';
+    mainContent.innerHTML = '<div class="card p-6 text-center text-gray-500">Cargando historia clínica...</div>';
     
+    try {
+        await syncPatientClinicalData(patientId);
+    } catch (error) {
+        showAlert(error.message || 'No se pudo cargar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+    }
+
+    mainContent.innerHTML = '';
+
     const content = document.createElement('div');
     content.className = 'animate-fade-in';
     content.innerHTML = renderClinicalHistory(patientId);
@@ -2869,6 +3272,7 @@ function loadClinicalHistory(patientId) {
 function enhanceClinicalPatientEditor(patientId) {
     const patient = DB.get('patients').find(p => p.id === patientId);
     if (!patient) return;
+    const canEditClinical = canEditClinicalHistoryUi();
 
     let age = '-';
     if (patient.fechaNacimiento) {
@@ -2891,7 +3295,7 @@ function enhanceClinicalPatientEditor(patientId) {
             </div>
             <div class="clinical-info-item">
                 <strong class="text-gray-600 uppercase text-xs">Nacimiento</strong>
-                <input class="form-input" type="date" id="clinical-fecha-nacimiento" value="${patient.fechaNacimiento || ''}">
+                <input class="form-input" type="date" id="clinical-fecha-nacimiento" value="${patient.fechaNacimiento || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item">
                 <strong class="text-gray-600 uppercase text-xs">Edad</strong>
@@ -2899,32 +3303,33 @@ function enhanceClinicalPatientEditor(patientId) {
             </div>
             <div class="clinical-info-item">
                 <strong class="text-gray-600 uppercase text-xs">Telefono</strong>
-                <input class="form-input" type="text" id="clinical-phone" value="${patient.phone || ''}">
+                <input class="form-input" type="text" id="clinical-phone" value="${patient.phone || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item">
                 <strong class="text-gray-600 uppercase text-xs">Email</strong>
-                <input class="form-input" type="email" id="clinical-email" value="${patient.email || ''}">
+                <input class="form-input" type="email" id="clinical-email" value="${patient.email || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item">
                 <strong class="text-gray-600 uppercase text-xs">Obra Social / Plan</strong>
-                <input class="form-input" type="text" id="clinical-obra-social" value="${patient.obraSocial || ''}">
+                <input class="form-input" type="text" id="clinical-obra-social" value="${patient.obraSocial || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item">
                 <strong class="text-gray-600 uppercase text-xs">Credencial</strong>
-                <input class="form-input" type="text" id="clinical-credencial" value="${patient.credencial || ''}">
+                <input class="form-input" type="text" id="clinical-credencial" value="${patient.credencial || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item">
                 <strong class="text-gray-600 uppercase text-xs">Ficha NÂ°</strong>
-                <input class="form-input" type="text" id="clinical-ficha-numero" value="${patient.fichaNumero || ''}">
+                <input class="form-input" type="text" id="clinical-ficha-numero" value="${patient.fichaNumero || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item col-span-full">
                 <strong class="text-gray-600 uppercase text-xs">Domicilio</strong>
-                <input class="form-input" type="text" id="clinical-domicilio" value="${patient.domicilio || ''}">
+                <input class="form-input" type="text" id="clinical-domicilio" value="${patient.domicilio || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
         </div>
+        ${canEditClinical ? `
         <div class="clinical-edit-actions">
             <button class="btn btn-secondary btn-sm" onclick="savePatientDetails(${patientId})">Guardar Datos del Paciente</button>
-        </div>
+        </div>` : ''}
     `;
 }
 
@@ -2973,6 +3378,7 @@ function renderClinicalHistory(patientId) {
     const patient = DB.get('patients').find(p => p.id === patientId);
     if(!patient) return '<p>Paciente no encontrado</p>';
     const clinicalImages = (patient.clinicalImages || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const canEditClinical = canEditClinicalHistoryUi();
 
     let age = '-';
     if(patient.fechaNacimiento) {
@@ -3051,9 +3457,9 @@ function renderClinicalHistory(patientId) {
 
             <!-- TRATAMIENTOS -->
             <div class="mb-4">
-                <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
-                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Registro de Tratamientos</h3>
-                    <button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-treatment"><i class="fa-solid fa-plus"></i> AÃ±adir Fila</button>
+                    <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
+                        <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Registro de Tratamientos</h3>
+                    ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-treatment"><i class="fa-solid fa-plus"></i> AÃ±adir Fila</button>' : ''}
                 </div>
                 <div class="table-container shadow-sm border border-gray-300 overflow-visible">
                     <table class="w-full text-left text-xs md:text-sm" id="treatments-table">
@@ -3072,8 +3478,8 @@ function renderClinicalHistory(patientId) {
                                     <td class="py-2 px-3">${t.fecha}<br><span class="text-[10px] text-gray-500 font-medium">${t.firma}</span></td>
                                     <td class="py-2 px-3 text-gray-600">${t.observaciones}</td>
                                     <td class="py-2 px-3">
-                                    ${!state.user.roles.includes('secretary') ? `
-                                        <button class="btn-ghost text-red-400 hover:text-red-600 p-1" onclick="deleteTreatment(${patientId}, ${idx})"><i class="fa-solid fa-times"></i></button>
+                                    ${canEditClinical ? `
+                                        <button class="btn-ghost text-red-400 hover:text-red-600 p-1" onclick="deleteTreatment(${patientId}, ${t.id ?? idx})"><i class="fa-solid fa-times"></i></button>
                                     ` : ''}
                                     </td>
                                 </tr>
@@ -3087,7 +3493,7 @@ function renderClinicalHistory(patientId) {
             <div class="mb-4">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Imagenes Clinicas</h3>
-                    ${!state.user.roles.includes('secretary') ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Agregar Imagen</button>' : ''}
+                    ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Agregar Imagen</button>' : ''}
                 </div>
                 <div class="clinical-images-shell">
                     <div class="clinical-images-grid">
@@ -3097,7 +3503,7 @@ function renderClinicalHistory(patientId) {
                             <div class="clinical-image-body">
                                 <div class="clinical-image-date">${image.date ? image.date.split('-').reverse().join('/') : 'Sin fecha'}</div>
                                 <p class="clinical-image-description">${image.description || 'Sin descripcion'}</p>
-                                ${!state.user.roles.includes('secretary') ? `<button class="btn btn-ghost btn-sm clinical-image-delete" onclick="deleteClinicalImage(${patientId}, ${idx})"><i class="fa-solid fa-trash"></i> Eliminar</button>` : ''}
+                                ${canEditClinical ? `<button class="btn btn-ghost btn-sm clinical-image-delete" onclick="deleteClinicalImage(${patientId}, ${image.id ?? idx})"><i class="fa-solid fa-trash"></i> Eliminar</button>` : ''}
                             </div>
                         </article>
                     `).join('')}
@@ -3109,8 +3515,8 @@ function renderClinicalHistory(patientId) {
             <!-- NOTAS -->
             <div class="mt-8 bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
                 <h3 class="font-bold text-yellow-800 mb-2 uppercase text-xs"><i class="fa-solid fa-notes-medical"></i> Observaciones Generales y Alergias</h3>
-                <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded">${patient.notes || ''}</textarea>
-                <div class="text-right mt-2"><button class="btn btn-secondary btn-sm bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200" onclick="savePatientNotes(${patientId})">Guardar Notas</button></div>
+                <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded" ${canEditClinical ? '' : 'disabled'}>${patient.notes || ''}</textarea>
+                ${canEditClinical ? '<div class="text-right mt-2"><button class="btn btn-secondary btn-sm bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200" onclick="savePatientNotes(' + patientId + ')">Guardar Notas</button></div>' : ''}
             </div>
         </div>
     </div>
@@ -3118,7 +3524,7 @@ function renderClinicalHistory(patientId) {
 }
 
 function attachClinicalHistoryEvents(patientId) {
-    if(state.user.roles.includes('secretary')) return; // Read Only for clinical charting
+    if(!canEditClinicalHistoryUi()) return; // Read Only for clinical charting
 
     document.querySelectorAll('.tooth-face').forEach(face => {
         face.addEventListener('click', (e) => {
@@ -3183,7 +3589,7 @@ function attachClinicalHistoryEvents(patientId) {
 }
 
 window.toggleAbsent = function(patientId, toothId) {
-    if(state.user.roles.includes('secretary')) return;
+    if(!canEditClinicalHistoryUi()) return;
     const p = DB.get('patients').find(pt => pt.id === patientId);
     if(!p.odontograma) p.odontograma = {};
     if(!p.odontograma[toothId]) p.odontograma[toothId] = {};
@@ -3193,13 +3599,41 @@ window.toggleAbsent = function(patientId, toothId) {
     loadClinicalHistory(patientId);
 };
 
-window.savePatientNotes = function(patientId) {
+window.savePatientNotes = async function(patientId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
     const notes = document.getElementById('p-general-notes').value;
-    DB.update('patients', patientId, { notes: notes });
-    alert('Notas guardadas');
+    const patient = DB.get('patients').find((item) => item.id === patientId);
+    if (!patient) return;
+
+    try {
+        if (state.authToken) {
+            await apiFetch(`/patients/${patientId}`, {
+                method: 'PUT',
+                body: JSON.stringify(buildPatientApiPayload({
+                    ...patient,
+                    notes
+                }))
+            });
+            await syncPatientClinicalData(patientId);
+        } else {
+            DB.update('patients', patientId, { notes });
+        }
+
+        showToast('Notas guardadas.', { type: 'success' });
+        loadClinicalHistory(patientId);
+    } catch (error) {
+        showAlert(error.message || 'No se pudieron guardar las notas.', { title: 'Historia clínica', variant: 'error' });
+    }
 };
 
 window.savePatientDetails = async function(patientId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
     const patient = DB.get('patients').find(p => p.id === patientId);
     if (!patient) return;
 
@@ -3231,26 +3665,78 @@ window.savePatientDetails = async function(patientId) {
     }
 };
 
-window.deleteTreatment = function(patientId, index) {
-    if(confirm('�Eliminar registro de tratamiento?')) {
+window.deleteUser = async function(userId) {
+    if (!await showConfirm('¿Eliminar usuario?', { title: 'Eliminar usuario', confirmText: 'Eliminar' })) return;
+
+    try {
+        await deleteViaApiOrLocal({
+            path: `/users/${userId}`,
+            localTable: 'users',
+            localId: userId
+        });
+        refreshCurrentView();
+    } catch (error) {
+        alert(error.message || 'No se pudo eliminar el usuario.');
+    }
+};
+
+window.deleteTreatment = async function(patientId, treatmentId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
+    if(await showConfirm('¿Eliminar registro de tratamiento?', { title: 'Eliminar tratamiento', confirmText: 'Eliminar' })) {
         const p = DB.get('patients').find(pt => pt.id === patientId);
-        p.treatments.splice(index, 1);
-        DB.update('patients', patientId, { treatments: p.treatments });
+        if (!p) return;
+
+        try {
+            if (state.authToken && Number.isInteger(Number(treatmentId))) {
+                await apiFetch(`/treatments/${treatmentId}`, { method: 'DELETE' });
+                await syncPatientClinicalData(patientId);
+            } else {
+                const treatments = (p.treatments || []).filter((item, index) => (item.id ?? index) !== treatmentId);
+                DB.update('patients', patientId, { treatments });
+            }
+        } catch (error) {
+            showAlert(error.message || 'No se pudo eliminar el tratamiento.', { title: 'Historia clínica', variant: 'error' });
+            return;
+        }
+
         loadClinicalHistory(patientId);
     }
 };
 
-window.deleteClinicalImage = function(patientId, index) {
-    if(confirm('��Eliminar imagen cl�nica?')) {
+window.deleteClinicalImage = async function(patientId, imageId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
+    if(await showConfirm('¿Eliminar imagen clínica?', { title: 'Eliminar imagen', confirmText: 'Eliminar' })) {
         const p = DB.get('patients').find(pt => pt.id === patientId);
-        const images = (p.clinicalImages || []).slice();
-        images.splice(index, 1);
-        DB.update('patients', patientId, { clinicalImages: images });
+        if (!p) return;
+
+        try {
+            if (state.authToken && Number.isInteger(Number(imageId))) {
+                await apiFetch(`/clinical-images/${imageId}`, { method: 'DELETE' });
+                await syncPatientClinicalData(patientId);
+            } else {
+                const images = (p.clinicalImages || []).filter((item, index) => (item.id ?? index) !== imageId);
+                DB.update('patients', patientId, { clinicalImages: images });
+            }
+        } catch (error) {
+            showAlert(error.message || 'No se pudo eliminar la imagen clínica.', { title: 'Historia clínica', variant: 'error' });
+            return;
+        }
+
         loadClinicalHistory(patientId);
     }
 };
 
 function openTreatmentModal(patientId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
             <div class="modal-content modal-content-treatment" onclick="event.stopPropagation()">
@@ -3280,12 +3766,13 @@ function openTreatmentModal(patientId) {
         </div>
     `;
     
-    document.getElementById('tx-history-form').addEventListener('submit', (e) => {
+    document.getElementById('tx-history-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const p = DB.get('patients').find(pt => pt.id === patientId);
         if(!p.treatments) p.treatments = [];
-        
-        p.treatments.push({
+
+        const treatment = {
+            id: Date.now(),
             diente: document.getElementById('tx-diente').value,
             cara: document.getElementById('tx-cara').value,
             sector: document.getElementById('tx-sector').value,
@@ -3293,16 +3780,44 @@ function openTreatmentModal(patientId) {
             codigo: document.getElementById('tx-codigo').value,
             observaciones: document.getElementById('tx-obs').value,
             fecha: new Date().toLocaleDateString('es-AR'),
-            firma: state.user.name // Automatically sign with the current user's name
-        });
-        
-        DB.update('patients', patientId, { treatments: p.treatments });
-        closeModal();
-        loadClinicalHistory(patientId);
+            firma: state.user?.fullName || state.user?.name || 'Usuario'
+        };
+
+        try {
+            if (state.authToken) {
+                await apiFetch('/treatments', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        patientId,
+                        professionalId: state.user?.assignedProfessionalId || null,
+                        tooth: treatment.diente,
+                        face: treatment.cara,
+                        sector: treatment.sector,
+                        authorizationNumber: treatment.autorizacion,
+                        insuranceCode: treatment.codigo,
+                        observations: treatment.observaciones,
+                        performedAt: new Date().toISOString()
+                    })
+                });
+                await syncPatientClinicalData(patientId);
+            } else {
+                p.treatments.push(treatment);
+                DB.update('patients', patientId, { treatments: p.treatments });
+            }
+
+            closeModal();
+            loadClinicalHistory(patientId);
+        } catch (error) {
+            showAlert(error.message || 'No se pudo guardar el tratamiento.', { title: 'Historia clínica', variant: 'error' });
+        }
     });
 }
 
 function openClinicalImageModal(patientId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
             <div class="modal-content modal-content-patient" onclick="event.stopPropagation()">
@@ -3334,7 +3849,7 @@ function openClinicalImageModal(patientId) {
         </div>
     `;
 
-    document.getElementById('clinical-image-form').addEventListener('submit', (e) => {
+    document.getElementById('clinical-image-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fileInput = document.getElementById('clinical-image-file');
         const files = Array.from(fileInput.files || []);
@@ -3350,17 +3865,35 @@ function openClinicalImageModal(patientId) {
         Promise.all(files.map(file => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve({
+                id: Date.now() + Math.floor(Math.random() * 1000),
                 date: selectedDate,
                 description: selectedDescription,
                 dataUrl: reader.result
             });
             reader.onerror = reject;
             reader.readAsDataURL(file);
-        }))).then(newImages => {
+        }))).then(async (newImages) => {
             const p = DB.get('patients').find(pt => pt.id === patientId);
-            const images = (p.clinicalImages || []).slice();
-            images.push(...newImages);
-            DB.update('patients', patientId, { clinicalImages: images });
+
+            if (state.authToken) {
+                await apiFetch('/clinical-images', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        patientId,
+                        images: newImages.map((image) => ({
+                            imageUrl: image.dataUrl,
+                            description: image.description,
+                            takenAt: image.date
+                        }))
+                    })
+                });
+                await syncPatientClinicalData(patientId);
+            } else if (p) {
+                const images = (p.clinicalImages || []).slice();
+                images.push(...newImages);
+                DB.update('patients', patientId, { clinicalImages: images });
+            }
+
             closeModal();
             loadClinicalHistory(patientId);
         }).catch(() => {
