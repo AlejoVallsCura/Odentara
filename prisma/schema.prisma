@@ -17,6 +17,7 @@ enum AppointmentStatus {
   not_sent
   sent
   confirmed
+  rescheduled
   cancelled
 }
 

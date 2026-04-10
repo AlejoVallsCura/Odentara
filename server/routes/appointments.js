@@ -12,7 +12,7 @@ const {
 
 const router = express.Router();
 
-const VALID_STATUSES = new Set(["not_sent", "sent", "confirmed", "cancelled"]);
+const VALID_STATUSES = new Set(["not_sent", "sent", "confirmed", "rescheduled", "cancelled"]);
 const VALID_CHANNELS = new Set(["whatsapp", "phone", "email", "manual"]);
 
 function getTodayIsoLocal() {
@@ -155,19 +155,21 @@ async function validateAppointmentPayload(
     return "El profesional seleccionado no existe o está inactivo.";
   }
 
+  const keepsSameSlot =
+    existingAppointment &&
+    formatLocalDate(existingAppointment.date) === payload.date &&
+    formatLocalTime(existingAppointment.startTime) === payload.time &&
+    existingAppointment.professionalId === payload.professionalId &&
+    existingAppointment.patientId === payload.patientId &&
+    existingAppointment.isOverbook === payload.isOverbook;
+
   const todayIso = getTodayIsoLocal();
-  if (payload.date < todayIso) {
+  if (payload.date < todayIso && !keepsSameSlot) {
     return "No se pueden crear turnos para dias anteriores.";
   }
 
   if (payload.date === todayIso) {
     const selectedMinutes = timeToMinutes(payload.time);
-    const keepsSameSlot =
-      existingAppointment &&
-      formatLocalDate(existingAppointment.date) === payload.date &&
-      formatLocalTime(existingAppointment.startTime) === payload.time &&
-      existingAppointment.professionalId === payload.professionalId &&
-      existingAppointment.isOverbook === payload.isOverbook;
 
     if (
       selectedMinutes !== null &&
@@ -185,6 +187,7 @@ async function validateAppointmentPayload(
       date: parseDateOnly(payload.date),
       startTime: parseDateTime(payload.date, payload.time),
       deletedAt: null,
+      status: { notIn: ["cancelled", "rescheduled"] },
       ...(currentAppointmentId ? { id: { not: currentAppointmentId } } : {}),
     },
     select: { id: true, isOverbook: true },

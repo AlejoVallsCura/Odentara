@@ -7,38 +7,33 @@
     <title>Odentara</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body class="bg-gray-50 text-gray-800 font-inter">
 
-    <div id="login-view" class="view-section active">
+        <div id="login-view" class="view-section active">
         <div class="login-container">
             <div class="login-card">
+                <div class="login-theme-toggle-wrap">
+                    <button type="button" class="theme-toggle-btn" data-theme-toggle aria-label="Cambiar tema" title="Cambiar tema">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                </div>
                 <div class="logo-container">
-                    <i class="fa-solid fa-tooth logo-icon"></i>
+                    <img src="favicon.svg" alt="Odentara" class="brand-logo-img logo-icon">
                     <h2>Odentara.app</h2>
                 </div>
                 <p class="login-subtitle">Ingresa a tu cuenta</p>
                 <form id="login-form">
                     <div class="input-group">
                         <label for="email">Email</label>
-                        <input type="email" id="email" required placeholder="admin@odentara.com">
+                        <input type="email" id="email" required placeholder="tu@email.com">
                     </div>
                     <div class="input-group">
                         <label for="password">Contraseña</label>
                         <input type="password" id="password" placeholder="cualquier contraseña">
-                    </div>
-                    <div class="input-group">
-                        <label>Perfiles de prueba</label>
-                        <div class="login-test-users">
-                            <div><strong>Superadmin:</strong> admin@odentara.com</div>
-                            <div><strong>Profesional:</strong> lopez@odentara.com</div>
-                            <div><strong>Secretaria:</strong> secretaria@odentara.com</div>
-                            <div><strong>Admin:</strong> administracion@odentara.com</div>
-                        </div>
-                        <p class="text-xs text-gray-400 mt-1">El acceso se define por el usuario con el que ingresas y por sus permisos guardados.</p>
                     </div>
                     <button type="submit" class="btn btn-primary w-full">Ingresar</button>
                 </form>
@@ -55,7 +50,7 @@
         <aside id="app-sidebar" class="w-64 bg-white border-r border-gray-200 flex flex-col transition-all duration-300">
             <div class="app-brand p-6 border-b border-gray-100 flex items-center gap-3">
                 <div class="app-brand-mark w-8 h-8 rounded bg-primary-600 text-white flex items-center justify-center">
-                    <i class="fa-solid fa-tooth"></i>
+                    <img src="favicon.svg" alt="Odentara" class="brand-logo-img">
                 </div>
                 <div>
                     <h1 class="font-bold text-lg text-gray-800 tracking-tight">Odentara</h1>
@@ -91,7 +86,7 @@
                     </button>
                     <div class="mobile-header-brand">
                         <div class="mobile-header-brand-mark">
-                            <i class="fa-solid fa-tooth"></i>
+                            <img src="favicon.svg" alt="Odentara" class="brand-logo-img">
                         </div>
                         <span>Odentara</span>
                     </div>

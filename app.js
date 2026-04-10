@@ -10,6 +10,7 @@ const state = {
 
 const API_BASE_URL = 'http://localhost:3001/api';
 const AUTH_STORAGE_KEY = 'odentara_auth_v1';
+const THEME_STORAGE_KEY = 'odentara_theme_v1';
 
 const MOJIBAKE_REPAIRS = [
     ['ContraseÃ±a', 'Contraseña'],
@@ -144,6 +145,64 @@ function repairDomText(root = document.body) {
 let feedbackToastRoot = null;
 let feedbackDialogRoot = null;
 
+function getStoredTheme() {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    return saved === 'dark' ? 'dark' : 'light';
+}
+
+function createThemeToggleButton(extraClass = '') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `theme-toggle-btn ${extraClass}`.trim();
+    button.dataset.themeToggle = 'true';
+    button.setAttribute('aria-label', 'Cambiar tema');
+    button.setAttribute('title', 'Cambiar tema');
+    button.innerHTML = '<i class="fa-solid fa-moon"></i>';
+    return button;
+}
+
+function ensureThemeControls() {
+    document.querySelector('.login-theme-toggle-wrap')?.appendChild(
+        document.querySelector('.login-theme-toggle-wrap [data-theme-toggle]') || createThemeToggleButton()
+    );
+
+    const headerActions = document.querySelector('.header-actions');
+    if (headerActions && !headerActions.querySelector('[data-theme-toggle]')) {
+        headerActions.appendChild(createThemeToggleButton('theme-toggle-btn-header'));
+    }
+
+    const userProfile = document.querySelector('.user-profile');
+    userProfile?.querySelector('.sidebar-theme-btn')?.remove();
+
+    const appBrand = document.querySelector('.app-brand');
+    if (appBrand && !appBrand.querySelector('[data-theme-toggle]')) {
+        appBrand.appendChild(createThemeToggleButton('app-brand-theme-btn'));
+    }
+}
+
+function syncThemeToggleButtons() {
+    const isDark = document.body.classList.contains('theme-dark');
+    document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+        button.classList.toggle('is-dark', isDark);
+        button.setAttribute('aria-label', isDark ? 'Activar modo claro' : 'Activar modo oscuro');
+        button.setAttribute('title', isDark ? 'Activar modo claro' : 'Activar modo oscuro');
+        button.innerHTML = `<i class="fa-solid ${isDark ? 'fa-sun' : 'fa-moon'}"></i>`;
+    });
+}
+
+function applyTheme(theme = 'light', persist = true) {
+    const nextTheme = theme === 'dark' ? 'dark' : 'light';
+    document.body.classList.toggle('theme-dark', nextTheme === 'dark');
+    document.body.classList.toggle('theme-light', nextTheme !== 'dark');
+    document.documentElement.style.colorScheme = nextTheme;
+    if (persist) localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    syncThemeToggleButtons();
+}
+
+function toggleTheme() {
+    applyTheme(document.body.classList.contains('theme-dark') ? 'light' : 'dark');
+}
+
 function ensureFeedbackUi() {
     if (!feedbackToastRoot) {
         feedbackToastRoot = document.createElement('div');
@@ -196,6 +255,7 @@ function showDialog(message, options = {}) {
     } = options;
 
     const { feedbackDialogRoot } = ensureFeedbackUi();
+    const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const overlay = document.createElement('div');
     overlay.className = 'feedback-dialog-overlay';
     overlay.innerHTML = `
@@ -218,25 +278,46 @@ function showDialog(message, options = {}) {
     requestAnimationFrame(() => overlay.classList.add('is-visible'));
 
     return new Promise((resolve) => {
+        const confirmButton = overlay.querySelector('.feedback-dialog-confirm');
+        const cancelButton = overlay.querySelector('.feedback-dialog-cancel');
+
+        requestAnimationFrame(() => {
+            (cancelButton || confirmButton)?.focus?.({ preventScroll: true });
+        });
+
         const cleanup = (result) => {
             overlay.classList.remove('is-visible');
             document.removeEventListener('keydown', onKeyDown);
             window.setTimeout(() => {
                 overlay.remove();
+                previousActiveElement?.focus?.({ preventScroll: true });
                 resolve(result);
             }, 180);
         };
 
         const onKeyDown = (event) => {
             if (event.key === 'Escape' && dismissible) {
+                event.preventDefault();
+                event.stopPropagation();
                 cleanup(false);
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                if (cancelButton) {
+                    cleanup(false);
+                } else {
+                    cleanup(true);
+                }
             }
         };
 
         document.addEventListener('keydown', onKeyDown);
 
-        overlay.querySelector('.feedback-dialog-confirm')?.addEventListener('click', () => cleanup(true));
-        overlay.querySelector('.feedback-dialog-cancel')?.addEventListener('click', () => cleanup(false));
+        confirmButton?.addEventListener('click', () => cleanup(true));
+        cancelButton?.addEventListener('click', () => cleanup(false));
 
         if (dismissible) {
             overlay.addEventListener('click', (event) => {
@@ -911,6 +992,8 @@ function isTodayDate(dateStr) {
 
 // --- Events ---
 document.addEventListener('DOMContentLoaded', () => {
+    ensureThemeControls();
+    applyTheme(getStoredTheme(), false);
     setupMojibakeAutoRepair();
 
     document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -934,6 +1017,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.addEventListener('click', async (e) => {
         if (e.target.matches('.modal-overlay') || e.target.closest('[data-modal-close]')) closeModal();
+        if (e.target.closest('[data-theme-toggle]')) {
+            e.preventDefault();
+            toggleTheme();
+            return;
+        }
         
         // CRUD Routes
         if (e.target.closest('#btn-add-apt')) openAppointmentModal();
@@ -1057,16 +1145,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     document.addEventListener('change', (e2) => {
-        if (e2.target.id === 'cal-all-profs') {
-            const checked = e2.target.checked;
-            Object.keys(calendarState.visibleProfs).forEach(id => { calendarState.visibleProfs[id] = checked; });
-            refreshCurrentView();
-        }
-        if (e2.target.classList.contains('cal-prof-check')) {
-            const id = parseInt(e2.target.dataset.id);
-            calendarState.visibleProfs[id] = e2.target.checked;
-            refreshCurrentView();
-        }
+    });
+
+    document.addEventListener('click', (e4) => {
+        const profButton = e4.target.closest('.cal-prof-select');
+        if (!profButton) return;
+        const id = parseInt(profButton.dataset.id, 10);
+        const professionals = getAccessibleProfessionals();
+        if (!Number.isFinite(id) || !professionals.some((p) => p.id === id)) return;
+        setCalendarProfessionalSelection(professionals, id);
+        refreshCurrentView();
     });
 
     document.addEventListener('input', (e) => {
@@ -1414,19 +1502,62 @@ function canViewClinicalHistoryUi() {
     return !!state.user && !state.user.roles.includes('secretary');
 }
 
+function isBlockingAppointmentStatus(status = '') {
+    const normalized = normalizeAppointmentStatus(status);
+    return normalized !== 'cancelled' && normalized !== 'rescheduled';
+}
+
 function normalizeAppointmentStatus(status = '') {
     if (status === 'pending') return 'not_sent';
     if (status === 'in progress') return 'sent';
+    if (status === 'reprogramado') return 'rescheduled';
     return status || 'not_sent';
 }
 
 function getAppointmentStatusMeta(status) {
     const normalized = normalizeAppointmentStatus(status);
     if (normalized === 'confirmed') return { key: normalized, label: 'Confirmado', badge: 'badge-success', color: '#10b981' };
+    if (normalized === 'rescheduled') return { key: normalized, label: 'Reprogramado', badge: 'badge-purple', color: '#7c3aed' };
     if (normalized === 'cancelled') return { key: normalized, label: 'Cancelado', badge: 'badge-danger', color: '#ef4444' };
     if (normalized === 'sent') return { key: normalized, label: 'Enviado / Sin respuesta', badge: 'badge-info', color: '#3b82f6' };
     return { key: 'not_sent', label: 'Sin enviar', badge: 'badge-warning', color: '#f59e0b' };
 }
+
+function canManageAppointmentStatusUi() {
+    return !!state.user && state.user.roles.some(r => ['superadmin', 'admin', 'secretary', 'professional'].includes(r));
+}
+
+window.updateAppointmentStatus = async function(aptId, nextStatus) {
+    const apt = DB.get('appointments').find(item => item.id === aptId);
+    if (!apt || !nextStatus) return;
+
+    const normalizedNextStatus = normalizeAppointmentStatus(nextStatus);
+
+    try {
+        if (state.authToken) {
+            const payload = { status: normalizedNextStatus };
+
+            if (normalizedNextStatus === 'sent' && normalizeAppointmentStatus(apt.status) !== 'sent') {
+                payload.confirmationChannel = apt.confirmationChannel || 'manual';
+                payload.confirmationSentAt = new Date().toISOString();
+            }
+
+            await apiFetch(`/appointments/${aptId}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            await syncBackendSnapshotToLocalDb();
+        } else {
+            DB.update('appointments', aptId, { status: normalizedNextStatus });
+        }
+
+        if (state.currentView === 'dashboard' || state.currentView === 'appointments') {
+            refreshCurrentView();
+        }
+    } catch (error) {
+        showAlert(error.message || 'No se pudo actualizar el estado del turno.', { title: 'Turnos', variant: 'error' });
+    }
+};
 
 function getWhatsAppLink(patient, apt) {
     if (!patient || !patient.phone) return '';
@@ -1612,7 +1743,13 @@ function openAppointmentModal(editId = null) {
         const [th, tm] = timeVal.split(':').map(Number);
         const tMin = th * 60 + tm;
         
-        const existingApts = DB.get('appointments').filter(a => a.professionalId === profId && a.date === dateStr && !a.isOverbook && a.id !== editId);
+        const existingApts = DB.get('appointments').filter(a =>
+            a.professionalId === profId &&
+            a.date === dateStr &&
+            !a.isOverbook &&
+            a.id !== editId &&
+            isBlockingAppointmentStatus(a.status)
+        );
         
         let maxDuration = endMin - tMin;
         
@@ -1691,7 +1828,12 @@ function openAppointmentModal(editId = null) {
         const startMinBase = sh * 60 + sm;
         const endMin = eh * 60 + em;
         
-        const existingApts = DB.get('appointments').filter(a => a.professionalId === profId && a.date === dateStr && a.id !== editId);
+        const existingApts = DB.get('appointments').filter(a =>
+            a.professionalId === profId &&
+            a.date === dateStr &&
+            a.id !== editId &&
+            isBlockingAppointmentStatus(a.status)
+        );
         const intervals = existingApts.map(a => {
             const [ah, am] = a.time.split(':').map(Number);
             const s = ah * 60 + am;
@@ -2158,6 +2300,29 @@ const calendarState = {
     visibleProfs: {}
 };
 
+function getSelectedCalendarProfessionalId(professionals = getAccessibleProfessionals()) {
+    const selected = professionals.find((p) => calendarState.visibleProfs[p.id]);
+    return selected ? selected.id : (professionals[0]?.id ?? null);
+}
+
+function setCalendarProfessionalSelection(professionals, selectedId) {
+    professionals.forEach((p) => {
+        calendarState.visibleProfs[p.id] = p.id === selectedId;
+    });
+}
+
+function ensureSingleCalendarProfessional(professionals) {
+    if (!professionals.length) {
+        calendarState.visibleProfs = {};
+        return null;
+    }
+
+    const selectedId = getSelectedCalendarProfessionalId(professionals);
+    const safeSelectedId = professionals.some((p) => p.id === selectedId) ? selectedId : professionals[0].id;
+    setCalendarProfessionalSelection(professionals, safeSelectedId);
+    return safeSelectedId;
+}
+
 const PROF_COLORS = [
     { bg: '#14b8a6', text: '#fff' },
     { bg: '#8b5cf6', text: '#fff' },
@@ -2183,32 +2348,6 @@ function getAppointmentVisual(apt) {
             text: '#9a3412',
             border: '#f97316',
             accent: '#fb923c'
-        };
-    }
-
-    const statusMeta = getAppointmentStatusMeta(apt.status);
-    if (statusMeta.key === 'cancelled') {
-        return {
-            bg: '#fee2e2',
-            text: '#991b1b',
-            border: '#ef4444',
-            accent: '#f87171'
-        };
-    }
-    if (statusMeta.key === 'sent') {
-        return {
-            bg: '#dbeafe',
-            text: '#1e3a8a',
-            border: '#3b82f6',
-            accent: '#60a5fa'
-        };
-    }
-    if (statusMeta.key === 'not_sent') {
-        return {
-            bg: '#fef3c7',
-            text: '#92400e',
-            border: '#f59e0b',
-            accent: '#fbbf24'
         };
     }
 
@@ -2239,19 +2378,15 @@ function isCompactAppointmentsLayout() {
 }
 
 function renderCalendarFilterLegend(professionals) {
+    const selectedId = ensureSingleCalendarProfessional(professionals);
     return `
         <div class="cal-legend ${isCompactAppointmentsLayout() ? 'cal-legend-mobile' : ''}">
             <div class="cal-legend-title">Profesionales</div>
-            <label class="cal-legend-item">
-                <input type="checkbox" id="cal-all-profs" ${professionals.every(p => calendarState.visibleProfs[p.id]) ? 'checked' : ''}>
-                <span class="cal-legend-chip" style="background:#e5e7eb; color:#374151;">Todos</span>
-            </label>
             ${professionals.map(p => {
                 const color = getProfColor(p.id);
-                return `<label class="cal-legend-item">
-                    <input type="checkbox" class="cal-prof-check" data-id="${p.id}" ${calendarState.visibleProfs[p.id] ? 'checked' : ''}>
+                return `<button type="button" class="cal-legend-item cal-prof-select ${selectedId === p.id ? 'is-active' : ''}" data-id="${p.id}">
                     <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
-                </label>`;
+                </button>`;
             }).join('')}
         </div>`;
 }
@@ -2380,15 +2515,12 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
 const CAL_START_HOUR = 8;   // 8:00
 const CAL_END_HOUR   = 20;  // 20:00
 const CAL_TOTAL_MINS = (CAL_END_HOUR - CAL_START_HOUR) * 60; // 720 min
-const CAL_PX_PER_MIN = 2;   // Each minute = 2px â†’ 1 hour = 120px
-const CAL_TOTAL_HEIGHT = CAL_TOTAL_MINS * CAL_PX_PER_MIN;    // 1440px
+const CAL_PX_PER_MIN = 1.4;   // 30% más compacto: 1 hora = 84px
+const CAL_TOTAL_HEIGHT = CAL_TOTAL_MINS * CAL_PX_PER_MIN;    // 1008px
 
 function renderAppointments() {
     const professionals = getAccessibleProfessionals();
-
-    professionals.forEach(p => {
-        if (calendarState.visibleProfs[p.id] === undefined) calendarState.visibleProfs[p.id] = true;
-    });
+    ensureSingleCalendarProfessional(professionals);
 
     const allApts = getAccessibleAppointments();
     const currentDate = calendarState.currentDate;
@@ -2535,9 +2667,9 @@ function renderAppointments() {
 
             const aptList = dayApts.map(apt => {
                 const profName = getProfName(apt.professionalId);
-                const statusColor = getAppointmentStatusMeta(apt.status).color;
+                const visual = getAppointmentVisual(apt);
 
-                return `<div class="cal-week-apt" style="background:${statusColor};" onclick="openAppointmentViewModal(${apt.id})">
+                return `<div class="cal-week-apt ${apt.isOverbook ? 'is-overbook' : ''}" style="background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border};" onclick="openAppointmentViewModal(${apt.id})">
                     <div class="cal-week-apt-name">${apt.patient}</div>
                     <div class="cal-week-apt-meta">${profName} Â· ${apt.time}</div>
                 </div>`;
@@ -2681,8 +2813,12 @@ function renderAppointments() {
 function renderProfessionals() {
     const profs = getAccessibleProfessionals();
     return `
-        <div class="card mb-6 flex justify-between items-center">
-            <h3 class="font-semibold px-2">ConfiguraciÃ³n de Horarios de AtenciÃ³n</h3>
+        <div class="card mb-6 section-hero-card section-hero-inline">
+            <div class="section-hero-copy">
+                <span class="section-eyebrow">Agendas</span>
+                <h3 class="section-title">Horarios de Atención</h3>
+                <p class="section-subtitle">Administra la disponibilidad semanal de cada profesional y organiza la agenda activa.</p>
+            </div>
         </div>
         <div class="table-container shadow-sm">
             <table class="w-full text-left">
@@ -2704,19 +2840,25 @@ function renderProfessionals() {
                 </tbody>
             </table>
         </div>
-        <div class="mt-4 text-sm text-gray-500 ml-2"><i class="fa-solid fa-info-circle mr-1 text-primary-500"></i> Los turnos solo se podrÃ¡n asignar segÃºn el horario activo configurado para cada dÃ­a de la semana.</div>
+        <div class="schedules-hint mt-4 text-sm text-gray-500 ml-2"><i class="fa-solid fa-info-circle mr-1 text-primary-500"></i> Los turnos solo se podrán asignar según el horario activo configurado para cada día de la semana.</div>
     `;
 }
 
 function renderPatients() {
     const patients = getAccessiblePatients().sort((a,b)=>a.name.localeCompare(b.name));
     return `
-        <div class="card mb-6 flex justify-between items-center">
-            <h3 class="font-semibold px-2">Directorio MÃ©dico</h3>
+        <div class="card mb-6 section-hero-card section-hero-inline">
+            <div class="section-hero-copy">
+                <span class="section-eyebrow">Pacientes</span>
+                <h3 class="section-title">Registro de Pacientes</h3>
+                <p class="section-subtitle">Visualiza, edita y administra los datos base de cada paciente.</p>
+            </div>
             ${state.user.roles.some(r => ['superadmin', 'secretary', 'admin'].includes(r)) ? 
             '<button class="btn btn-primary" id="btn-add-patient"><i class="fa-solid fa-user-plus"></i> Nuevo Paciente</button>' : ''}
         </div>
-        <input type="search" id="search-patient" placeholder="Buscar pacientes por nombre o DNI..." class="form-input mb-4 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
+        <div class="patient-search-shell mb-4">
+            <input type="search" id="search-patient" placeholder="Buscar pacientes por nombre o DNI..." class="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
+        </div>
         <div class="table-container shadow-sm">
             <table class="w-full text-left" id="patients-table">
                 <thead><tr><th>Paciente</th><th>Contacto</th><th>DNI</th><th>Notas MÃ©dicas</th><th>Acciones</th></tr></thead>
@@ -2753,9 +2895,11 @@ function renderPatients() {
 function renderBilling() {
     const txs = DB.get('billing').filter(t => canAccessProfessional(t.professionalId));
     const patients = getAccessiblePatients();
+    const today = getTodayIsoLocal();
+    const todaysTxs = txs.filter(t => t.date === today);
     
-    const ingresos = txs.filter(t=>t.type==='income').reduce((sum,t)=>sum+t.amount,0);
-    const deudas = txs.filter(t=>t.type==='debt').reduce((sum,t)=>sum+t.amount,0);
+    const ingresos = todaysTxs.filter(t=>t.type==='income').reduce((sum,t)=>sum+t.amount,0);
+    const deudas = todaysTxs.filter(t=>t.type==='debt').reduce((sum,t)=>sum+t.amount,0);
     
     // Calculate per-patient balances
     const patientBalances = patients.map(p => {
@@ -2769,16 +2913,22 @@ function renderBilling() {
         <div class="metrics-grid">
             <div class="card metric-card">
                 <div class="metric-icon metric-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
-                <div class="metric-info"><h3>Total Recaudado</h3><p>$${ingresos.toLocaleString()}</p></div>
+                <div class="metric-info"><h3>Total Recaudado Hoy</h3><p>$${ingresos.toLocaleString()}</p></div>
             </div>
             <div class="card metric-card">
                 <div class="metric-icon metric-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
-                <div class="metric-info"><h3>Cargos Emitidos</h3><p>$${deudas.toLocaleString()}</p></div>
+                <div class="metric-info"><h3>Cargos Emitidos Hoy</h3><p>$${deudas.toLocaleString()}</p></div>
             </div>
         </div>
         
-        <div class="card mt-6 mb-6">
-            <h3 class="font-semibold px-2 mb-4 text-primary-900 border-b pb-2">Estado de Cuentas por Paciente (Cuentas Corrientes)</h3>
+        <div class="card mt-6 mb-6 billing-summary-card">
+            <div class="section-headline">
+                <div>
+                    <span class="section-eyebrow">Facturación</span>
+                    <h3 class="section-title section-title-sm">Estado de Cuentas por Paciente</h3>
+                    <p class="section-subtitle">Resumen consolidado de cargos, pagos y saldo pendiente.</p>
+                </div>
+            </div>
             <div class="table-container shadow-sm border border-gray-100">
                 <table class="w-full text-left bg-white">
                     <thead class="bg-gray-50 text-gray-600"><tr><th>Paciente</th><th>DNI</th><th>Cargos Generados</th><th>Pagos Realizados</th><th>Saldo Pendiente</th></tr></thead>
@@ -2802,8 +2952,12 @@ function renderBilling() {
             </div>
         </div>
         
-        <div class="card mb-4 flex justify-between items-center">
-            <h3 class="font-semibold px-2">Historial Detallado de Transacciones</h3>
+        <div class="card mb-4 section-hero-card section-hero-inline section-hero-compact">
+            <div class="section-hero-copy">
+                <span class="section-eyebrow">Movimientos</span>
+                <h3 class="section-title section-title-sm">Historial de Transacciones</h3>
+                <p class="section-subtitle">Registro completo de ingresos, cargos y movimientos asociados.</p>
+            </div>
             ${state.user.roles.some(r => ['admin', 'superadmin'].includes(r)) ? 
             '<button class="btn btn-primary" id="btn-add-tx"><i class="fa-solid fa-plus"></i> Registrar Movimiento</button>' : ''}
         </div>
@@ -2838,7 +2992,7 @@ function renderBilling() {
 function renderDashboardContent(apts, patients, todaysApts, selectedDate, selectedDateApts) {
     const now = new Date();
     const todaysOpenApts = todaysApts.filter(apt => {
-        if (normalizeAppointmentStatus(apt.status) === 'cancelled') return false;
+        if (!isBlockingAppointmentStatus(apt.status)) return false;
         const [hours, minutes] = apt.time.split(':').map(Number);
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
         const duration = apt.isOverbook ? 15 : (apt.duration || 0);
@@ -2891,7 +3045,17 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                     <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
                                     <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
                                     <td>${getProfName(apt.professionalId)}</td>
-                                    <td><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></td>
+                                    <td>
+                                        ${canManageAppointmentStatusUi() ? `
+                                            <select class="dashboard-status-select ${statusMeta.badge}" onchange="updateAppointmentStatus(${apt.id}, this.value)">
+                                                <option value="not_sent" ${statusMeta.key === 'not_sent' ? 'selected' : ''}>Sin enviar</option>
+                                                <option value="sent" ${statusMeta.key === 'sent' ? 'selected' : ''}>Enviado</option>
+                                                <option value="confirmed" ${statusMeta.key === 'confirmed' ? 'selected' : ''}>Confirmado</option>
+                                                <option value="rescheduled" ${statusMeta.key === 'rescheduled' ? 'selected' : ''}>Reprogramado</option>
+                                                <option value="cancelled" ${statusMeta.key === 'cancelled' ? 'selected' : ''}>Cancelado</option>
+                                            </select>
+                                        ` : `<span class="badge ${statusMeta.badge}">${statusMeta.label}</span>`}
+                                    </td>
                                     <td>${whatsappLink ? `<a class="btn btn-secondary btn-sm dashboard-wa-btn" href="${whatsappLink}" target="_blank" rel="noopener noreferrer" onclick="markAppointmentAsSent(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</a>` : '<span class="text-xs text-gray-400">Sin telefono</span>'}</td>
                                 </tr>
                             `;
@@ -3069,8 +3233,9 @@ function renderSettingsSubpages() {
         <section class="settings-card settings-nav-card">
             <div class="settings-nav-header">
                 <div>
-                    <h3>Subpaginas de Configuracion</h3>
-                    <p class="subtext">Elegi una seccion para trabajar dentro de Configuracion.</p>
+                    <span class="section-eyebrow">Administración</span>
+                    <h3 class="section-title section-title-sm">Configuración</h3>
+                    <p class="subtext">Elegí una sección para trabajar dentro de la configuración general.</p>
                 </div>
             </div>
 
@@ -3391,7 +3556,7 @@ function renderClinicalHistory(patientId) {
         <!-- Cabecera estilo Recetario -->
         <div class="flex flex-col md:flex-row justify-between items-center p-6 border-b-2 border-primary-800 bg-primary-50">
             <div class="flex items-center gap-4 mb-4 md:mb-0">
-                <i class="fa-solid fa-tooth text-4xl text-primary-800"></i>
+                <img src="favicon.svg" alt="Odentara" class="clinical-brand-logo">
                 <div>
                     <h2 class="text-xl md:text-2xl font-black text-gray-900 tracking-tight uppercase">Circulo OdontolÃ³gico</h2>
                     <p class="text-sm font-semibold text-primary-700">Ficha ClÃ­nica OdontolÃ³gica</p>
