@@ -2428,11 +2428,7 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
                 <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
                 <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
             </div>
-            <div class="flex items-center gap-2">
-                <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'day' ? 'active' : ''}" id="cal-view-day">D�a</button>
-                <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'week' ? 'active' : ''}" id="cal-view-week">Semana</button>
-                <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'month' ? 'active' : ''}" id="cal-view-month">Mes</button>
-            </div>
+            ${renderCalendarViewSwitcher()}
             ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
         </div>`;
 
@@ -2518,7 +2514,15 @@ const CAL_TOTAL_MINS = (CAL_END_HOUR - CAL_START_HOUR) * 60; // 720 min
 const CAL_PX_PER_MIN = 1.4;   // 30% más compacto: 1 hora = 84px
 const CAL_TOTAL_HEIGHT = CAL_TOTAL_MINS * CAL_PX_PER_MIN;    // 1008px
 
+function renderCalendarViewSwitcher() {
+    return '';
+}
+
 function renderAppointments() {
+    if (calendarState.viewMode !== 'day') {
+        calendarState.viewMode = 'day';
+    }
+
     const professionals = getAccessibleProfessionals();
     ensureSingleCalendarProfessional(professionals);
 
@@ -2618,11 +2622,7 @@ function renderAppointments() {
                     <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
                     <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'day' ? 'active' : ''}" id="cal-view-day">D�a</button>
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'week' ? 'active' : ''}" id="cal-view-week">Semana</button>
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'month' ? 'active' : ''}" id="cal-view-month">Mes</button>
-                </div>
+                ${renderCalendarViewSwitcher()}
                 ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
             </div>
 
@@ -2700,11 +2700,7 @@ function renderAppointments() {
                     <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
                     <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'day' ? 'active' : ''}" id="cal-view-day">D�a</button>
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'week' ? 'active' : ''}" id="cal-view-week">Semana</button>
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'month' ? 'active' : ''}" id="cal-view-month">Mes</button>
-                </div>
+                ${renderCalendarViewSwitcher()}
                 ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
             </div>
 
@@ -2779,11 +2775,7 @@ function renderAppointments() {
                     <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
                     <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'day' ? 'active' : ''}" id="cal-view-day">D�a</button>
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'week' ? 'active' : ''}" id="cal-view-week">Semana</button>
-                    <button class="btn btn-ghost btn-sm ${calendarState.viewMode === 'month' ? 'active' : ''}" id="cal-view-month">Mes</button>
-                </div>
+                ${renderCalendarViewSwitcher()}
                 ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
             </div>
 
@@ -2821,12 +2813,12 @@ function renderProfessionals() {
             </div>
         </div>
         <div class="table-container shadow-sm">
-            <table class="w-full text-left">
+            <table class="w-full text-left table-agenda-professionals">
                 <thead><tr><th>Profesional</th><th>Acciones</th></tr></thead>
                 <tbody>
                     ${profs.map(p => `
                         <tr>
-                            <td class="font-medium flex items-center gap-3">
+                            <td class="font-medium table-prof-name-cell">
                                 <div class="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs"><i class="fa-solid fa-user-md"></i></div>
                                 ${p.name}
                             </td>
@@ -3159,7 +3151,7 @@ function renderSettingsSubpages() {
                     <div class="settings-subsection">
                         <h4>Asignar Profesionales (opcional)</h4>
                         <p class="subtext">Se puede dejar vacÃƒÂ­o; acceso completo si no se selecciona ninguno.</p>
-                        <div class="settings-list">
+                        <div class="settings-list settings-list-static">
                             ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}"><label>${p.name}</label></div>`).join('')}
                         </div>
                     </div>
@@ -3335,7 +3327,7 @@ function renderSettings() {
                     <div class="settings-subsection">
                         <h4>Asignar Profesionales (opcional)</h4>
                         <p class="subtext">Se puede dejar vacÃ­o; acceso completo si no se selecciona ninguno.</p>
-                        <div class="settings-list">
+                        <div class="settings-list settings-list-static">
                             ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}"><label>${p.name}</label></div>`).join('')}
                         </div>
                     </div>
