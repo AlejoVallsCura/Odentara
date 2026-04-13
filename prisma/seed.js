@@ -1,13 +1,10 @@
 require("dotenv").config();
 
 const bcrypt = require("bcrypt");
-const { PrismaClient, RoleCode } = require("@prisma/client");
-const { PrismaPg } = require("@prisma/adapter-pg");
-const { Pool } = require("pg");
+const { RoleCode } = require("@prisma/client");
+const { createPrismaClient } = require("../server/lib/prisma-client");
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = createPrismaClient();
 
 const DEFAULT_PASSWORD = "odentara123";
 
@@ -731,5 +728,4 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });

@@ -61,11 +61,15 @@ router.get("/", requireAuth, async (req, res) => {
     }
 
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
+    const accessibleProfessionalIds = getAccessibleProfessionalIds(req.permissions);
     const entries = await prisma.billingEntry.findMany({
       where: {
         deletedAt: null,
         ...(patientId ? { patientId } : {}),
         patient: buildPatientAccessWhere(req.permissions),
+        ...(canAccessWholeClinic(req.permissions)
+          ? {}
+          : { professionalId: { in: accessibleProfessionalIds.length ? accessibleProfessionalIds : [-1] } }),
       },
       orderBy: [{ date: "desc" }, { id: "desc" }],
       include: {
@@ -103,6 +107,10 @@ router.post("/", requireAuth, async (req, res) => {
 
     const professionalId = req.body.professionalId ? Number(req.body.professionalId) : null;
     const appointmentId = req.body.appointmentId ? Number(req.body.appointmentId) : null;
+
+    if (!professionalId) {
+      return res.status(400).json({ ok: false, error: "Debes asignar un profesional al movimiento." });
+    }
 
     if (!canUseProfessional(req.permissions, professionalId)) {
       return res.status(403).json({ ok: false, error: "No tenes acceso al profesional indicado." });
@@ -170,6 +178,10 @@ router.put("/:id", requireAuth, async (req, res) => {
 
     if (!canUseProfessional(req.permissions, professionalId)) {
       return res.status(403).json({ ok: false, error: "No tenes acceso al profesional indicado." });
+    }
+
+    if (!professionalId) {
+      return res.status(400).json({ ok: false, error: "Debes asignar un profesional al movimiento." });
     }
 
     if (!(await ensureAccessibleAppointment(req.permissions, appointmentId, existing.patientId))) {

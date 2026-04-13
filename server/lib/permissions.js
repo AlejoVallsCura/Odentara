@@ -70,13 +70,12 @@ function canManageBilling(permissions) {
 }
 
 function canEditClinicalData(permissions) {
-  return hasRole(permissions, "professional");
+  return hasRole(permissions, "professional") || hasRole(permissions, "superadmin");
 }
 
 function canViewClinicalData(permissions) {
   return (
     hasRole(permissions, "professional") ||
-    hasRole(permissions, "admin") ||
     hasRole(permissions, "superadmin")
   );
 }

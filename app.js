@@ -5,10 +5,26 @@ const state = {
     currentView: 'dashboard',
     sidebarOpen: true,
     settingsSubView: 'create-user',
-    dashboardDate: null
+    dashboardDate: null,
+    clinicalDraft: null,
+    loadingCount: 0
 };
 
-const API_BASE_URL = 'http://localhost:3001/api';
+function getApiBaseUrl() {
+    const { protocol, origin, hostname } = window.location;
+
+    if (protocol === 'file:') {
+        return 'http://localhost:3001/api';
+    }
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:3001/api';
+    }
+
+    return `${origin}/api`;
+}
+
+const API_BASE_URL = getApiBaseUrl();
 const AUTH_STORAGE_KEY = 'odentara_auth_v1';
 const THEME_STORAGE_KEY = 'odentara_theme_v1';
 
@@ -31,6 +47,8 @@ const MOJIBAKE_REPAIRS = [
     ['MÃ³dulo', 'Módulo'],
     ['TelÃ©fono', 'Teléfono'],
     ['Tel�fono', 'Teléfono'],
+    ['AcciÃƒÂ³n', 'Acción'],
+    ['AcciÃ³n', 'Acción'],
     ['OdontologÃ­a', 'Odontología'],
     ['odontolÃ³gica', 'odontológica'],
     ['odontolÃ³gico', 'odontológico'],
@@ -144,6 +162,7 @@ function repairDomText(root = document.body) {
 
 let feedbackToastRoot = null;
 let feedbackDialogRoot = null;
+let loadingOverlayRoot = null;
 
 function getStoredTheme() {
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
@@ -219,6 +238,47 @@ function ensureFeedbackUi() {
     }
 
     return { feedbackToastRoot, feedbackDialogRoot };
+}
+
+function ensureLoadingOverlay() {
+    if (!loadingOverlayRoot) {
+        loadingOverlayRoot = document.createElement('div');
+        loadingOverlayRoot.id = 'app-loading-overlay';
+        loadingOverlayRoot.className = 'app-loading-overlay';
+        loadingOverlayRoot.innerHTML = `
+            <div class="app-loading-card" role="status" aria-live="polite" aria-busy="true">
+                <div class="app-loading-spinner"></div>
+                <div class="app-loading-copy">
+                    <p class="app-loading-eyebrow">Odentara</p>
+                    <p class="app-loading-message">Guardando cambios...</p>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(loadingOverlayRoot);
+    }
+
+    return loadingOverlayRoot;
+}
+
+function setAppLoading(isLoading, message = 'Guardando cambios...') {
+    const overlay = ensureLoadingOverlay();
+    const messageNode = overlay.querySelector('.app-loading-message');
+    if (messageNode) {
+        messageNode.textContent = repairMojibakeString(String(message || 'Guardando cambios...'));
+    }
+
+    state.loadingCount = Math.max(0, state.loadingCount + (isLoading ? 1 : -1));
+    overlay.classList.toggle('is-visible', state.loadingCount > 0);
+    document.body.classList.toggle('app-loading-active', state.loadingCount > 0);
+}
+
+async function withAppLoading(message, task) {
+    setAppLoading(true, message);
+    try {
+        return await task();
+    } finally {
+        setAppLoading(false);
+    }
 }
 
 function showToast(message, options = {}) {
@@ -662,7 +722,7 @@ async function apiFetch(path, options = {}) {
             headers
         });
     } catch (_error) {
-        const connectionError = new Error('No se pudo conectar con el servidor. Verifica que el backend esté iniciado en localhost:3001.');
+        const connectionError = new Error('No se pudo conectar con el servidor de Odentara.');
         connectionError.status = 0;
         throw connectionError;
     }
@@ -804,26 +864,223 @@ function upsertLocalItem(table, item) {
     DB.save(table, items);
 }
 
+function deepClone(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function clinicalRecordEntriesToLegacyOdontogram(entries = []) {
+    const odontograma = {};
+    const faceMap = {
+        V: 'top',
+        D: 'right',
+        P: 'bottom',
+        M: 'left',
+        O: 'center',
+        I: 'center',
+        L: 'center'
+    };
+    const statusMap = {
+        healthy: 'sano',
+        caries: 'caries',
+        restored: 'restaurado',
+        absent: 'ausente'
+    };
+
+    entries.forEach((entry) => {
+        const toothNumber = String(entry.toothNumber || '');
+        if (!toothNumber) return;
+        if (!odontograma[toothNumber]) odontograma[toothNumber] = {};
+
+        const status = statusMap[entry.status] || 'sano';
+        if (status === 'ausente') {
+            odontograma[toothNumber] = { estado: 'ausente' };
+            return;
+        }
+
+        const faceKey = faceMap[entry.face] || 'center';
+        if (status === 'sano') {
+            delete odontograma[toothNumber][faceKey];
+        } else {
+            odontograma[toothNumber][faceKey] = status;
+        }
+    });
+
+    return odontograma;
+}
+
+function legacyOdontogramToEntries(odontograma = {}) {
+    const entries = [];
+    const faceMap = {
+        top: 'V',
+        right: 'D',
+        bottom: 'P',
+        left: 'M',
+        center: 'O'
+    };
+    const statusMap = {
+        sano: 'healthy',
+        caries: 'caries',
+        restaurado: 'restored',
+        ausente: 'absent'
+    };
+
+    Object.entries(odontograma || {}).forEach(([toothNumber, toothData]) => {
+        if (!toothData || typeof toothData !== 'object') return;
+
+        if (toothData.estado === 'ausente') {
+            entries.push({
+                toothNumber: String(toothNumber),
+                face: null,
+                status: statusMap.ausente
+            });
+            return;
+        }
+
+        ['top', 'right', 'bottom', 'left', 'center'].forEach((faceKey) => {
+            const status = toothData[faceKey];
+            if (!status || status === 'sano') return;
+
+            entries.push({
+                toothNumber: String(toothNumber),
+                face: faceMap[faceKey],
+                status: statusMap[status] || 'healthy'
+            });
+        });
+    });
+
+    return entries;
+}
+
+function hasChildDentitionData(patient = {}) {
+    const childTeeth = new Set(['55','54','53','52','51','61','62','63','64','65','85','84','83','82','81','71','72','73','74','75']);
+    const odontograma = patient.odontograma || {};
+    return Object.keys(odontograma).some((tooth) => childTeeth.has(String(tooth)));
+}
+
+function createClinicalDraftFromPatient(patient) {
+    if (!patient) return null;
+
+    return {
+        patientId: patient.id,
+        isDirty: false,
+        data: {
+            fechaNacimiento: patient.fechaNacimiento || '',
+            phone: patient.phone || '',
+            email: patient.email || '',
+            obraSocial: patient.obraSocial || '',
+            credencial: patient.credencial || '',
+            fichaNumero: patient.fichaNumero || '',
+            domicilio: patient.domicilio || '',
+            notes: patient.notes || '',
+            allergies: patient.allergies || '',
+            medicalNotes: patient.medicalNotes || '',
+            odontograma: deepClone(patient.odontograma || {}),
+            showChildDentition: Boolean(patient.showChildDentition || hasChildDentitionData(patient))
+        }
+    };
+}
+
+function setClinicalDraftFromPatient(patient) {
+    state.clinicalDraft = createClinicalDraftFromPatient(patient);
+}
+
+function getClinicalDraft(patientId) {
+    if (state.clinicalDraft?.patientId === patientId) {
+        return state.clinicalDraft;
+    }
+    return null;
+}
+
+function getClinicalWorkingPatient(patientId) {
+    const patient = DB.get('patients').find((item) => item.id === patientId);
+    const draft = getClinicalDraft(patientId);
+    if (!patient) return null;
+    if (!draft) return patient;
+
+    return {
+        ...patient,
+        ...draft.data,
+        odontograma: draft.data.odontograma || {}
+    };
+}
+
+function updateClinicalDraft(patientId, updater) {
+    const draft = getClinicalDraft(patientId);
+    if (!draft) return;
+    updater(draft.data);
+    draft.isDirty = true;
+    syncClinicalHistorySaveState();
+}
+
+function clearClinicalDraft() {
+    state.clinicalDraft = null;
+}
+
+function hasUnsavedClinicalDraft() {
+    return state.currentView === 'patient-history' && Boolean(state.clinicalDraft?.isDirty);
+}
+
+async function confirmClinicalDraftExit() {
+    if (!hasUnsavedClinicalDraft()) return true;
+
+    const shouldDiscard = await showConfirm(
+        'Tienes cambios sin guardar en la historia clínica. Puedes guardarlos ahora antes de salir.',
+        {
+            title: 'Cambios sin guardar',
+            confirmText: 'Salir sin guardar',
+            cancelText: 'Guardar',
+            variant: 'info'
+        }
+    );
+
+    if (shouldDiscard) {
+        clearClinicalDraft();
+        return true;
+    }
+
+    const patientId = state.clinicalDraft?.patientId;
+    if (!patientId) return false;
+
+    try {
+        await window.saveClinicalHistory(patientId);
+        return true;
+    } catch (_error) {
+        return false;
+    }
+}
+
+function syncClinicalHistorySaveState() {
+    const saveButton = document.getElementById('btn-save-clinical-history');
+    const isDirty = hasUnsavedClinicalDraft();
+
+    if (saveButton) {
+        saveButton.disabled = !isDirty;
+        saveButton.classList.toggle('is-ready', isDirty);
+    }
+}
+
 async function syncPatientClinicalData(patientId) {
     const patient = DB.get('patients').find((item) => item.id === patientId);
     if (!state.authToken) return patient;
 
-    const [patientRes, treatmentsRes, imagesRes] = await Promise.all([
+    const [patientRes, treatmentsRes, imagesRes, clinicalRecordRes] = await Promise.all([
         apiFetch(`/patients/${patientId}`),
         apiFetch(`/treatments?patientId=${patientId}`),
-        apiFetch(`/clinical-images?patientId=${patientId}`)
+        apiFetch(`/clinical-images?patientId=${patientId}`),
+        apiFetch(`/clinical-records/${patientId}`)
     ]);
 
     const mappedPatient = mapApiPatientToLegacy(patientRes.patient || {});
+    const record = clinicalRecordRes.record || patientRes.patient?.clinicalRecord || null;
     const mergedPatient = {
         ...(patient || {}),
         ...mappedPatient,
-        odontograma: patient?.odontograma || {},
+        odontograma: clinicalRecordEntriesToLegacyOdontogram(record?.odontogramEntries || []),
         treatments: (treatmentsRes.treatments || []).map(mapApiTreatmentToLegacy),
         clinicalImages: (imagesRes.images || []).map(mapApiClinicalImageToLegacy),
-        notes: patientRes.patient?.clinicalRecord?.summaryNotes || '',
-        allergies: patientRes.patient?.clinicalRecord?.allergies || '',
-        medicalNotes: patientRes.patient?.clinicalRecord?.medicalNotes || ''
+        notes: record?.summaryNotes || '',
+        allergies: record?.allergies || '',
+        medicalNotes: record?.medicalNotes || ''
     };
 
     upsertLocalItem('patients', mergedPatient);
@@ -996,14 +1253,23 @@ document.addEventListener('DOMContentLoaded', () => {
     applyTheme(getStoredTheme(), false);
     setupMojibakeAutoRepair();
 
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
+    const loginForm = document.getElementById('login-form');
+    loginForm.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        loginForm.requestSubmit();
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
         const submitBtn = e.target.querySelector('button[type="submit"]');
         if (submitBtn) submitBtn.disabled = true;
         try {
-            await login(email, password);
+            await withAppLoading('Iniciando sesión...', async () => {
+                await login(email, password);
+            });
         } finally {
             if (submitBtn) submitBtn.disabled = false;
         }
@@ -1205,29 +1471,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const selectedProfessionals = profNodes.length > 0 ? profNodes.map(p => parseInt(p.value)) : [];
 
             try {
-                if (state.authToken) {
-                    await apiFetch('/users', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            fullName: name,
+                await withAppLoading('Guardando usuario...', async () => {
+                    if (state.authToken) {
+                        await apiFetch('/users', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                fullName: name,
+                                email,
+                                password,
+                                type,
+                                roles,
+                                allowedProfessionalIds: selectedProfessionals
+                            })
+                        });
+                        await syncBackendSnapshotToLocalDb();
+                    } else {
+                        DB.add('users', {
+                            name,
                             email,
                             password,
                             type,
                             roles,
-                            allowedProfessionalIds: selectedProfessionals
-                        })
-                    });
-                    await syncBackendSnapshotToLocalDb();
-                } else {
-                    DB.add('users', {
-                        name,
-                        email,
-                        password,
-                        type,
-                        roles,
-                        allowedProfessionals: selectedProfessionals
-                    });
-                }
+                            allowedProfessionals: selectedProfessionals
+                        });
+                    }
+                });
 
                 e.target.reset();
                 showToast('Usuario creado correctamente.', { type: 'success' });
@@ -1253,38 +1521,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                if (state.authToken) {
-                    await apiFetch('/professionals', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            fullName: `${name} ${lastName}`.trim(),
+                await withAppLoading('Guardando profesional...', async () => {
+                    if (state.authToken) {
+                        await apiFetch('/professionals', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                fullName: `${name} ${lastName}`.trim(),
+                                specialty,
+                                phone,
+                                email,
+                                active: (status || 'activo') === 'activo'
+                            })
+                        });
+                        await syncBackendSnapshotToLocalDb();
+                    } else {
+                        DB.add('professionals', {
+                            name: `${name} ${lastName}`,
+                            firstName: name,
+                            lastName,
                             specialty,
                             phone,
                             email,
-                            active: (status || 'activo') === 'activo'
-                        })
-                    });
-                    await syncBackendSnapshotToLocalDb();
-                } else {
-                    DB.add('professionals', {
-                        name: `${name} ${lastName}`,
-                        firstName: name,
-                        lastName,
-                        specialty,
-                        phone,
-                        email,
-                        status: status || 'activo',
-                        schedule: {
-                            1: {active: true, start: '08:00', end: '16:00'},
-                            2: {active: true, start: '08:00', end: '16:00'},
-                            3: {active: true, start: '08:00', end: '16:00'},
-                            4: {active: true, start: '08:00', end: '16:00'},
-                            5: {active: true, start: '08:00', end: '16:00'},
-                            6: {active: false, start: '', end: ''},
-                            0: {active: false, start: '', end: ''}
-                        }
-                    });
-                }
+                            status: status || 'activo',
+                            schedule: {
+                                1: {active: true, start: '08:00', end: '16:00'},
+                                2: {active: true, start: '08:00', end: '16:00'},
+                                3: {active: true, start: '08:00', end: '16:00'},
+                                4: {active: true, start: '08:00', end: '16:00'},
+                                5: {active: true, start: '08:00', end: '16:00'},
+                                6: {active: false, start: '', end: ''},
+                                0: {active: false, start: '', end: ''}
+                            }
+                        });
+                    }
+                });
 
                 e.target.reset();
                 refreshCurrentView();
@@ -1292,6 +1562,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(error.message || 'No se pudo crear el profesional.');
             }
         }
+    });
+
+    window.addEventListener('beforeunload', (event) => {
+        if (!hasUnsavedClinicalDraft()) return;
+        event.preventDefault();
+        event.returnValue = '';
     });
 
     tryRestoreSession();
@@ -1319,7 +1595,7 @@ async function login(email, password) {
         applyAuthenticatedUiState();
     } catch (error) {
         const message = error.status === 0
-            ? 'No se pudo conectar con el servidor de Odentara. Inicia el backend en localhost:3001 e intenta nuevamente.'
+            ? 'No se pudo conectar con el servidor de Odentara. Verifica que el sitio y la API esten publicados correctamente e intenta nuevamente.'
             : (error.payload?.error || error.message || 'No se pudo iniciar sesión.');
         showAlert(message, { title: 'Error de inicio de sesión', variant: 'error' });
     }
@@ -1358,11 +1634,10 @@ function renderSidebar() {
         link.dataset.view = item.id;
         link.innerHTML = `<i class="fa-solid ${item.icon} w-5 text-center"></i> <span>${item.label}</span>`;
         
-        link.addEventListener('click', (e) => {
+        link.addEventListener('click', async (e) => {
             e.preventDefault();
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            link.classList.add('active');
-            loadView(item.id, item.label);
+            const loaded = await loadView(item.id, item.label);
+            if (!loaded) return;
             if (isMobileLayout()) setSidebarOpen(false);
         });
         sidebarNav.appendChild(link);
@@ -1370,7 +1645,7 @@ function renderSidebar() {
 }
 
 function refreshCurrentView() {
-    loadView(state.currentView, getPageTitle());
+    loadView(state.currentView, getPageTitle(), { skipUnsavedCheck: true });
 }
 
 function formatDashboardDateLabel(dateStr) {
@@ -1383,7 +1658,12 @@ function formatDashboardDateLabel(dateStr) {
     });
 }
 
-function loadView(viewId, title = 'Dashboard') {
+async function loadView(viewId, title = 'Dashboard', options = {}) {
+    if (!options.skipUnsavedCheck && viewId !== 'patient-history' && !(await confirmClinicalDraftExit())) {
+        renderSidebar();
+        return false;
+    }
+
     state.currentView = viewId;
     setPageTitle(title);
     mainContent.innerHTML = '';
@@ -1402,6 +1682,8 @@ function loadView(viewId, title = 'Dashboard') {
     else content.innerHTML = renderPlaceholder(viewId);
     
     mainContent.appendChild(content);
+    renderSidebar();
+    return true;
 }
 
 function renderPlaceholder(viewId) {
@@ -1495,11 +1777,13 @@ function getAccessiblePatients() {
 }
 
 function canEditClinicalHistoryUi() {
-    return !!state.user && state.user.roles.includes('professional');
+    if (!state.user) return false;
+    return state.user.roles.includes('professional') || state.user.roles.includes('superadmin');
 }
 
 function canViewClinicalHistoryUi() {
-    return !!state.user && !state.user.roles.includes('secretary');
+    if (!state.user) return false;
+    return state.user.roles.includes('professional') || state.user.roles.includes('superadmin');
 }
 
 function isBlockingAppointmentStatus(status = '') {
@@ -1646,6 +1930,60 @@ function openAppointmentViewModal(aptId) {
     `;
 }
 
+function getProfessionalDaySchedule(professionalId, dateStr) {
+    const prof = DB.get('professionals').find(p => p.id === professionalId);
+    if (!prof || !dateStr) return null;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    const weekday = dateObj.getDay();
+    const daySchedule = prof.schedule?.[weekday];
+    if (!daySchedule || !daySchedule.active) return null;
+    return daySchedule;
+}
+
+function getAppointmentIntervalsForDate(professionalId, dateStr, excludedAppointmentId = null) {
+    return DB.get('appointments')
+        .filter(a =>
+            a.professionalId === professionalId &&
+            a.date === dateStr &&
+            a.id !== excludedAppointmentId &&
+            isBlockingAppointmentStatus(a.status)
+        )
+        .map(a => {
+            const start = timeToMinutes(a.time);
+            return {
+                start,
+                end: start + (a.duration || 0),
+                isOverbook: !!a.isOverbook
+            };
+        })
+        .filter(interval => interval.start !== null);
+}
+
+function getContiguousAvailabilityMinutes(professionalId, dateStr, startTime, isOverbook = false, excludedAppointmentId = null) {
+    const daySchedule = getProfessionalDaySchedule(professionalId, dateStr);
+    const startMinutes = timeToMinutes(startTime);
+    if (!daySchedule || startMinutes === null) return 0;
+
+    const scheduleStart = timeToMinutes(daySchedule.start);
+    const scheduleEnd = timeToMinutes(daySchedule.end);
+    if (scheduleStart === null || scheduleEnd === null) return 0;
+    if (startMinutes < scheduleStart || startMinutes >= scheduleEnd) return 0;
+
+    const intervals = getAppointmentIntervalsForDate(professionalId, dateStr, excludedAppointmentId);
+    const relevantIntervals = intervals.filter(interval => interval.isOverbook === isOverbook);
+
+    let cursor = startMinutes;
+    while (cursor < scheduleEnd) {
+        const nextCursor = cursor + 15;
+        const overlaps = relevantIntervals.some(interval => cursor < interval.end && nextCursor > interval.start);
+        if (overlaps) break;
+        cursor = nextCursor;
+    }
+
+    return Math.max(0, cursor - startMinutes);
+}
+
 function openAppointmentModal(editId = null) {
     const apt = editId ? getAccessibleAppointments().find(a => a.id === editId) : null;
     if (editId && !apt) return;
@@ -1659,7 +1997,7 @@ function openAppointmentModal(editId = null) {
     
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
-            <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-content modal-content-appointment" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>${editId ? 'Editar Turno' : 'Nuevo Turno'}</h3>
                 </div>
@@ -1678,7 +2016,7 @@ function openAppointmentModal(editId = null) {
                                 ${professionals.map(p => `<option value="${p.id}" ${apt && apt.professionalId === p.id ? 'selected':''}>${p.name}</option>`).join('')}
                             </select>
                         </div>
-                        <div class="flex gap-4">
+                        <div class="appointment-form-row">
                             <div class="input-group flex-1"><label>Fecha</label><input type="date" id="apt-date" min="${getTodayIsoLocal()}" value="${apt ? apt.date : getTodayIsoLocal()}" required></div>
                             <div class="input-group flex-1">
                                 <label>Hora (Intervalos de 15m)</label>
@@ -1701,9 +2039,9 @@ function openAppointmentModal(editId = null) {
                             </select>
                         </div>
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer appointment-modal-footer">
                         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="submit" class="btn btn-primary">Guardar Turno</button>
                     </div>
                 </form>
             </div>
@@ -1728,42 +2066,8 @@ function openAppointmentModal(editId = null) {
             durSelect.innerHTML = '<option value="">-</option>';
             return;
         }
-        
-        const prof = DB.get('professionals').find(p => p.id === profId);
-        if(!prof || !dateStr) return;
-        const [year, month, dayStr] = dateStr.split('-');
-        const dateObj = new Date(year, month - 1, dayStr);
-        const dayOfWeek = dateObj.getDay();
-        const daySchedule = prof.schedule[dayOfWeek];
-        if (!daySchedule || !daySchedule.active) return;
-        
-        const [eh, em] = daySchedule.end.split(':').map(Number);
-        const endMin = eh * 60 + em;
-        
-        const [th, tm] = timeVal.split(':').map(Number);
-        const tMin = th * 60 + tm;
-        
-        const existingApts = DB.get('appointments').filter(a =>
-            a.professionalId === profId &&
-            a.date === dateStr &&
-            !a.isOverbook &&
-            a.id !== editId &&
-            isBlockingAppointmentStatus(a.status)
-        );
-        
-        let maxDuration = endMin - tMin;
-        
-        // Find next appointment start time after tMin
-        for (let a of existingApts) {
-            const [ah, am] = a.time.split(':').map(Number);
-            const s = ah * 60 + am;
-            if (s >= tMin) {
-                const possibleDuration = s - tMin;
-                if (possibleDuration < maxDuration) {
-                    maxDuration = possibleDuration;
-                }
-            }
-        }
+
+        const maxDuration = getContiguousAvailabilityMinutes(profId, dateStr, timeVal, false, editId);
         
         const currentDur = parseInt(durSelect.value) || (apt ? apt.duration : 60);
         durSelect.innerHTML = '';
@@ -1803,74 +2107,49 @@ function openAppointmentModal(editId = null) {
             return;
         }
         
-        const prof = DB.get('professionals').find(p => p.id === profId);
-        if(!prof || !dateStr) {
-            timeSelect.innerHTML = '<option value="">-</option>';
-            timeSelect.disabled = true;
-            return;
-        }
-        
-        const [year, month, dayStr] = dateStr.split('-');
-        const dateObj = new Date(year, month - 1, dayStr);
-        const dayOfWeek = dateObj.getDay();
-        const daySchedule = prof.schedule[dayOfWeek];
-        
-        if (!daySchedule || !daySchedule.active) {
-            timeSelect.innerHTML = '<option value="">No atiende en esta fecha</option>';
+        const daySchedule = getProfessionalDaySchedule(profId, dateStr);
+        if (!daySchedule) {
+            if (dateStr) {
+                timeSelect.innerHTML = '<option value="">No atiende en esta fecha</option>';
+            } else {
+                timeSelect.innerHTML = '<option value="">-</option>';
+            }
             timeSelect.disabled = true;
             renderDurationOptions();
             return;
         }
-        
+
+        if (!dateStr) {
+            timeSelect.innerHTML = '<option value="">-</option>';
+            timeSelect.disabled = true;
+            return;
+        }
+
         const [sh, sm] = daySchedule.start.split(':').map(Number);
         const [eh, em] = daySchedule.end.split(':').map(Number);
         
         const startMinBase = sh * 60 + sm;
         const endMin = eh * 60 + em;
-        
-        const existingApts = DB.get('appointments').filter(a =>
-            a.professionalId === profId &&
-            a.date === dateStr &&
-            a.id !== editId &&
-            isBlockingAppointmentStatus(a.status)
-        );
-        const intervals = existingApts.map(a => {
-            const [ah, am] = a.time.split(':').map(Number);
-            const s = ah * 60 + am;
-            return { start: s, end: s + a.duration, isOverbook: a.isOverbook };
-        });
-        
-        const normalIntervals = intervals.filter(i => !i.isOverbook);
-        const overbookIntervals = intervals.filter(i => i.isOverbook);
         const currentMinutes = getCurrentMinutes();
         const isToday = isTodayDate(dateStr);
         
         let foundSelected = false;
-        const minDuration = isOverbook ? 15 : 30; // Assuming minimum valid normal duration is 30 mins
+        const minDuration = isOverbook ? 15 : 30;
         
         for (let t = startMinBase; t + minDuration <= endMin; t += 15) {
             if (isToday && !isOverbook && t < currentMinutes) {
                 continue;
             }
 
-            let overlap = false;
-            const pStart = t;
-            const pEndMin = t + minDuration;
-            
-            if (!isOverbook) {
-                overlap = normalIntervals.some(i => pStart < i.end && pEndMin > i.start);
-            } else {
-                overlap = overbookIntervals.some(i => pStart < i.end && pEndMin > i.start);
-            }
-            
-            if (!overlap) {
-                const h = Math.floor(t / 60).toString().padStart(2, '0');
-                const m = (t % 60).toString().padStart(2, '0');
-                const val = `${h}:${m}`;
-                const isSelected = apt && apt.time === val;
-                if(isSelected) foundSelected = true;
-                timeSelect.innerHTML += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
-            }
+            const h = Math.floor(t / 60).toString().padStart(2, '0');
+            const m = (t % 60).toString().padStart(2, '0');
+            const val = `${h}:${m}`;
+            const availableMinutes = getContiguousAvailabilityMinutes(profId, dateStr, val, isOverbook, editId);
+            if (availableMinutes < minDuration) continue;
+
+            const isSelected = apt && apt.time === val;
+            if(isSelected) foundSelected = true;
+            timeSelect.innerHTML += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
         }
         
         if (timeSelect.options.length === 0) {
@@ -1899,6 +2178,8 @@ function openAppointmentModal(editId = null) {
     
     document.getElementById('apt-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const form = e.currentTarget;
+        if (form.dataset.submitting === 'true') return;
         const selectedDate = document.getElementById('apt-date').value;
         const selectedTime = timeSelect.value;
         const isOverbook = sCheck.checked;
@@ -1940,39 +2221,44 @@ function openAppointmentModal(editId = null) {
             status: apt ? normalizeAppointmentStatus(apt.status) : 'not_sent'
         };
         try {
-            if (state.authToken) {
-                const payload = {
-                    patientId: data.patientId,
-                    professionalId: data.professionalId,
-                    date: data.date,
-                    time: data.time,
-                    durationMinutes: data.duration,
-                    isOverbook: data.isOverbook,
-                    status: data.status
-                };
+            form.dataset.submitting = 'true';
+            await withAppLoading(editId ? 'Actualizando turno...' : 'Guardando turno...', async () => {
+                if (state.authToken) {
+                    const payload = {
+                        patientId: data.patientId,
+                        professionalId: data.professionalId,
+                        date: data.date,
+                        time: data.time,
+                        durationMinutes: data.duration,
+                        isOverbook: data.isOverbook,
+                        status: data.status
+                    };
 
-                if (editId) {
-                    await apiFetch(`/appointments/${editId}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(payload)
-                    });
+                    if (editId) {
+                        await apiFetch(`/appointments/${editId}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(payload)
+                        });
+                    } else {
+                        await apiFetch('/appointments', {
+                            method: 'POST',
+                            body: JSON.stringify(payload)
+                        });
+                    }
+
+                    await syncBackendSnapshotToLocalDb();
                 } else {
-                    await apiFetch('/appointments', {
-                        method: 'POST',
-                        body: JSON.stringify(payload)
-                    });
+                    if (editId) DB.update('appointments', editId, data);
+                    else DB.add('appointments', data);
                 }
-
-                await syncBackendSnapshotToLocalDb();
-            } else {
-                if (editId) DB.update('appointments', editId, data);
-                else DB.add('appointments', data);
-            }
+            });
 
             closeModal();
             refreshCurrentView();
         } catch (error) {
             showAlert(error.message || 'No se pudo guardar el turno.', { title: 'Turnos', variant: 'error' });
+        } finally {
+            delete form.dataset.submitting;
         }
     });
 }
@@ -2033,23 +2319,25 @@ function openScheduleModal(profId) {
             };
         }
         try {
-            if (state.authToken) {
-                await apiFetch(`/professionals/${profId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        fullName: prof.name,
-                        specialty: prof.specialty || '',
-                        email: prof.email || '',
-                        phone: prof.phone || '',
-                        color: prof.color || '#6366f1',
-                        active: prof.active !== false && prof.status !== 'inactivo',
-                        schedules: buildProfessionalSchedulesPayload(newSched)
-                    })
-                });
-                await syncBackendSnapshotToLocalDb();
-            } else {
-                DB.update('professionals', profId, { schedule: newSched });
-            }
+            await withAppLoading('Guardando horarios...', async () => {
+                if (state.authToken) {
+                    await apiFetch(`/professionals/${profId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            fullName: prof.name,
+                            specialty: prof.specialty || '',
+                            email: prof.email || '',
+                            phone: prof.phone || '',
+                            color: prof.color || '#6366f1',
+                            active: prof.active !== false && prof.status !== 'inactivo',
+                            schedules: buildProfessionalSchedulesPayload(newSched)
+                        })
+                    });
+                    await syncBackendSnapshotToLocalDb();
+                } else {
+                    DB.update('professionals', profId, { schedule: newSched });
+                }
+            });
 
             closeModal();
             refreshCurrentView();
@@ -2147,23 +2435,25 @@ function openPatientModal(editId = null) {
             clinicalImages: p ? (p.clinicalImages || []) : []
         };
         try {
-            if (state.authToken) {
-                const payload = buildPatientApiPayload(data);
-                if (editId) {
-                    await apiFetch(`/patients/${editId}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(payload)
-                    });
+            await withAppLoading(editId ? 'Actualizando paciente...' : 'Guardando paciente...', async () => {
+                if (state.authToken) {
+                    const payload = buildPatientApiPayload(data);
+                    if (editId) {
+                        await apiFetch(`/patients/${editId}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(payload)
+                        });
+                    } else {
+                        await apiFetch('/patients', {
+                            method: 'POST',
+                            body: JSON.stringify(payload)
+                        });
+                    }
+                    await syncBackendSnapshotToLocalDb();
                 } else {
-                    await apiFetch('/patients', {
-                        method: 'POST',
-                        body: JSON.stringify(payload)
-                    });
+                    if (editId) DB.update('patients', editId, data); else DB.add('patients', data);
                 }
-                await syncBackendSnapshotToLocalDb();
-            } else {
-                if (editId) DB.update('patients', editId, data); else DB.add('patients', data);
-            }
+            });
 
             closeModal();
             refreshCurrentView();
@@ -2224,15 +2514,17 @@ function openBillingModal() {
         };
 
         try {
-            if (state.authToken) {
-                await apiFetch('/billing', {
-                    method: 'POST',
-                    body: JSON.stringify(data)
-                });
-                await syncBackendSnapshotToLocalDb();
-            } else {
-                DB.add('billing', data);
-            }
+            await withAppLoading('Registrando movimiento...', async () => {
+                if (state.authToken) {
+                    await apiFetch('/billing', {
+                        method: 'POST',
+                        body: JSON.stringify(data)
+                    });
+                    await syncBackendSnapshotToLocalDb();
+                } else {
+                    DB.add('billing', data);
+                }
+            });
 
             closeModal();
             refreshCurrentView();
@@ -2887,19 +3179,49 @@ function renderPatients() {
 function renderBilling() {
     const txs = DB.get('billing').filter(t => canAccessProfessional(t.professionalId));
     const patients = getAccessiblePatients();
+    const professionals = getAccessibleProfessionals();
     const today = getTodayIsoLocal();
     const todaysTxs = txs.filter(t => t.date === today);
     
     const ingresos = todaysTxs.filter(t=>t.type==='income').reduce((sum,t)=>sum+t.amount,0);
     const deudas = todaysTxs.filter(t=>t.type==='debt').reduce((sum,t)=>sum+t.amount,0);
     
-    // Calculate per-patient balances
-    const patientBalances = patients.map(p => {
-        const pTx = txs.filter(t => t.patientId === p.id);
-        const pDeuda = pTx.filter(t => t.type==='debt').reduce((sum,t)=>sum+t.amount,0);
-        const pPagado = pTx.filter(t => t.type==='income').reduce((sum,t)=>sum+t.amount,0);
-        return { name: p.name, dni: p.dni, deuda: pDeuda, pagado: pPagado, balance: pDeuda - pPagado };
-    }).filter(p => p.deuda > 0 || p.pagado > 0);
+    const patientBalanceMap = new Map();
+    txs.forEach((tx) => {
+        if (!tx.professionalId) return;
+        const patient = patients.find((item) => item.id === tx.patientId);
+        const professional = professionals.find((item) => item.id === tx.professionalId);
+        if (!patient || !professional) return;
+
+        const key = `${tx.patientId}-${tx.professionalId}`;
+        if (!patientBalanceMap.has(key)) {
+            patientBalanceMap.set(key, {
+                patientId: patient.id,
+                professionalId: professional.id,
+                name: patient.name,
+                dni: patient.dni,
+                professionalName: professional.name,
+                deuda: 0,
+                pagado: 0
+            });
+        }
+
+        const item = patientBalanceMap.get(key);
+        if (tx.type === 'debt') item.deuda += tx.amount;
+        if (tx.type === 'income' || tx.type === 'payment') item.pagado += tx.amount;
+    });
+
+    const patientBalances = Array.from(patientBalanceMap.values())
+        .map((item) => ({
+            ...item,
+            balance: item.deuda - item.pagado
+        }))
+        .filter((item) => item.deuda > 0 || item.pagado > 0)
+        .sort((a, b) => {
+            const byPatient = a.name.localeCompare(b.name);
+            if (byPatient !== 0) return byPatient;
+            return a.professionalName.localeCompare(b.professionalName);
+        });
     
     return `
         <div class="metrics-grid">
@@ -2917,17 +3239,18 @@ function renderBilling() {
             <div class="section-headline">
                 <div>
                     <span class="section-eyebrow">Facturación</span>
-                    <h3 class="section-title section-title-sm">Estado de Cuentas por Paciente</h3>
-                    <p class="section-subtitle">Resumen consolidado de cargos, pagos y saldo pendiente.</p>
+                    <h3 class="section-title section-title-sm">Estado de Cuentas por Paciente y Profesional</h3>
+                    <p class="section-subtitle">Cada deuda o ingreso queda vinculado al profesional responsable.</p>
                 </div>
             </div>
             <div class="table-container shadow-sm border border-gray-100">
                 <table class="w-full text-left bg-white">
-                    <thead class="bg-gray-50 text-gray-600"><tr><th>Paciente</th><th>DNI</th><th>Cargos Generados</th><th>Pagos Realizados</th><th>Saldo Pendiente</th></tr></thead>
+                    <thead class="bg-gray-50 text-gray-600"><tr><th>Paciente</th><th>Profesional</th><th>DNI</th><th>Cargos Generados</th><th>Pagos Realizados</th><th>Saldo Pendiente</th></tr></thead>
                     <tbody>
                         ${patientBalances.map(pb => `
                             <tr>
                                 <td class="font-bold">${pb.name}</td>
+                                <td class="text-sm text-gray-600">${pb.professionalName}</td>
                                 <td class="text-sm text-gray-500">${pb.dni}</td>
                                 <td>$${pb.deuda.toLocaleString()}</td>
                                 <td class="text-success font-semibold">$${pb.pagado.toLocaleString()}</td>
@@ -2938,7 +3261,7 @@ function renderBilling() {
                                 </td>
                             </tr>
                         `).join('')}
-                        ${patientBalances.length === 0 ? '<tr><td colspan="5" class="text-center py-4 text-gray-400">No hay cuentas corrientes activas.</td></tr>' : ''}
+                        ${patientBalances.length === 0 ? '<tr><td colspan="6" class="text-center py-4 text-gray-400">No hay cuentas corrientes activas.</td></tr>' : ''}
                     </tbody>
                 </table>
             </div>
@@ -2956,14 +3279,16 @@ function renderBilling() {
         
         <div class="table-container shadow-sm">
             <table class="w-full text-left">
-                <thead><tr><th>Fecha</th><th>Paciente</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>AcciÃ³n</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Paciente</th><th>Profesional</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>AcciÃ³n</th></tr></thead>
                 <tbody>
                     ${txs.sort((a,b)=>b.id - a.id).map(t => {
                         const pName = patients.find(p=>p.id === t.patientId)?.name || 'Desconocido';
+                        const professionalName = professionals.find(p=>p.id === t.professionalId)?.name || 'Sin profesional';
                         return `
                         <tr>
                             <td class="text-sm text-gray-500">${t.date}</td>
                             <td class="font-medium">${pName}</td>
+                            <td class="text-sm text-gray-600">${professionalName}</td>
                             <td><span class="badge ${t.type==='income'?'badge-success':'badge-warning'}">${t.type==='income'?'Ingreso':'Cargo / Deuda'}</span></td>
                             <td class="text-gray-700">${t.description}</td>
                             <td class="font-bold ${t.type==='income'?'text-success':'text-warning'}">$${t.amount.toLocaleString()}</td>
@@ -2974,7 +3299,7 @@ function renderBilling() {
                         </tr>
                         `;
                     }).join('')}
-                    ${txs.length===0?'<tr><td colspan="6" class="text-center py-6 text-gray-500">No hay transacciones registradas</td></tr>':''}
+                    ${txs.length===0?'<tr><td colspan="7" class="text-center py-6 text-gray-500">No hay transacciones registradas</td></tr>':''}
                 </tbody>
             </table>
         </div>
@@ -2991,9 +3316,17 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
         const end = new Date(start.getTime() + duration * 60000);
         return end > now;
     });
+    const currentRunningApts = todaysApts.filter(apt => {
+        if (!isBlockingAppointmentStatus(apt.status)) return false;
+        const [hours, minutes] = apt.time.split(':').map(Number);
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
+        const duration = apt.isOverbook ? 15 : (apt.duration || 0);
+        const end = new Date(start.getTime() + duration * 60000);
+        return start <= now && end > now;
+    });
     const patientsTodayCount = new Set(todaysOpenApts.map(apt => apt.patient)).size;
-    const activeTurnsCount = todaysOpenApts.length;
-    const activeOverbooksCount = todaysOpenApts.filter(apt => apt.isOverbook).length;
+    const activeTurnsCount = currentRunningApts.length;
+    const activeOverbooksCount = currentRunningApts.filter(apt => apt.isOverbook).length;
     const selectedLabel = formatDashboardDateLabel(selectedDate);
     const selectedTitle = selectedDate === getTodayIsoLocal() ? 'Turnos de Hoy' : 'Turnos Programados';
 
@@ -3398,11 +3731,17 @@ function renderSettings() {
 
 // --- Ficha ClÃ­nica y Odontograma ---
 
-async function loadClinicalHistory(patientId) {
+async function loadClinicalHistory(patientId, options = {}) {
     if (!canAccessPatient(patientId)) return;
     if (!canViewClinicalHistoryUi()) {
         showAlert('El secretario no puede acceder a la historia clínica.', { title: 'Historia clínica', variant: 'error' });
         return;
+    }
+    if (!options.skipUnsavedCheck) {
+        const switchingPatient = state.currentView === 'patient-history' && state.currentPatientId !== patientId;
+        if ((switchingPatient || state.currentView !== 'patient-history') && !(await confirmClinicalDraftExit())) {
+            return;
+        }
     }
     state.currentView = 'patient-history';
     state.currentPatientId = patientId;
@@ -3410,24 +3749,30 @@ async function loadClinicalHistory(patientId) {
     mainContent.innerHTML = '<div class="card p-6 text-center text-gray-500">Cargando historia clínica...</div>';
     
     try {
-        await syncPatientClinicalData(patientId);
+        if (!options.skipSync) {
+            await syncPatientClinicalData(patientId);
+        }
     } catch (error) {
         showAlert(error.message || 'No se pudo cargar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
     }
 
+    setClinicalDraftFromPatient(DB.get('patients').find((item) => item.id === patientId));
+
     mainContent.innerHTML = '';
 
     const content = document.createElement('div');
-    content.className = 'animate-fade-in';
+    content.className = 'animate-fade-in clinical-print-root';
     content.innerHTML = renderClinicalHistory(patientId);
     mainContent.appendChild(content);
     enhanceClinicalPatientEditor(patientId);
 
     attachClinicalHistoryEvents(patientId);
+    syncClinicalHistorySaveState();
+    renderSidebar();
 }
 
 function enhanceClinicalPatientEditor(patientId) {
-    const patient = DB.get('patients').find(p => p.id === patientId);
+    const patient = getClinicalWorkingPatient(patientId);
     if (!patient) return;
     const canEditClinical = canEditClinicalHistoryUi();
 
@@ -3441,52 +3786,48 @@ function enhanceClinicalPatientEditor(patientId) {
     if (!container) return;
 
     container.innerHTML = `
-        <div class="clinical-edit-grid">
-            <div class="clinical-info-item">
+        <div class="clinical-edit-grid clinical-edit-grid-compact">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Nombre</strong>
                 <input class="form-input clinical-readonly" type="text" value="${patient.name || ''}" disabled>
             </div>
-            <div class="clinical-info-item">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">DNI</strong>
                 <input class="form-input clinical-readonly" type="text" value="${patient.dni || ''}" disabled>
             </div>
-            <div class="clinical-info-item">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Nacimiento</strong>
                 <input class="form-input" type="date" id="clinical-fecha-nacimiento" value="${patient.fechaNacimiento || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
-            <div class="clinical-info-item">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Edad</strong>
                 <div class="clinical-static-value">${age} aÃ±os</div>
             </div>
-            <div class="clinical-info-item">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Telefono</strong>
                 <input class="form-input" type="text" id="clinical-phone" value="${patient.phone || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
-            <div class="clinical-info-item">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Email</strong>
                 <input class="form-input" type="email" id="clinical-email" value="${patient.email || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
-            <div class="clinical-info-item">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Obra Social / Plan</strong>
                 <input class="form-input" type="text" id="clinical-obra-social" value="${patient.obraSocial || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
-            <div class="clinical-info-item">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Credencial</strong>
                 <input class="form-input" type="text" id="clinical-credencial" value="${patient.credencial || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
-            <div class="clinical-info-item">
+            <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Ficha NÂ°</strong>
                 <input class="form-input" type="text" id="clinical-ficha-numero" value="${patient.fichaNumero || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
-            <div class="clinical-info-item col-span-full">
+            <div class="clinical-info-item clinical-info-item-compact clinical-info-item-wide">
                 <strong class="text-gray-600 uppercase text-xs">Domicilio</strong>
                 <input class="form-input" type="text" id="clinical-domicilio" value="${patient.domicilio || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
         </div>
-        ${canEditClinical ? `
-        <div class="clinical-edit-actions">
-            <button class="btn btn-secondary btn-sm" onclick="savePatientDetails(${patientId})">Guardar Datos del Paciente</button>
-        </div>` : ''}
     `;
 }
 
@@ -3499,14 +3840,19 @@ function drawTeethRow(teethArray, patientOdontograma) {
         let facesHtml = '';
         if(isAbsent) {
             facesHtml = `
-                <rect x="0" y="0" width="100" height="100" fill="none" stroke="#ef4444" stroke-width="3" rx="8" ry="8"></rect>
-                <line x1="10" y1="10" x2="90" y2="90" stroke="#ef4444" stroke-width="8" stroke-linecap="round"></line>
-                <line x1="90" y1="10" x2="10" y2="90" stroke="#ef4444" stroke-width="8" stroke-linecap="round"></line>
+                <polygon points="0,0 100,0 75,25 25,25" fill="transparent" stroke="#94a3b8" stroke-width="2"></polygon>
+                <polygon points="100,0 100,100 75,75 75,25" fill="transparent" stroke="#94a3b8" stroke-width="2"></polygon>
+                <polygon points="100,100 0,100 25,75 75,75" fill="transparent" stroke="#94a3b8" stroke-width="2"></polygon>
+                <polygon points="0,100 0,0 25,25 25,75" fill="transparent" stroke="#94a3b8" stroke-width="2"></polygon>
+                <rect x="25" y="25" width="50" height="50" fill="transparent" stroke="#94a3b8" stroke-width="2"></rect>
+                <line x1="14" y1="14" x2="86" y2="86" stroke="#475569" stroke-width="8" stroke-linecap="round"></line>
+                <line x1="86" y1="14" x2="14" y2="86" stroke="#475569" stroke-width="8" stroke-linecap="round"></line>
+                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="transparent" stroke-width="0"></rect>
             `;
         } else {
             const getColor = (f) => {
-                if(toothData[f] === 'caries') return '#3b82f6';
-                if(toothData[f] === 'restaurado') return '#ef4444';
+                if(toothData[f] === 'caries') return '#ef4444';
+                if(toothData[f] === 'restaurado') return '#2563eb';
                 return 'transparent';
             };
             facesHtml = `
@@ -3520,7 +3866,7 @@ function drawTeethRow(teethArray, patientOdontograma) {
 
         return `
         <div class="flex flex-col items-center tooth-box" data-tooth="${id}">
-            <span class="text-[8px] md:text-[10px] font-bold text-gray-700 w-full text-center hover:bg-red-100 cursor-pointer rounded" title="Doble clic para marcar Ausente" ondblclick="toggleAbsent(${state.currentPatientId}, ${id})">${id}</span>
+            <span class="text-[8px] md:text-[10px] font-bold text-gray-700 w-full text-center">${id}</span>
             <div class="relative w-8 h-8 md:w-10 md:h-10">
                 <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-sm" style="stroke-width:2.5;">
                     ${facesHtml}
@@ -3532,10 +3878,11 @@ function drawTeethRow(teethArray, patientOdontograma) {
 }
 
 function renderClinicalHistory(patientId) {
-    const patient = DB.get('patients').find(p => p.id === patientId);
+    const patient = getClinicalWorkingPatient(patientId);
     if(!patient) return '<p>Paciente no encontrado</p>';
     const clinicalImages = (patient.clinicalImages || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const canEditClinical = canEditClinicalHistoryUi();
+    const draft = getClinicalDraft(patientId);
 
     let age = '-';
     if(patient.fechaNacimiento) {
@@ -3554,9 +3901,12 @@ function renderClinicalHistory(patientId) {
                     <p class="text-sm font-semibold text-primary-700">Ficha ClÃ­nica OdontolÃ³gica</p>
                 </div>
             </div>
-            <div class="text-right text-sm">
-                <p class="text-lg font-bold text-gray-800">${patient.name}</p>
-                <p class="text-gray-600">DNI: <span class="font-medium">${patient.dni}</span></p>
+            <div class="text-right text-sm clinical-header-actions">
+                <div class="clinical-print-toolbar print-hidden">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="printClinicalHistory()">
+                        <i class="fa-solid fa-print"></i> Imprimir Historia
+                    </button>
+                </div>
             </div>
         </div>
         
@@ -3576,38 +3926,44 @@ function renderClinicalHistory(patientId) {
 
             <!-- ODONTOGRAMA -->
             <div class="mb-10">
-                <div class="odontogram-header mb-4">
+                <div class="odontogram-header mb-4 clinical-odontogram-section">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma Inicial</h3>
                     <div class="odontogram-legend text-xs">
                         <span class="badge-state badge-sano">Sano</span>
                         <span class="badge-state badge-caries">Caries</span>
-                        <span class="badge-state badge-restauracion">RestauraciÃ³n</span>
+                        <span class="badge-state badge-restauracion">Restauración</span>
                         <span class="badge-state badge-ausente">Ausente</span>
                     </div>
                 </div>
                 
-                <p class="text-xs text-gray-500 mb-2 text-center w-full">Haz clic en cada cara para ciclar estado (Sano â†’ Caries â†’ Restaurado). Doble clic en el NÃšMERO para marcar ausente.</p>
+                <p class="text-xs text-gray-500 mb-2 text-center w-full print-hidden">Haz clic en cada cara del diente para ciclar estado: 1 clic caries, 2 clics restauraciÃ³n, 3 clics ausente, 4 clics sano.</p>
                 <div class="odontogram-wrapper overflow-x-auto pb-4">
-                    <div class="flex flex-col items-center gap-4"> <!-- Ajuste: mÃ¡s compacto -->
-                    <!-- Permanentes Superior -->
-                    <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                        <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma)} </div>
-                        <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([21,22,23,24,25,26,27,28], patient.odontograma)} </div>
-                    </div>
-                    <!-- Deciduos Superior -->
-                    <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                        <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma)} </div>
-                        <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma)} </div>
-                    </div>
-                    <!-- Deciduos Inferior -->
-                    <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                        <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma)} </div>
-                        <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([71,72,73,74,75], patient.odontograma)} </div>
-                    </div>
-                    <!-- Permanentes Inferior -->
-                    <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                        <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([48,47,46,45,44,43,42,41], patient.odontograma)} </div>
-                        <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([31,32,33,34,35,36,37,38], patient.odontograma)} </div>
+                    <div class="flex flex-col items-center gap-5 min-w-max">
+                        <div class="w-full flex flex-col items-center gap-3">
+                            <div class="text-[10px] md:text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Dentición Adulta</div>
+                            <div class="flex gap-4 md:gap-8 justify-center min-w-max">
+                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma)} </div>
+                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([21,22,23,24,25,26,27,28], patient.odontograma)} </div>
+                            </div>
+                            <div class="flex gap-4 md:gap-8 justify-center min-w-max">
+                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([48,47,46,45,44,43,42,41], patient.odontograma)} </div>
+                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([31,32,33,34,35,36,37,38], patient.odontograma)} </div>
+                            </div>
+                        </div>
+
+                        <div class="w-full max-w-4xl border-t border-dashed border-gray-300"></div>
+
+                        <div class="w-full flex flex-col items-center gap-3">
+                            <div class="text-[10px] md:text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Dentición Infantil</div>
+                            <div class="flex gap-4 md:gap-8 justify-center min-w-max">
+                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma)} </div>
+                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma)} </div>
+                            </div>
+                            <div class="flex gap-4 md:gap-8 justify-center min-w-max">
+                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma)} </div>
+                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([71,72,73,74,75], patient.odontograma)} </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3616,13 +3972,13 @@ function renderClinicalHistory(patientId) {
             <div class="mb-4">
                     <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
                         <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Registro de Tratamientos</h3>
-                    ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-treatment"><i class="fa-solid fa-plus"></i> AÃ±adir Fila</button>' : ''}
+                    ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap print-hidden" id="btn-add-treatment"><i class="fa-solid fa-plus"></i> AÃ±adir Fila</button>' : ''}
                 </div>
                 <div class="table-container shadow-sm border border-gray-300 overflow-visible">
                     <table class="w-full text-left text-xs md:text-sm" id="treatments-table">
                         <thead class="bg-gray-50 border-b border-gray-300"><tr>
                             <th class="py-2 px-3">Diente</th><th class="py-2 px-3">Cara</th><th class="py-2 px-3">Sector</th>
-                            <th class="py-2 px-3">AutorizaciÃ³n</th><th class="py-2 px-3">CÃ³digo</th><th class="py-2 px-3">Fecha / Firma</th><th class="py-2 px-3">Observaciones</th><th class="py-2 px-3"></th>
+                            <th class="py-2 px-3">AutorizaciÃ³n</th><th class="py-2 px-3">CÃ³digo</th><th class="py-2 px-3">Fecha / Firma</th><th class="py-2 px-3">Observaciones</th><th class="py-2 px-3 print-hidden"></th>
                         </tr></thead>
                         <tbody>
                             ${(patient.treatments||[]).map((t, idx) => `
@@ -3634,7 +3990,7 @@ function renderClinicalHistory(patientId) {
                                     <td class="py-2 px-3 font-mono">${t.codigo}</td>
                                     <td class="py-2 px-3">${t.fecha}<br><span class="text-[10px] text-gray-500 font-medium">${t.firma}</span></td>
                                     <td class="py-2 px-3 text-gray-600">${t.observaciones}</td>
-                                    <td class="py-2 px-3">
+                                    <td class="py-2 px-3 print-hidden">
                                     ${canEditClinical ? `
                                         <button class="btn-ghost text-red-400 hover:text-red-600 p-1" onclick="deleteTreatment(${patientId}, ${t.id ?? idx})"><i class="fa-solid fa-times"></i></button>
                                     ` : ''}
@@ -3647,7 +4003,7 @@ function renderClinicalHistory(patientId) {
                 </div>
             </div>
 
-            <div class="mb-4">
+            <div class="mb-4 print-hidden">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Imagenes Clinicas</h3>
                     ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Agregar Imagen</button>' : ''}
@@ -3673,68 +4029,111 @@ function renderClinicalHistory(patientId) {
             <div class="mt-8 bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
                 <h3 class="font-bold text-yellow-800 mb-2 uppercase text-xs"><i class="fa-solid fa-notes-medical"></i> Observaciones Generales y Alergias</h3>
                 <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded" ${canEditClinical ? '' : 'disabled'}>${patient.notes || ''}</textarea>
-                ${canEditClinical ? '<div class="text-right mt-2"><button class="btn btn-secondary btn-sm bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200" onclick="savePatientNotes(' + patientId + ')">Guardar Notas</button></div>' : ''}
             </div>
+
+            ${canEditClinical ? `
+            <div class="clinical-save-footer print-hidden">
+                <button type="button" id="btn-save-clinical-history" class="btn btn-primary btn-lg clinical-save-btn ${draft?.isDirty ? 'is-ready' : ''}" onclick="saveClinicalHistory(${patientId})" ${draft?.isDirty ? '' : 'disabled'}>
+                    Guardar Historia Clínica
+                </button>
+            </div>
+            ` : ''}
         </div>
     </div>
     `;
 }
 
-function attachClinicalHistoryEvents(patientId) {
-    if(!canEditClinicalHistoryUi()) return; // Read Only for clinical charting
+window.printClinicalHistory = function() {
+    document.body.classList.add('printing-clinical-history');
 
+    const cleanup = () => {
+        document.body.classList.remove('printing-clinical-history');
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.print();
+
+    setTimeout(() => {
+        document.body.classList.remove('printing-clinical-history');
+    }, 1200);
+};
+
+function bindClinicalToothEvents(patientId) {
     document.querySelectorAll('.tooth-face').forEach(face => {
         face.addEventListener('click', (e) => {
             const tooth = e.target.dataset.tooth;
             const faceName = e.target.dataset.face;
-            
-            const p = DB.get('patients').find(pt => pt.id === patientId);
-            if(!p.odontograma) p.odontograma = {};
-            if(!p.odontograma[tooth]) p.odontograma[tooth] = {};
-            
-            if(p.odontograma[tooth].estado === 'ausente') return; // Cannot edit faces of absent teeth
+            const draft = getClinicalDraft(patientId);
+            if (!draft) return;
+            if(!draft.data.odontograma) draft.data.odontograma = {};
+            if(!draft.data.odontograma[tooth]) draft.data.odontograma[tooth] = {};
 
-            let current = p.odontograma[tooth][faceName] || 'sano';
+            const toothState = draft.data.odontograma[tooth];
+            const current = toothState.estado === 'ausente' ? 'ausente' : (toothState[faceName] || 'sano');
             let next = 'sano';
+
             if(current === 'sano') next = 'caries';
             else if(current === 'caries') next = 'restaurado';
-            
-            p.odontograma[tooth][faceName] = next;
-            DB.update('patients', patientId, { odontograma: p.odontograma });
-            
-            // Re-render
-            loadClinicalHistory(patientId);
+            else if(current === 'restaurado') next = 'ausente';
+            else if(current === 'ausente') next = 'sano';
+
+            if (next === 'ausente') {
+                draft.data.odontograma[tooth] = { estado: 'ausente' };
+            } else {
+                if (toothState.estado === 'ausente') {
+                    delete toothState.estado;
+                    delete toothState.top;
+                    delete toothState.right;
+                    delete toothState.bottom;
+                    delete toothState.left;
+                    delete toothState.center;
+                }
+
+                if (next === 'sano') {
+                    delete toothState[faceName];
+                } else {
+                    toothState[faceName] = next;
+                }
+
+                const activeFaces = ['top', 'right', 'bottom', 'left', 'center'].filter((key) => toothState[key]);
+                if (!activeFaces.length) {
+                    delete toothState.estado;
+                    if (Object.keys(toothState).length === 0) {
+                        delete draft.data.odontograma[tooth];
+                    }
+                }
+            }
+
+            draft.isDirty = true;
+            renderClinicalOdontogram(patientId);
+            syncClinicalHistorySaveState();
         });
     });
+}
 
-    document.querySelectorAll('.tooth-box').forEach(box => {
-        box.addEventListener('click', (e) => {
-            // Evitar doble procesar click en .tooth-face, dejar que su manejador se encargue
-            if (e.target.closest('.tooth-face')) return;
-            const toothId = box.dataset.tooth;
-            const p = DB.get('patients').find(pt => pt.id === patientId);
-            if (!p.odontograma) p.odontograma = {};
-            if (!p.odontograma[toothId]) p.odontograma[toothId] = {};
-            if (p.odontograma[toothId].estado === 'ausente') return;
+function attachClinicalHistoryEvents(patientId) {
+    if(!canEditClinicalHistoryUi()) return; // Read Only for clinical charting
 
-            // Avanzar estado general por diente desde sano->caries->restaurado->sano
-            const statusOrder = ['sano', 'caries', 'restaurado'];
-            const currentGlobal = p.odontograma[toothId].estado || 'sano';
-            let nextGlobal = 'sano';
-            if (currentGlobal === 'sano') nextGlobal = 'caries';
-            else if (currentGlobal === 'caries') nextGlobal = 'restaurado';
-            else if (currentGlobal === 'restaurado') nextGlobal = 'sano';
-            p.odontograma[toothId].estado = nextGlobal;
+    const bindDraftInput = (selector, key) => {
+        const element = document.querySelector(selector);
+        if (!element) return;
+        element.oninput = (event) => {
+            updateClinicalDraft(patientId, (draft) => {
+                draft[key] = event.target.value;
+            });
+        };
+    };
 
-            // aplicar color de estado al centro para visual inmediato
-            if (nextGlobal === 'caries') p.odontograma[toothId].center = 'caries';
-            else if (nextGlobal === 'restaurado') p.odontograma[toothId].center = 'restaurado';
-            else delete p.odontograma[toothId].center;
+    bindDraftInput('#clinical-fecha-nacimiento', 'fechaNacimiento');
+    bindDraftInput('#clinical-phone', 'phone');
+    bindDraftInput('#clinical-email', 'email');
+    bindDraftInput('#clinical-obra-social', 'obraSocial');
+    bindDraftInput('#clinical-credencial', 'credencial');
+    bindDraftInput('#clinical-ficha-numero', 'fichaNumero');
+    bindDraftInput('#clinical-domicilio', 'domicilio');
+    bindDraftInput('#p-general-notes', 'notes');
 
-            DB.update('patients', patientId, { odontograma: p.odontograma });
-            loadClinicalHistory(patientId);
-        });
-    });
+    bindClinicalToothEvents(patientId);
 
     document.getElementById('btn-add-treatment')?.addEventListener('click', () => {
         openTreatmentModal(patientId);
@@ -3745,80 +4144,105 @@ function attachClinicalHistoryEvents(patientId) {
     });
 }
 
-window.toggleAbsent = function(patientId, toothId) {
-    if(!canEditClinicalHistoryUi()) return;
-    const p = DB.get('patients').find(pt => pt.id === patientId);
-    if(!p.odontograma) p.odontograma = {};
-    if(!p.odontograma[toothId]) p.odontograma[toothId] = {};
-    
-    p.odontograma[toothId].estado = p.odontograma[toothId].estado === 'ausente' ? 'sano' : 'ausente';
-    DB.update('patients', patientId, { odontograma: p.odontograma });
-    loadClinicalHistory(patientId);
-};
+function renderClinicalOdontogram(patientId) {
+    const patient = getClinicalWorkingPatient(patientId);
+    const wrapper = document.querySelector('.odontogram-wrapper');
+    if (!patient || !wrapper) return;
+
+    wrapper.innerHTML = `
+        <div class="flex flex-col items-center gap-5 min-w-max">
+            <div class="w-full flex flex-col items-center gap-3">
+                <div class="text-[10px] md:text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Dentición Adulta</div>
+                <div class="flex gap-4 md:gap-8 justify-center min-w-max">
+                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma)} </div>
+                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([21,22,23,24,25,26,27,28], patient.odontograma)} </div>
+                </div>
+                <div class="flex gap-4 md:gap-8 justify-center min-w-max">
+                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([48,47,46,45,44,43,42,41], patient.odontograma)} </div>
+                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([31,32,33,34,35,36,37,38], patient.odontograma)} </div>
+                </div>
+            </div>
+
+            <div class="w-full max-w-4xl border-t border-dashed border-gray-300"></div>
+
+            <div class="w-full flex flex-col items-center gap-3">
+                <div class="text-[10px] md:text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Dentición Infantil</div>
+                <div class="flex gap-4 md:gap-8 justify-center min-w-max">
+                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma)} </div>
+                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma)} </div>
+                </div>
+                <div class="flex gap-4 md:gap-8 justify-center min-w-max">
+                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma)} </div>
+                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([71,72,73,74,75], patient.odontograma)} </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    bindClinicalToothEvents(patientId);
+}
 
 window.savePatientNotes = async function(patientId) {
-    if (!canEditClinicalHistoryUi()) {
-        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
-        return;
-    }
-    const notes = document.getElementById('p-general-notes').value;
-    const patient = DB.get('patients').find((item) => item.id === patientId);
-    if (!patient) return;
-
-    try {
-        if (state.authToken) {
-            await apiFetch(`/patients/${patientId}`, {
-                method: 'PUT',
-                body: JSON.stringify(buildPatientApiPayload({
-                    ...patient,
-                    notes
-                }))
-            });
-            await syncPatientClinicalData(patientId);
-        } else {
-            DB.update('patients', patientId, { notes });
-        }
-
-        showToast('Notas guardadas.', { type: 'success' });
-        loadClinicalHistory(patientId);
-    } catch (error) {
-        showAlert(error.message || 'No se pudieron guardar las notas.', { title: 'Historia clínica', variant: 'error' });
-    }
+    return window.saveClinicalHistory(patientId);
 };
 
 window.savePatientDetails = async function(patientId) {
     if (!canEditClinicalHistoryUi()) {
-        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
         return;
     }
-    const patient = DB.get('patients').find(p => p.id === patientId);
-    if (!patient) return;
+    return window.saveClinicalHistory(patientId);
+};
 
-    const updatedValues = {
+window.saveClinicalHistory = async function(patientId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
+
+    const patient = DB.get('patients').find((item) => item.id === patientId);
+    const draft = getClinicalDraft(patientId);
+    if (!patient || !draft) return;
+    if (!draft.isDirty) {
+        showToast('No hay cambios pendientes para guardar.', { type: 'success' });
+        return;
+    }
+
+    const mergedValues = {
         ...patient,
-        fechaNacimiento: document.getElementById('clinical-fecha-nacimiento')?.value || '',
-        phone: document.getElementById('clinical-phone')?.value || '',
-        email: document.getElementById('clinical-email')?.value || '',
-        obraSocial: document.getElementById('clinical-obra-social')?.value || '',
-        credencial: document.getElementById('clinical-credencial')?.value || '',
-        fichaNumero: document.getElementById('clinical-ficha-numero')?.value || '',
-        domicilio: document.getElementById('clinical-domicilio')?.value || ''
+        ...draft.data,
+        odontograma: deepClone(draft.data.odontograma || {})
     };
 
     try {
-        if (state.authToken) {
-            await apiFetch(`/patients/${patientId}`, {
-                method: 'PUT',
-                body: JSON.stringify(buildPatientApiPayload(updatedValues))
-            });
-            await syncBackendSnapshotToLocalDb();
-        } else {
-            DB.update('patients', patientId, updatedValues);
-        }
+        await withAppLoading('Guardando historia clínica...', async () => {
+            if (state.authToken) {
+                await apiFetch(`/patients/${patientId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(buildPatientApiPayload(mergedValues))
+                });
+                await apiFetch(`/clinical-records/${patientId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        summaryNotes: mergedValues.notes || '',
+                        allergies: mergedValues.allergies || null,
+                        medicalNotes: mergedValues.medicalNotes || null,
+                        odontogramEntries: legacyOdontogramToEntries(mergedValues.odontograma || {})
+                    })
+                });
+                await syncPatientClinicalData(patientId);
+            } else {
+                DB.update('patients', patientId, mergedValues);
+            }
+        });
 
-        loadClinicalHistory(patientId);
+        setClinicalDraftFromPatient(getClinicalWorkingPatient(patientId));
+        if (state.clinicalDraft) state.clinicalDraft.isDirty = false;
+        syncClinicalHistorySaveState();
+        showToast('Historia clínica guardada.', { type: 'success' });
+        await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: !state.authToken });
     } catch (error) {
-        alert(error.message || 'No se pudieron guardar los datos del paciente.');
+        showAlert(error.message || 'No se pudo guardar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
     }
 };
 
@@ -3839,7 +4263,11 @@ window.deleteUser = async function(userId) {
 
 window.deleteTreatment = async function(patientId, treatmentId) {
     if (!canEditClinicalHistoryUi()) {
-        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
+    if (hasUnsavedClinicalDraft()) {
+        showAlert('Primero guarda la historia clínica antes de eliminar tratamientos.', { title: 'Historia clínica', variant: 'warning' });
         return;
     }
     if(await showConfirm('¿Eliminar registro de tratamiento?', { title: 'Eliminar tratamiento', confirmText: 'Eliminar' })) {
@@ -3865,7 +4293,11 @@ window.deleteTreatment = async function(patientId, treatmentId) {
 
 window.deleteClinicalImage = async function(patientId, imageId) {
     if (!canEditClinicalHistoryUi()) {
-        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
+    if (hasUnsavedClinicalDraft()) {
+        showAlert('Primero guarda la historia clínica antes de eliminar imágenes clínicas.', { title: 'Historia clínica', variant: 'warning' });
         return;
     }
     if(await showConfirm('¿Eliminar imagen clínica?', { title: 'Eliminar imagen', confirmText: 'Eliminar' })) {
@@ -3891,7 +4323,11 @@ window.deleteClinicalImage = async function(patientId, imageId) {
 
 function openTreatmentModal(patientId) {
     if (!canEditClinicalHistoryUi()) {
-        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
+    if (hasUnsavedClinicalDraft()) {
+        showAlert('Primero guarda la historia clínica antes de agregar tratamientos.', { title: 'Historia clínica', variant: 'warning' });
         return;
     }
     modalsContainer.innerHTML = `
@@ -3941,26 +4377,28 @@ function openTreatmentModal(patientId) {
         };
 
         try {
-            if (state.authToken) {
-                await apiFetch('/treatments', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        patientId,
-                        professionalId: state.user?.assignedProfessionalId || null,
-                        tooth: treatment.diente,
-                        face: treatment.cara,
-                        sector: treatment.sector,
-                        authorizationNumber: treatment.autorizacion,
-                        insuranceCode: treatment.codigo,
-                        observations: treatment.observaciones,
-                        performedAt: new Date().toISOString()
-                    })
-                });
-                await syncPatientClinicalData(patientId);
-            } else {
-                p.treatments.push(treatment);
-                DB.update('patients', patientId, { treatments: p.treatments });
-            }
+            await withAppLoading('Guardando tratamiento...', async () => {
+                if (state.authToken) {
+                    await apiFetch('/treatments', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            patientId,
+                            professionalId: state.user?.assignedProfessionalId || null,
+                            tooth: treatment.diente,
+                            face: treatment.cara,
+                            sector: treatment.sector,
+                            authorizationNumber: treatment.autorizacion,
+                            insuranceCode: treatment.codigo,
+                            observations: treatment.observaciones,
+                            performedAt: new Date().toISOString()
+                        })
+                    });
+                    await syncPatientClinicalData(patientId);
+                } else {
+                    p.treatments.push(treatment);
+                    DB.update('patients', patientId, { treatments: p.treatments });
+                }
+            });
 
             closeModal();
             loadClinicalHistory(patientId);
@@ -3972,7 +4410,11 @@ function openTreatmentModal(patientId) {
 
 function openClinicalImageModal(patientId) {
     if (!canEditClinicalHistoryUi()) {
-        showAlert('Solo el profesional puede modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
+    if (hasUnsavedClinicalDraft()) {
+        showAlert('Primero guarda la historia clínica antes de agregar imágenes clínicas.', { title: 'Historia clínica', variant: 'warning' });
         return;
     }
     modalsContainer.innerHTML = `
@@ -4032,24 +4474,26 @@ function openClinicalImageModal(patientId) {
         }))).then(async (newImages) => {
             const p = DB.get('patients').find(pt => pt.id === patientId);
 
-            if (state.authToken) {
-                await apiFetch('/clinical-images', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        patientId,
-                        images: newImages.map((image) => ({
-                            imageUrl: image.dataUrl,
-                            description: image.description,
-                            takenAt: image.date
-                        }))
-                    })
-                });
-                await syncPatientClinicalData(patientId);
-            } else if (p) {
-                const images = (p.clinicalImages || []).slice();
-                images.push(...newImages);
-                DB.update('patients', patientId, { clinicalImages: images });
-            }
+            await withAppLoading('Guardando imágenes clínicas...', async () => {
+                if (state.authToken) {
+                    await apiFetch('/clinical-images', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            patientId,
+                            images: newImages.map((image) => ({
+                                imageUrl: image.dataUrl,
+                                description: image.description,
+                                takenAt: image.date
+                            }))
+                        })
+                    });
+                    await syncPatientClinicalData(patientId);
+                } else if (p) {
+                    const images = (p.clinicalImages || []).slice();
+                    images.push(...newImages);
+                    DB.update('patients', patientId, { clinicalImages: images });
+                }
+            });
 
             closeModal();
             loadClinicalHistory(patientId);

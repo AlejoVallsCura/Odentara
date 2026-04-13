@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 enum RoleCode {
@@ -286,7 +286,7 @@ model ClinicalImage {
   id               Int       @id @default(autoincrement())
   patientId        Int
   uploadedByUserId Int?
-  imageUrl         String
+  imageUrl         String    @db.LongText
   description      String?
   takenAt          DateTime?
   deletedAt        DateTime?
@@ -302,7 +302,7 @@ model ClinicalImage {
 model BillingEntry {
   id               Int              @id @default(autoincrement())
   patientId        Int
-  professionalId   Int?
+  professionalId   Int
   appointmentId    Int?
   createdByUserId  Int?
   type             BillingEntryType
@@ -314,7 +314,7 @@ model BillingEntry {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   patient          Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  professional     Professional?    @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  professional     Professional     @relation(fields: [professionalId], references: [id], onDelete: Restrict)
   appointment      Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   createdByUser    User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 

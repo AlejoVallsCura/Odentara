@@ -56,6 +56,28 @@ function currentMinutes() {
   return now.getHours() * 60 + now.getMinutes();
 }
 
+function getAppointmentEndMinutes(payload) {
+  const start = timeToMinutes(payload.time);
+  if (start === null) return null;
+  const duration = payload.isOverbook ? 15 : Number(payload.durationMinutes || 0);
+  return start + duration;
+}
+
+function scheduleAllowsAppointment(schedules = [], payload) {
+  const start = timeToMinutes(payload.time);
+  const end = getAppointmentEndMinutes(payload);
+  if (start === null || end === null) return false;
+
+  const weekday = parseDateOnly(payload.date).getDay();
+  return schedules.some((item) => {
+    if (!item.active || item.weekday !== weekday) return false;
+    const scheduleStart = timeToMinutes(item.startTime);
+    const scheduleEnd = timeToMinutes(item.endTime);
+    if (scheduleStart === null || scheduleEnd === null) return false;
+    return start >= scheduleStart && end <= scheduleEnd;
+  });
+}
+
 function buildAppointmentAccessWhere(permissions) {
   if (canAccessWholeClinic(permissions)) {
     return {};
@@ -148,8 +170,15 @@ async function validateAppointmentPayload(
 
   const professional = await prisma.professional.findUnique({
     where: { id: payload.professionalId },
-    select: { id: true, active: true, deletedAt: true },
+    select: { id: true, active: true, deletedAt: true, schedules: true },
   });
+
+  const validDurations = payload.isOverbook ? [15] : [30, 60, 90, 120];
+  if (!validDurations.includes(Number(payload.durationMinutes || 0))) {
+    return payload.isOverbook
+      ? "El sobreturno solo puede durar 15 minutos."
+      : "La duración del turno no es válida.";
+  }
 
   if (!professional || professional.deletedAt || !professional.active) {
     return "El profesional seleccionado no existe o está inactivo.";
@@ -181,20 +210,44 @@ async function validateAppointmentPayload(
     }
   }
 
-  const existing = await prisma.appointment.findFirst({
+  if (!scheduleAllowsAppointment(professional.schedules || [], payload)) {
+    return "La duración elegida no entra dentro del horario disponible del profesional.";
+  }
+
+  const existingAppointments = await prisma.appointment.findMany({
     where: {
       professionalId: payload.professionalId,
       date: parseDateOnly(payload.date),
-      startTime: parseDateTime(payload.date, payload.time),
       deletedAt: null,
       status: { notIn: ["cancelled", "rescheduled"] },
       ...(currentAppointmentId ? { id: { not: currentAppointmentId } } : {}),
     },
-    select: { id: true, isOverbook: true },
+    select: { id: true, isOverbook: true, startTime: true, durationMinutes: true },
   });
 
-  if (existing && !payload.isOverbook) {
-    return "Ya existe un turno en ese horario para el profesional.";
+  const start = timeToMinutes(payload.time);
+  const end = getAppointmentEndMinutes(payload);
+  if (start === null || end === null) {
+    return "La hora seleccionada no es válida.";
+  }
+
+  const hasOverlap = existingAppointments.some((item) => {
+    const existingStart = item.startTime.getHours() * 60 + item.startTime.getMinutes();
+    const existingEnd = existingStart + item.durationMinutes;
+
+    if (payload.isOverbook) {
+      if (!item.isOverbook) return false;
+      return start < existingEnd && end > existingStart;
+    }
+
+    if (item.isOverbook) return false;
+    return start < existingEnd && end > existingStart;
+  });
+
+  if (hasOverlap) {
+    return payload.isOverbook
+      ? "Ya existe un sobreturno en ese horario para el profesional."
+      : "Ese rango horario ya está ocupado para el profesional.";
   }
 
   return null;

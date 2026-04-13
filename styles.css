@@ -359,6 +359,11 @@ body {
     gap: 0.75rem;
 }
 
+.clinical-edit-grid-compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
 .clinical-info-grid > .clinical-edit-grid,
 .clinical-info-grid > .clinical-edit-actions {
     grid-column: 1 / -1;
@@ -375,6 +380,41 @@ body {
     background: #f3f4f6;
     color: var(--gray-500);
     cursor: not-allowed;
+}
+
+.clinical-info-item-compact {
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.85rem;
+}
+
+.clinical-info-item-compact strong {
+    display: block;
+    margin-bottom: 0.28rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.07em;
+}
+
+.clinical-info-item-compact .form-input,
+.clinical-info-item-compact input {
+    min-height: 40px;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.9rem;
+}
+
+.clinical-info-item-compact .clinical-static-value {
+    margin-top: 0.15rem;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.clinical-info-item-wide {
+    grid-column: span 2;
+    justify-self: start;
+    width: 100%;
+    max-width: 540px;
 }
 
 .clinical-edit-actions {
@@ -508,10 +548,100 @@ body {
     font-weight: 700;
 }
 
-.badge-sano { background: #dbeafe; color: #1d4ed8; }
-.badge-caries { background: #fee2e2; color: #b91c1c; }
-.badge-restauracion { background: #d1fae5; color: #166534; }
-.badge-ausente { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
+.badge-sano { background: #e5e7eb; color: #374151; border-color: #cbd5e1; }
+.badge-caries { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+.badge-restauracion { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+.badge-ausente { background: #e2e8f0; color: #334155; border: 1px solid #64748b; }
+
+.appointment-form-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.modal-content-appointment {
+    max-width: 560px;
+}
+
+.modal-content-appointment .modal-body {
+    padding-bottom: 1rem;
+}
+
+.appointment-modal-footer {
+    position: static !important;
+    background: #f8fafc !important;
+    backdrop-filter: none !important;
+}
+
+.app-loading-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.42);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 120;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+
+.app-loading-overlay.is-visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+body.app-loading-active {
+    overflow: hidden;
+}
+
+.app-loading-card {
+    min-width: min(92vw, 340px);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    border-radius: 1.2rem;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.app-loading-spinner {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 3px solid rgba(99, 102, 241, 0.16);
+    border-top-color: var(--primary-600);
+    animation: app-loading-spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+.app-loading-eyebrow {
+    margin: 0 0 0.2rem;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.app-loading-message {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+@keyframes app-loading-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
 
 
 @media screen and (min-width: 768px) {
@@ -523,6 +653,32 @@ body {
     }
     .odontogram-wrapper {
         transform: scale(1);
+    }
+}
+
+@media screen and (max-width: 1100px) {
+    .clinical-edit-grid-compact {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media screen and (max-width: 820px) {
+    .clinical-edit-grid-compact {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .clinical-info-item-wide {
+        grid-column: 1 / -1;
+    }
+}
+
+@media screen and (max-width: 560px) {
+    .clinical-edit-grid-compact {
+        grid-template-columns: 1fr;
+    }
+
+    .clinical-info-item-wide {
+        grid-column: 1 / -1;
     }
 }
 
@@ -3563,8 +3719,8 @@ table th {
     padding: 0.9rem 1rem;
 }
 
-.clinical-info-item {
-    padding: 0.95rem 1rem;
+    .clinical-info-item {
+        padding: 0.95rem 1rem;
 }
 
 .clinical-edit-grid {
@@ -3595,6 +3751,58 @@ table th {
     border: 1px solid transparent;
     font-weight: 700;
     box-shadow: none;
+}
+
+.clinical-save-footer {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px dashed rgba(203, 213, 225, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.9rem;
+}
+
+.clinical-draft-status {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(226, 232, 240, 0.68);
+    color: #475569;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.clinical-draft-status.is-dirty {
+    background: rgba(254, 240, 138, 0.4);
+    color: #a16207;
+}
+
+.clinical-save-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 54px;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+
+.clinical-save-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+@media screen and (max-width: 767px) {
+    .appointment-form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.clinical-save-btn.is-ready {
+    box-shadow: 0 14px 30px rgba(79, 70, 229, 0.22);
 }
 
 .clinical-images-shell {
@@ -4580,6 +4788,20 @@ body.theme-dark .feedback-dialog-success .feedback-dialog-badge {
     color: #86efac;
 }
 
+body.theme-dark .app-loading-card {
+    background: rgba(15, 22, 40, 0.96);
+    border-color: rgba(132, 151, 202, 0.22);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+body.theme-dark .app-loading-eyebrow {
+    color: #94a3b8;
+}
+
+body.theme-dark .app-loading-message {
+    color: #f8fafc;
+}
+
 body.theme-dark .cal-scroll-wrap,
 body.theme-dark .cal-mobile-section,
 body.theme-dark .cal-month-board,
@@ -4653,11 +4875,31 @@ body.theme-dark .cal-apt-btn:hover {
 
 body.theme-dark .clinical-info-item,
 body.theme-dark .clinical-info-summary > div,
-body.theme-dark .odontogram-wrapper,
 body.theme-dark .clinical-image-card {
     background: rgba(255,255,255,0.03) !important;
     border-color: rgba(132,151,202,0.16) !important;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+body.theme-dark .odontogram-wrapper {
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+}
+
+body.theme-dark .odontogram-wrapper .text-gray-500,
+body.theme-dark .odontogram-wrapper .text-gray-600,
+body.theme-dark .odontogram-wrapper .text-gray-700,
+body.theme-dark .odontogram-wrapper .text-gray-800,
+body.theme-dark .odontogram-wrapper .text-gray-900,
+body.theme-dark .odontogram-wrapper span,
+body.theme-dark .odontogram-wrapper div {
+    color: #475569 !important;
+}
+
+body.theme-dark .odontogram-wrapper .border-gray-300,
+body.theme-dark .odontogram-wrapper .border-dashed {
+    border-color: #cbd5e1 !important;
 }
 
 body.theme-dark .clinical-history-card .border-b-2,
@@ -4678,6 +4920,187 @@ body.theme-dark .login-card {
     background: rgba(12, 18, 34, 0.78) !important;
     border-color: rgba(132,151,202,0.18) !important;
     box-shadow: 0 36px 90px rgba(0,0,0,0.42);
+}
+
+.print-hidden {
+    display: revert;
+}
+
+.clinical-print-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.65rem;
+}
+
+.clinical-header-actions {
+    min-width: 220px;
+}
+
+@page {
+    size: A4 landscape;
+    margin: 10mm;
+}
+
+@media print {
+    body.printing-clinical-history {
+        background: #ffffff !important;
+        color: #111827 !important;
+    }
+
+    body.printing-clinical-history #app-sidebar,
+    body.printing-clinical-history .app-topbar,
+    body.printing-clinical-history .sidebar-backdrop,
+    body.printing-clinical-history .mobile-header-left,
+    body.printing-clinical-history .mobile-header-right,
+    body.printing-clinical-history #page-title,
+    body.printing-clinical-history .print-hidden,
+    body.printing-clinical-history .clinical-history-card button,
+    body.printing-clinical-history .clinical-history-card .btn,
+    body.printing-clinical-history .clinical-images-shell {
+        display: none !important;
+    }
+
+    body.printing-clinical-history #app-view,
+    body.printing-clinical-history main,
+    body.printing-clinical-history #main-content,
+    body.printing-clinical-history .clinical-print-root {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: #ffffff !important;
+    }
+
+    body.printing-clinical-history .clinical-history-card {
+        max-width: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+    }
+
+    body.printing-clinical-history .clinical-history-card * {
+        color: #111827 !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    body.printing-clinical-history .clinical-history-card .p-6 {
+        padding: 0 !important;
+    }
+
+    body.printing-clinical-history .clinical-history-card .bg-primary-50,
+    body.printing-clinical-history .clinical-history-card .bg-white,
+    body.printing-clinical-history .clinical-history-card .bg-yellow-50,
+    body.printing-clinical-history .clinical-history-card .bg-gray-50,
+    body.printing-clinical-history .clinical-info-item,
+    body.printing-clinical-history .clinical-info-summary > div,
+    body.printing-clinical-history .odontogram-wrapper,
+    body.printing-clinical-history .table-container {
+        background: #ffffff !important;
+    }
+
+    body.printing-clinical-history .clinical-info-item,
+    body.printing-clinical-history .clinical-info-summary > div,
+    body.printing-clinical-history .odontogram-wrapper,
+    body.printing-clinical-history .table-container,
+    body.printing-clinical-history textarea {
+        border-color: #cbd5e1 !important;
+    }
+
+    body.printing-clinical-history .clinical-info-grid {
+        margin-bottom: 0.75rem !important;
+        padding-bottom: 0.6rem !important;
+        gap: 0.32rem !important;
+    }
+
+    body.printing-clinical-history .clinical-info-summary,
+    body.printing-clinical-history .clinical-edit-grid,
+    body.printing-clinical-history .clinical-edit-grid-compact {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 0.32rem !important;
+        margin-bottom: 0.32rem !important;
+    }
+
+    body.printing-clinical-history .clinical-info-summary > div,
+    body.printing-clinical-history .clinical-info-item {
+        padding: 0.22rem 0.32rem !important;
+        font-size: 0.68rem !important;
+        line-height: 1.1 !important;
+        border-radius: 0.4rem !important;
+        min-height: auto !important;
+    }
+
+    body.printing-clinical-history .clinical-info-summary strong,
+    body.printing-clinical-history .clinical-info-item strong {
+        font-size: 0.5rem !important;
+        letter-spacing: 0.05em !important;
+        margin-bottom: 0.1rem !important;
+    }
+
+    body.printing-clinical-history .clinical-info-summary .text-base,
+    body.printing-clinical-history .clinical-info-item .text-base,
+    body.printing-clinical-history .clinical-info-item div {
+        font-size: 0.7rem !important;
+        line-height: 1.05 !important;
+    }
+
+    body.printing-clinical-history .clinical-info-item input,
+    body.printing-clinical-history .clinical-info-item .form-input,
+    body.printing-clinical-history .clinical-readonly,
+    body.printing-clinical-history .clinical-static-value {
+        min-height: 24px !important;
+        height: 24px !important;
+        padding: 0.12rem 0.35rem !important;
+        font-size: 0.68rem !important;
+        line-height: 1 !important;
+        border-radius: 0.45rem !important;
+        margin-top: 0 !important;
+        box-shadow: none !important;
+    }
+
+    body.printing-clinical-history .clinical-info-item-wide {
+        grid-column: span 2 !important;
+        max-width: none !important;
+    }
+
+    body.printing-clinical-history .odontogram-wrapper {
+        overflow: visible !important;
+        transform: scale(0.82) !important;
+        transform-origin: top center !important;
+        padding: 0.4rem !important;
+        margin-bottom: 0.55rem !important;
+        page-break-inside: avoid;
+    }
+
+    body.printing-clinical-history #treatments-table th:last-child,
+    body.printing-clinical-history #treatments-table td:last-child {
+        display: none !important;
+    }
+
+    body.printing-clinical-history #treatments-table,
+    body.printing-clinical-history .table-container table {
+        page-break-inside: auto;
+    }
+
+    body.printing-clinical-history #treatments-table tr,
+    body.printing-clinical-history .table-container tr {
+        page-break-inside: avoid;
+    }
+
+    body.printing-clinical-history textarea {
+        min-height: 110px !important;
+        height: auto !important;
+        resize: none !important;
+        padding: 0.75rem !important;
+        overflow: visible !important;
+    }
 }
 
 body.theme-dark .login-test-users {
