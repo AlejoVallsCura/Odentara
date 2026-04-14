@@ -1,4 +1,5 @@
-require("dotenv").config();
+const { loadEnv } = require("../server/lib/load-env");
+loadEnv();
 
 const bcrypt = require("bcrypt");
 const { RoleCode } = require("@prisma/client");

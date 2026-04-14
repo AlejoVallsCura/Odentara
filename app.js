@@ -7,7 +7,8 @@ const state = {
     settingsSubView: 'create-user',
     dashboardDate: null,
     clinicalDraft: null,
-    loadingCount: 0
+    loadingCount: 0,
+    clinicalImageViewer: null
 };
 
 function getApiBaseUrl() {
@@ -27,6 +28,7 @@ function getApiBaseUrl() {
 const API_BASE_URL = getApiBaseUrl();
 const AUTH_STORAGE_KEY = 'odentara_auth_v1';
 const THEME_STORAGE_KEY = 'odentara_theme_v1';
+const BUSINESS_TIME_ZONE = 'America/Buenos_Aires';
 
 const MOJIBAKE_REPAIRS = [
     ['ContraseÃ±a', 'Contraseña'],
@@ -270,6 +272,10 @@ function setAppLoading(isLoading, message = 'Guardando cambios...') {
     state.loadingCount = Math.max(0, state.loadingCount + (isLoading ? 1 : -1));
     overlay.classList.toggle('is-visible', state.loadingCount > 0);
     document.body.classList.toggle('app-loading-active', state.loadingCount > 0);
+}
+
+function isAppLoading() {
+    return state.loadingCount > 0;
 }
 
 async function withAppLoading(message, task) {
@@ -1117,14 +1123,30 @@ function buildPatientApiPayload(values = {}) {
     };
 }
 
+function coerceAppointmentDate(value) {
+    if (!value) return '';
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return value;
+    }
+    return formatDateToLocalIso(new Date(value));
+}
+
+function coerceAppointmentTime(value) {
+    if (!value) return '';
+    if (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)) {
+        return value;
+    }
+    return new Date(value).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 function mapApiAppointmentToLegacy(appointment = {}) {
     return {
         id: appointment.id,
         patient: appointment.patient?.fullName || '',
         patientId: appointment.patientId,
         professionalId: appointment.professionalId,
-        date: appointment.date ? formatDateToLocalIso(new Date(appointment.date)) : '',
-        time: appointment.startTime ? new Date(appointment.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+        date: coerceAppointmentDate(appointment.date),
+        time: coerceAppointmentTime(appointment.startTime),
         duration: appointment.durationMinutes,
         status: appointment.status,
         isOverbook: !!appointment.isOverbook,
@@ -1210,9 +1232,32 @@ function getPatientOptionLabel(patient) {
     return `${patient.name} | DNI ${patient.dni}`;
 }
 
+function getBusinessNowParts() {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: BUSINESS_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+    });
+
+    const parts = formatter.formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+
+    return {
+        year: Number(values.year),
+        month: Number(values.month),
+        day: Number(values.day),
+        hour: Number(values.hour),
+        minute: Number(values.minute)
+    };
+}
+
 function getTodayIsoLocal() {
-    const now = new Date();
-    return formatDateToLocalIso(now);
+    const now = getBusinessNowParts();
+    return `${String(now.year).padStart(4, '0')}-${String(now.month).padStart(2, '0')}-${String(now.day).padStart(2, '0')}`;
 }
 
 function formatDateToLocalIso(date) {
@@ -1235,8 +1280,8 @@ function timeToMinutes(timeStr = '') {
 }
 
 function getCurrentMinutes() {
-    const now = new Date();
-    return (now.getHours() * 60) + now.getMinutes();
+    const now = getBusinessNowParts();
+    return (now.hour * 60) + now.minute;
 }
 
 function isPastDate(dateStr) {
@@ -1256,12 +1301,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('login-form');
     loginForm.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter') return;
+        if (isAppLoading()) {
+            event.preventDefault();
+            return;
+        }
         event.preventDefault();
         loginForm.requestSubmit();
     });
 
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (isAppLoading()) return;
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
         const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -1570,7 +1620,9 @@ document.addEventListener('DOMContentLoaded', () => {
         event.returnValue = '';
     });
 
-    tryRestoreSession();
+    withAppLoading('Iniciando sesión...', async () => {
+        await tryRestoreSession();
+    });
 });
 
 // --- Auth ---
@@ -1890,7 +1942,80 @@ function viewProfessionalCalendar(profId) {
 
 // --- Modal System & Forms ---
 function closeModal() {
+    state.clinicalImageViewer = null;
     modalsContainer.innerHTML = '';
+}
+
+function getClinicalImagesForPatient(patientId) {
+    const patient = getClinicalWorkingPatient(patientId);
+    return ((patient?.clinicalImages) || [])
+        .slice()
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+}
+
+window.openClinicalImageViewer = function(patientId, imageId) {
+    const images = getClinicalImagesForPatient(patientId);
+    if (!images.length) return;
+
+    const imageIndex = Math.max(0, images.findIndex((image, index) => (image.id ?? index) === imageId));
+    state.clinicalImageViewer = { patientId, index: imageIndex < 0 ? 0 : imageIndex };
+    renderClinicalImageViewer();
+};
+
+window.stepClinicalImageViewer = function(direction) {
+    if (!state.clinicalImageViewer) return;
+    const { patientId, index } = state.clinicalImageViewer;
+    const images = getClinicalImagesForPatient(patientId);
+    if (!images.length) return;
+
+    const nextIndex = (index + direction + images.length) % images.length;
+    state.clinicalImageViewer.index = nextIndex;
+    renderClinicalImageViewer();
+};
+
+function renderClinicalImageViewer() {
+    const viewer = state.clinicalImageViewer;
+    if (!viewer) return;
+
+    const images = getClinicalImagesForPatient(viewer.patientId);
+    if (!images.length) {
+        closeModal();
+        return;
+    }
+
+    const safeIndex = Math.min(Math.max(viewer.index, 0), images.length - 1);
+    state.clinicalImageViewer.index = safeIndex;
+    const image = images[safeIndex];
+    const label = image.description || 'Imagen clínica';
+    const dateLabel = image.date ? image.date.split('-').reverse().join('/') : 'Sin fecha';
+
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active clinical-image-viewer-overlay">
+            <div class="clinical-image-viewer" onclick="event.stopPropagation()">
+                <button type="button" class="clinical-image-viewer-close" data-modal-close aria-label="Cerrar visor">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="clinical-image-viewer-main">
+                    <button type="button" class="clinical-image-viewer-nav prev" onclick="stepClinicalImageViewer(-1)" aria-label="Imagen anterior">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <figure class="clinical-image-viewer-figure">
+                        <img src="${image.dataUrl}" alt="${label}" class="clinical-image-viewer-img">
+                    </figure>
+                    <button type="button" class="clinical-image-viewer-nav next" onclick="stepClinicalImageViewer(1)" aria-label="Imagen siguiente">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+                <div class="clinical-image-viewer-footer">
+                    <div>
+                        <div class="clinical-image-viewer-date">${dateLabel}</div>
+                        <div class="clinical-image-viewer-title">${label}</div>
+                    </div>
+                    <div class="clinical-image-viewer-counter">${safeIndex + 1} / ${images.length}</div>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function openAppointmentViewModal(aptId) {
@@ -2683,6 +2808,24 @@ function renderCalendarFilterLegend(professionals) {
         </div>`;
 }
 
+function renderCalendarToolbar(dateLabel, canEdit) {
+    return `
+        <div class="cal-toolbar card mb-4">
+            <div class="cal-toolbar-inner">
+                <div class="cal-toolbar-nav">
+                    <button class="btn btn-ghost btn-sm" id="cal-prev" aria-label="Día anterior"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="font-semibold text-gray-700 text-sm cal-toolbar-date" id="cal-date-display">${dateLabel}</span>
+                    <button class="btn btn-ghost btn-sm" id="cal-next" aria-label="Día siguiente"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+                <div class="cal-toolbar-actions">
+                    <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
+                    ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderAppointmentCompactCard(apt) {
     const patient = getPatientByAppointment(apt);
     const statusMeta = getAppointmentStatusMeta(apt.status);
@@ -2712,17 +2855,10 @@ function renderAppointmentCompactCard(apt) {
 
 function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit) {
     const legendHtml = renderCalendarFilterLegend(professionals);
-    const toolbar = `
-        <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
-            <div class="flex items-center gap-3">
-                <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
-                <span class="font-semibold text-gray-700 text-sm" id="cal-date-display">${parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
-                <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
-            </div>
-            ${renderCalendarViewSwitcher()}
-            ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
-        </div>`;
+    const toolbar = renderCalendarToolbar(
+        parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+        canEdit
+    );
 
     let sectionsHtml = '';
 
@@ -2906,17 +3042,7 @@ function renderAppointments() {
 
         return `
         <div class="cal-wrapper">
-            <!-- Toolbar -->
-            <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
-                <div class="flex items-center gap-3">
-                    <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
-                    <span class="font-semibold text-gray-700 text-sm" id="cal-date-display">${parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</span>
-                    <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
-                    <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
-                </div>
-                ${renderCalendarViewSwitcher()}
-                ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
-            </div>
+            ${renderCalendarToolbar(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}), canEdit)}
 
             <div class="cal-layout">
                 <!-- Calendar grid -->
@@ -2983,18 +3109,7 @@ function renderAppointments() {
 
         return `
         <div class="cal-wrapper">
-            <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
-                <div class="flex items-center gap-3">
-                    <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
-                    <span class="font-semibold text-gray-700 text-sm">
-                        ${days[0].toLocaleDateString('es-AR',{day:'numeric',month:'short'})} â€“ ${days[6].toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'numeric'})}
-                    </span>
-                    <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
-                    <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
-                </div>
-                ${renderCalendarViewSwitcher()}
-                ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
-            </div>
+            ${renderCalendarToolbar(`${days[0].toLocaleDateString('es-AR',{day:'numeric',month:'short'})} â€“ ${days[6].toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'numeric'})}`, canEdit)}
 
             <div class="cal-layout">
                 <div class="cal-scroll-wrap">
@@ -3060,16 +3175,7 @@ function renderAppointments() {
 
         return `
         <div class="cal-wrapper">
-            <div class="cal-toolbar card mb-4 flex justify-between items-center flex-wrap gap-2">
-                <div class="flex items-center gap-3">
-                    <button class="btn btn-ghost btn-sm" id="cal-prev"><i class="fa-solid fa-chevron-left"></i></button>
-                    <span class="font-semibold text-gray-700 text-sm" id="cal-date-display">${monthName}</span>
-                    <button class="btn btn-ghost btn-sm" id="cal-next"><i class="fa-solid fa-chevron-right"></i></button>
-                    <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
-                </div>
-                ${renderCalendarViewSwitcher()}
-                ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
-            </div>
+            ${renderCalendarToolbar(monthName, canEdit)}
 
             <div class="cal-layout">
                 <div class="cal-scroll-wrap">
@@ -3104,19 +3210,19 @@ function renderProfessionals() {
                 <p class="section-subtitle">Administra la disponibilidad semanal de cada profesional y organiza la agenda activa.</p>
             </div>
         </div>
-        <div class="table-container shadow-sm">
+        <div class="table-container table-container-schedules shadow-sm">
             <table class="w-full text-left table-agenda-professionals">
                 <thead><tr><th>Profesional</th><th>Acciones</th></tr></thead>
                 <tbody>
                     ${profs.map(p => `
                         <tr>
-                            <td class="font-medium table-prof-name-cell">
+                            <td class="font-medium table-prof-name-cell" data-label="Profesional">
                                 <div class="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs"><i class="fa-solid fa-user-md"></i></div>
                                 ${p.name}
                             </td>
-                            <td>
+                            <td data-label="Acciones" class="table-actions-cell">
                                 ${state.user.roles.some(r => ['superadmin', 'admin', 'secretary'].includes(r)) ? `
-                                <button class="btn btn-secondary btn-sm btn-edit-schedule" data-id="${p.id}"><i class="fa-solid fa-clock mr-1"></i> Configurar Horarios por DÃ­a</button>
+                                <button class="btn btn-secondary btn-sm btn-edit-schedule btn-schedule-mobile" data-id="${p.id}" aria-label="Configurar horarios de ${p.name}" title="Configurar horarios de ${p.name}"><i class="fa-solid fa-clock"></i><span class="btn-label">Configurar Horarios por Día</span></button>
                                 ` : ''}
                             </td>
                         </tr>
@@ -3143,24 +3249,24 @@ function renderPatients() {
         <div class="patient-search-shell mb-4">
             <input type="search" id="search-patient" placeholder="Buscar pacientes por nombre o DNI..." class="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
         </div>
-        <div class="table-container shadow-sm">
+        <div class="table-container table-container-patients shadow-sm">
             <table class="w-full text-left" id="patients-table">
                 <thead><tr><th>Paciente</th><th>Contacto</th><th>DNI</th><th>Notas MÃ©dicas</th><th>Acciones</th></tr></thead>
                 <tbody>
                     ${patients.map(p => `
                         <tr>
-                            <td class="font-medium flex items-center gap-3">
+                            <td class="font-medium flex items-center gap-3" data-label="Paciente">
                                 <div class="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs">${p.name.substring(0,2).toUpperCase()}</div>
                                 ${p.name}
                             </td>
-                            <td>
+                            <td data-label="Contacto">
                                 <span class="block text-sm text-gray-600"><i class="fa-solid fa-phone mr-1"></i> ${p.phone}</span>
                                 <span class="block text-xs text-gray-400"><i class="fa-solid fa-envelope mr-1"></i> ${p.email || 'Sin email'}</span>
                             </td>
-                            <td class="text-sm font-semibold">${p.dni}</td>
-                            <td class="text-xs text-gray-600">${p.notes || '-'}</td>
-                            <td>
-                                <div class="flex gap-2">
+                            <td class="text-sm font-semibold" data-label="DNI">${p.dni}</td>
+                            <td class="text-xs text-gray-600" data-label="Notas MÃ©dicas">${p.notes || '-'}</td>
+                            <td data-label="Acciones" class="table-actions-cell">
+                                <div class="flex gap-2 patient-actions">
                                 ${state.user.roles.some(r => ['superadmin', 'secretary'].includes(r)) ? `
                                     ${canViewClinicalHistoryUi() ? `<button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia ClÃ­nica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>` : ''}
                                     <button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}"><i class="fa-solid fa-pen text-primary-600"></i></button>
@@ -4012,10 +4118,13 @@ function renderClinicalHistory(patientId) {
                     <div class="clinical-images-grid">
                     ${clinicalImages.map((image, idx) => `
                         <article class="clinical-image-card">
-                            <img src="${image.dataUrl}" alt="${image.description || 'Imagen clinica'}" class="clinical-image-preview">
+                            <button type="button" class="clinical-image-preview-button" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
+                                <img src="${image.dataUrl}" alt="${image.description || 'Imagen clinica'}" class="clinical-image-preview" onerror="this.style.display='none'; this.closest('.clinical-image-card')?.querySelector('.clinical-image-body')?.classList.add('clinical-image-body--error'); this.closest('.clinical-image-card')?.classList.add('clinical-image-card--broken');">
+                            </button>
                             <div class="clinical-image-body">
                                 <div class="clinical-image-date">${image.date ? image.date.split('-').reverse().join('/') : 'Sin fecha'}</div>
                                 <p class="clinical-image-description">${image.description || 'Sin descripcion'}</p>
+                                <p class="clinical-image-error">La imagen guardada está incompleta. Vuelve a cargarla.</p>
                                 ${canEditClinical ? `<button class="btn btn-ghost btn-sm clinical-image-delete" onclick="deleteClinicalImage(${patientId}, ${image.id ?? idx})"><i class="fa-solid fa-trash"></i> Eliminar</button>` : ''}
                             </div>
                         </article>

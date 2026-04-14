@@ -5,7 +5,7 @@ function getDatabaseUrl() {
   const databaseUrl = String(process.env.DATABASE_URL || "").trim();
 
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL no esta configurada.");
+    throw new Error("DATABASE_URL no está configurada.");
   }
 
   return databaseUrl;

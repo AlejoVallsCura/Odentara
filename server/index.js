@@ -1,4 +1,5 @@
-require("dotenv").config();
+const { loadEnv } = require("./lib/load-env");
+loadEnv();
 
 const path = require("path");
 const dns = require("dns").promises;

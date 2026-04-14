@@ -67,9 +67,34 @@ router.post("/login", async (req, res) => {
       permissions: buildPermissionSummary(user),
     });
   } catch (error) {
+    const rawMessage = [
+      error?.message,
+      error?.cause?.message,
+      error?.cause?.originalMessage,
+      error?.meta?.driverAdapterError?.cause?.message,
+      error?.meta?.driverAdapterError?.cause?.originalMessage,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    const exceededLimit =
+      /max_connections_per_hour/i.test(rawMessage) ||
+      /ER_USER_LIMIT_REACHED/i.test(rawMessage);
+
+    const databaseUnavailable =
+      exceededLimit ||
+      /pool timeout/i.test(rawMessage) ||
+      /can't reach database/i.test(rawMessage) ||
+      /access denied/i.test(rawMessage) ||
+      /timeout/i.test(rawMessage);
+
     return res.status(500).json({
       ok: false,
-      error: "No se pudo iniciar sesion.",
+      error: exceededLimit
+        ? "La base de datos alcanzó temporalmente el límite de conexiones por hora. Espera unos minutos e intenta nuevamente."
+        : databaseUnavailable
+          ? "No se pudo conectar con la base de datos en este momento. Intenta nuevamente en unos minutos."
+          : "No se pudo iniciar sesión.",
     });
   }
 });
