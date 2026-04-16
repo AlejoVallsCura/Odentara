@@ -206,7 +206,7 @@ router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (re
   }
 });
 
-router.delete("/:id", requireAuth, requireAnyRole(["superadmin", "admin"]), async (req, res) => {
+router.delete("/:id", requireAuth, requireAnyRole(["superadmin"]), async (req, res) => {
   try {
     const userId = Number(req.params.id);
 
@@ -240,14 +240,6 @@ router.delete("/:id", requireAuth, requireAnyRole(["superadmin", "admin"]), asyn
       return res.status(404).json({
         ok: false,
         error: "Usuario no encontrado.",
-      });
-    }
-
-    const targetRoles = existingUser.roles.map((item) => item.role.code);
-    if (!req.permissions?.isSuperadmin && targetRoles.includes("superadmin")) {
-      return res.status(403).json({
-        ok: false,
-        error: "Solo un superadmin puede eliminar usuarios superadmin.",
       });
     }
 

@@ -5,6 +5,8 @@ const state = {
     currentView: 'dashboard',
     sidebarOpen: true,
     settingsSubView: 'create-user',
+    billingSubView: 'movements',
+    billingPatientId: null,
     dashboardDate: null,
     clinicalDraft: null,
     loadingCount: 0,
@@ -32,90 +34,178 @@ const BUSINESS_TIME_ZONE = 'America/Buenos_Aires';
 
 const MOJIBAKE_REPAIRS = [
     ['ContraseÃ±a', 'Contraseña'],
+    ['ContraseÃƒÂ±a', 'Contraseña'],
     ['contraseÃ±a', 'contraseña'],
+    ['contraseÃƒÂ±a', 'contraseña'],
     ['Centro odontolÃ³gico', 'Centro odontológico'],
+    ['Centro odontolÃƒÂ³gico', 'Centro odontológico'],
     ['Cerrar sesiÃ³n', 'Cerrar sesión'],
+    ['Cerrar sesiÃƒÂ³n', 'Cerrar sesión'],
     ['Horarios MÃ©dicos', 'Horarios Médicos'],
+    ['Horarios MÃƒÂ©dicos', 'Horarios Médicos'],
     ['FacturaciÃ³n', 'Facturación'],
+    ['FacturaciÃƒÂ³n', 'Facturación'],
     ['ConfiguraciÃ³n', 'Configuración'],
+    ['ConfiguraciÃƒÂ³n', 'Configuración'],
     ['Historias ClÃ­nicas', 'Historias Clínicas'],
+    ['Historias ClÃƒÂ­nicas', 'Historias Clínicas'],
     ['RecepciÃ³n', 'Recepción'],
+    ['RecepciÃƒÂ³n', 'Recepción'],
     ['GestiÃ³n de Turnos', 'Gestión de Turnos'],
+    ['GestiÃƒÂ³n de Turnos', 'Gestión de Turnos'],
     ['Agendas MÃ©dicas', 'Agendas Médicas'],
+    ['Agendas MÃƒÂ©dicas', 'Agendas Médicas'],
     ['SecretarÃ­a', 'Secretaría'],
+    ['SecretarÃƒÂ­a', 'Secretaría'],
     ['Completa email y contraseÃ±a.', 'Completa email y contraseña.'],
+    ['Completa email y contraseÃƒÂ±a.', 'Completa email y contraseña.'],
     ['No se pudo iniciar sesiÃ³n.', 'No se pudo iniciar sesión.'],
+    ['No se pudo iniciar sesiÃƒÂ³n.', 'No se pudo iniciar sesión.'],
     ['Se inyecta despuÃ©s', 'Se inyecta después'],
+    ['Se inyecta despuÃƒÂ©s', 'Se inyecta después'],
     ['MÃ³dulo', 'Módulo'],
+    ['MÃƒÂ³dulo', 'Módulo'],
     ['TelÃ©fono', 'Teléfono'],
+    ['TelÃƒÂ©fono', 'Teléfono'],
     ['Tel�fono', 'Teléfono'],
+    ['M�dicas', 'Médicas'],
+    ['Cl�nica', 'Clínica'],
     ['AcciÃƒÂ³n', 'Acción'],
+    ['AcciÃƒÆ’Ã‚Â³n', 'Acción'],
     ['AcciÃ³n', 'Acción'],
     ['OdontologÃ­a', 'Odontología'],
+    ['OdontologÃƒÂ­a', 'Odontología'],
     ['odontolÃ³gica', 'odontológica'],
+    ['odontolÃƒÂ³gica', 'odontológica'],
     ['odontolÃ³gico', 'odontológico'],
+    ['odontolÃƒÂ³gico', 'odontológico'],
     ['AtenciÃ³n', 'Atención'],
+    ['AtenciÃƒÂ³n', 'Atención'],
     ['dÃ­as', 'días'],
+    ['dÃƒÂ­as', 'días'],
     ['dÃ­a', 'día'],
+    ['dÃƒÂ­a', 'día'],
     ['pasÃ³', 'pasó'],
+    ['pasÃƒÂ³', 'pasó'],
     ['vÃ¡lido', 'válido'],
+    ['vÃƒÂ¡lido', 'válido'],
     ['MiÃ©rcoles', 'Miércoles'],
+    ['MiÃƒÂ©rcoles', 'Miércoles'],
     ['SÃ¡bado', 'Sábado'],
+    ['SÃƒÂ¡bado', 'Sábado'],
     ['MiÃ©', 'Mié'],
+    ['MiÃƒÂ©', 'Mié'],
     ['SÃ¡b', 'Sáb'],
+    ['SÃƒÂ¡b', 'Sáb'],
     ['quÃ©', 'qué'],
+    ['quÃƒÂ©', 'qué'],
     ['PrÃ³ximos Turnos', 'Próximos Turnos'],
+    ['PrÃƒÂ³ximos Turnos', 'Próximos Turnos'],
     ['DÃ­a', 'Día'],
+    ['DÃƒÂ­a', 'Día'],
     ['D�a', 'Día'],
     ['TransacciÃ³n', 'Transacción'],
+    ['TransacciÃƒÂ³n', 'Transacción'],
     ['DescripciÃ³n', 'Descripción'],
+    ['DescripciÃƒÂ³n', 'Descripción'],
     ['DescripciÃ³n', 'Descripción'],
     ['MÃ©dicas', 'Médicas'],
+    ['MÃƒÂ©dicas', 'Médicas'],
     ['MÃ©dico', 'Médico'],
+    ['MÃƒÂ©dico', 'Médico'],
     ['ClÃ­nica', 'Clínica'],
+    ['ClÃƒÂ­nica', 'Clínica'],
     ['clÃ­nica', 'clínica'],
+    ['clÃƒÂ­nica', 'clínica'],
     ['Ficha OdontolÃ³gica', 'Ficha Odontológica'],
+    ['Ficha OdontolÃƒÂ³gica', 'Ficha Odontológica'],
     ['aÃ±os', 'años'],
+    ['aÃƒÂ±os', 'años'],
     ['NÂ°', 'N°'],
     ['NÂº', 'Nº'],
+    ['N�', 'N°'],
     ['Circulo OdontolÃ³gico', 'Círculo Odontológico'],
     ['CÃ­rculo OdontolÃ³gico', 'Círculo Odontológico'],
+    ['Circulo OdontolÃƒÂ³gico', 'Círculo Odontológico'],
+    ['CÃƒÂ­rculo OdontolÃƒÂ³gico', 'Círculo Odontológico'],
     ['Ficha ClÃ­nica OdontolÃ³gica', 'Ficha Clínica Odontológica'],
+    ['Ficha ClÃƒÂ­nica OdontolÃƒÂ³gica', 'Ficha Clínica Odontológica'],
     ['RestauraciÃ³n', 'Restauración'],
+    ['RestauraciÃƒÂ³n', 'Restauración'],
     ['AÃ±adir', 'Añadir'],
+    ['AÃƒÂ±adir', 'Añadir'],
     ['AutorizaciÃ³n', 'Autorización'],
+    ['AutorizaciÃƒÂ³n', 'Autorización'],
     ['CÃ³digo', 'Código'],
+    ['CÃƒÂ³digo', 'Código'],
     ['vacÃ­o', 'vacío'],
     ['vacÃƒÂ­o', 'vacío'],
     ['podrÃ¡n', 'podrán'],
+    ['podrÃƒÂ¡n', 'podrán'],
     ['segÃºn', 'según'],
+    ['segÃƒÂºn', 'según'],
     ['LÃ³pez', 'López'],
+    ['LÃƒÂ³pez', 'López'],
     ['MartÃ­nez', 'Martínez'],
+    ['MartÃƒÂ­nez', 'Martínez'],
     ['GÃ³mez', 'Gómez'],
+    ['GÃƒÂ³mez', 'Gómez'],
     ['MarÃ­a', 'María'],
+    ['MarÃƒÂ­a', 'María'],
     ['PÃ©rez', 'Pérez'],
+    ['PÃƒÂ©rez', 'Pérez'],
     ['SÃ¡nchez', 'Sánchez'],
+    ['SÃƒÂ¡nchez', 'Sánchez'],
     ['RamÃ­rez', 'Ramírez'],
+    ['RamÃƒÂ­rez', 'Ramírez'],
     ['SofÃ­a', 'Sofía'],
+    ['SofÃƒÂ­a', 'Sofía'],
     ['MartÃ­n', 'Martín'],
+    ['MartÃƒÂ­n', 'Martín'],
     ['Ãlvarez', 'Álvarez'],
+    ['ÃƒÂlvarez', 'Álvarez'],
     ['LucÃ­a', 'Lucía'],
+    ['LucÃƒÂ­a', 'Lucía'],
     ['FernÃ¡ndez', 'Fernández'],
+    ['FernÃƒÂ¡ndez', 'Fernández'],
     ['MedifÃ©', 'Medifé'],
+    ['MedifÃƒÂ©', 'Medifé'],
     ['CÃ³rdoba', 'Córdoba'],
+    ['CÃƒÂ³rdoba', 'Córdoba'],
     ['EstrÃ©s', 'Estrés'],
+    ['EstrÃƒÂ©s', 'Estrés'],
     ['DiabÃ©tico', 'Diabético'],
+    ['DiabÃƒÂ©tico', 'Diabético'],
+    ['Especialidad', 'Especialidad'],
+    ['DuraciÃ³n', 'Duración'],
+    ['DuraciÃƒÂ³n', 'Duración'],
+    ['Observaciones M�dicas / Alergias', 'Observaciones Médicas / Alergias'],
+    ['Historia ClÃ­nica', 'Historia Clínica'],
+    ['Historia ClÃƒÂ­nica', 'Historia Clínica'],
+    ['ConstrucciÃ³n', 'Construcción'],
+    ['ConstrucciÃƒÂ³n', 'Construcción'],
     ['Ã±', 'ñ'],
+    ['ÃƒÂ±', 'ñ'],
     ['Ã¡', 'á'],
+    ['ÃƒÂ¡', 'á'],
     ['Ã©', 'é'],
+    ['ÃƒÂ©', 'é'],
     ['Ã­', 'í'],
+    ['ÃƒÂ­', 'í'],
     ['Ã³', 'ó'],
+    ['ÃƒÂ³', 'ó'],
     ['Ãº', 'ú'],
+    ['ÃƒÂº', 'ú'],
     ['Ã', 'Á'],
+    ['ÃƒÂ', 'Á'],
     ['Ã‰', 'É'],
+    ['Ãƒâ€°', 'É'],
     ['Ã', 'Í'],
+    ['ÃƒÂ', 'Í'],
     ['Ã“', 'Ó'],
+    ['Ãƒâ€œ', 'Ó'],
     ['Ãš', 'Ú'],
+    ['ÃƒÅ¡', 'Ú'],
     ['Â¿', '¿'],
     ['Â¡', '¡'],
     ['Â·', '·'],
@@ -127,8 +217,15 @@ const MOJIBAKE_REPAIRS = [
 function repairMojibakeString(value) {
     if (typeof value !== 'string' || !value) return value;
     let repaired = value;
-    for (const [from, to] of MOJIBAKE_REPAIRS) {
-        repaired = repaired.split(from).join(to);
+    for (let pass = 0; pass < 4; pass += 1) {
+        let changedInPass = false;
+        for (const [from, to] of MOJIBAKE_REPAIRS) {
+            if (repaired.includes(from)) {
+                repaired = repaired.split(from).join(to);
+                changedInPass = true;
+            }
+        }
+        if (!changedInPass) break;
     }
     repaired = repaired
         .replace(/\?\s*Eliminar/g, '¿Eliminar')
@@ -187,17 +284,19 @@ function ensureThemeControls() {
         document.querySelector('.login-theme-toggle-wrap [data-theme-toggle]') || createThemeToggleButton()
     );
 
-    const headerActions = document.querySelector('.header-actions');
-    if (headerActions && !headerActions.querySelector('[data-theme-toggle]')) {
-        headerActions.appendChild(createThemeToggleButton('theme-toggle-btn-header'));
-    }
+    document.querySelector('.header-actions [data-theme-toggle]')?.remove();
 
-    const userProfile = document.querySelector('.user-profile');
-    userProfile?.querySelector('.sidebar-theme-btn')?.remove();
-
-    const appBrand = document.querySelector('.app-brand');
-    if (appBrand && !appBrand.querySelector('[data-theme-toggle]')) {
-        appBrand.appendChild(createThemeToggleButton('app-brand-theme-btn'));
+    const sidebarUserWrap = document.querySelector('.sidebar-user-wrap');
+    if (sidebarUserWrap && !sidebarUserWrap.querySelector('.sidebar-theme-control [data-theme-toggle]')) {
+        const existingSidebarToggle = document.querySelector('.sidebar-theme-btn[data-theme-toggle]');
+        const toggleButton = existingSidebarToggle || createThemeToggleButton('sidebar-theme-btn');
+        const toggleWrap = document.createElement('div');
+        toggleWrap.className = 'sidebar-theme-control';
+        const toggleLabel = document.createElement('span');
+        toggleLabel.className = 'sidebar-theme-label';
+        toggleLabel.textContent = 'Modo oscuro';
+        toggleWrap.append(toggleLabel, toggleButton);
+        sidebarUserWrap.appendChild(toggleWrap);
     }
 }
 
@@ -509,6 +608,9 @@ const defaultData = {
 };
 
 const DB = {
+    getRaw(table) {
+        return JSON.parse(localStorage.getItem('odentara_db_v6'))[table] || [];
+    },
     init() {
         if (!localStorage.getItem('odentara_db_v6')) {
             localStorage.setItem('odentara_db_v6', JSON.stringify(defaultData));
@@ -544,7 +646,7 @@ const DB = {
         localStorage.setItem('odentara_db_v6', JSON.stringify(db));
     },
     get(table) {
-        return JSON.parse(localStorage.getItem('odentara_db_v6'))[table] || [];
+        return this.getRaw(table).filter(item => !item?.deletedAt);
     },
     save(table, items) {
         const db = JSON.parse(localStorage.getItem('odentara_db_v6'));
@@ -552,23 +654,34 @@ const DB = {
         localStorage.setItem('odentara_db_v6', JSON.stringify(db));
     },
     add(table, item) {
-        const items = this.get(table);
+        const items = this.getRaw(table);
         item.id = items.length > 0 ? Math.max(...items.map(i => i.id)) + 1 : 1;
         items.push(item);
         this.save(table, items);
     },
     update(table, id, data) {
-        const items = this.get(table);
+        const items = this.getRaw(table);
         const idx = items.findIndex(i => i.id === +id);
         if (idx !== -1) {
             items[idx] = { ...items[idx], ...data };
             this.save(table, items);
         }
     },
+    archive(table, id, extraData = {}) {
+        const items = this.getRaw(table);
+        const idx = items.findIndex(i => i.id === +id);
+        if (idx !== -1) {
+            items[idx] = {
+                ...items[idx],
+                ...extraData,
+                active: false,
+                deletedAt: new Date().toISOString()
+            };
+            this.save(table, items);
+        }
+    },
     delete(table, id) {
-        let items = this.get(table);
-        items = items.filter(i => i.id !== +id);
-        this.save(table, items);
+        this.archive(table, id);
     }
 };
 DB.init();
@@ -744,6 +857,193 @@ async function apiFetch(path, options = {}) {
     return data;
 }
 
+function clearFormValidation(form) {
+    if (!form) return;
+
+    form.querySelectorAll('.input-invalid').forEach((element) => {
+        element.classList.remove('input-invalid');
+        element.removeAttribute('aria-invalid');
+    });
+
+    form.querySelectorAll('.field-error-message').forEach((element) => element.remove());
+
+    const feedback = form.querySelector('.form-feedback');
+    if (feedback) {
+        feedback.hidden = true;
+        feedback.textContent = '';
+        feedback.classList.remove('is-visible');
+    }
+}
+
+function showFormFeedback(form, message) {
+    if (!form || !message) return;
+
+    const feedback = form.querySelector('.form-feedback');
+    if (!feedback) return;
+
+    feedback.textContent = message;
+    feedback.hidden = false;
+    feedback.classList.add('is-visible');
+}
+
+function markFieldInvalid(field, message) {
+    if (!field) return;
+
+    field.classList.add('input-invalid');
+    field.setAttribute('aria-invalid', 'true');
+
+    const inputGroup = field.closest('.input-group');
+    if (!inputGroup) return;
+
+    const existingError = inputGroup.querySelector('.field-error-message');
+    if (existingError) existingError.remove();
+
+    if (message) {
+        const error = document.createElement('div');
+        error.className = 'field-error-message';
+        error.textContent = message;
+        inputGroup.appendChild(error);
+    }
+}
+
+function focusField(field) {
+    if (!field || typeof field.focus !== 'function') return;
+
+    field.focus();
+    if (typeof field.select === 'function' && field.tagName === 'INPUT' && field.type !== 'date') {
+        field.select();
+    }
+}
+
+function validatePatientForm(form, editId = null) {
+    clearFormValidation(form);
+
+    const fieldMap = {
+        name: form.querySelector('#p-name'),
+        dni: form.querySelector('#p-dni'),
+        phone: form.querySelector('#p-phone'),
+        email: form.querySelector('#p-email')
+    };
+
+    const rawName = fieldMap.name?.value || '';
+    const rawDni = fieldMap.dni?.value || '';
+    const rawPhone = fieldMap.phone?.value || '';
+    const rawEmail = fieldMap.email?.value || '';
+
+    const normalizedName = normalizePatientName(rawName);
+    const normalizedDni = normalizeDni(rawDni);
+    const normalizedPhone = normalizeDni(rawPhone);
+    const email = rawEmail.trim();
+
+    const fail = (fieldKey, fieldMessage, summary = fieldMessage) => {
+        const field = fieldMap[fieldKey];
+        showFormFeedback(form, summary);
+        markFieldInvalid(field, fieldMessage);
+        focusField(field);
+        return { ok: false };
+    };
+
+    if (!normalizedName) {
+        return fail('name', 'Ingresa el nombre y apellido del paciente.', 'Revisa el campo Nombre y Apellido.');
+    }
+
+    if (normalizedName.length < 3) {
+        return fail('name', 'El nombre es demasiado corto.', 'Revisa el campo Nombre y Apellido.');
+    }
+
+    if (!normalizedDni) {
+        return fail('dni', 'Ingresa un DNI válido.', 'Revisa el campo DNI.');
+    }
+
+    if (normalizedDni.length < 7) {
+        return fail('dni', 'El DNI debe tener al menos 7 números.', 'Revisa el campo DNI.');
+    }
+
+    if (!normalizedPhone) {
+        return fail('phone', 'Ingresa un teléfono o celular válido.', 'Revisa el campo Teléfono.');
+    }
+
+    if (normalizedPhone.length < 8) {
+        return fail('phone', 'El teléfono debe tener al menos 8 números.', 'Revisa el campo Teléfono.');
+    }
+
+    if (email && fieldMap.email && !fieldMap.email.checkValidity()) {
+        return fail('email', 'El email no tiene un formato válido.', 'Revisa el campo Email.');
+    }
+
+    const duplicatedByName = DB.get('patients').find((patient) =>
+        normalizePatientName(patient.name) === normalizedName && patient.id !== editId
+    );
+
+    if (duplicatedByName) {
+        return fail('name', 'Ya existe un paciente cargado con ese nombre.', 'Ya existe un paciente cargado con ese nombre.');
+    }
+
+    const duplicatedByDni = DB.get('patients').find((patient) =>
+        normalizeDni(patient.dni) === normalizedDni && patient.id !== editId
+    );
+
+    if (duplicatedByDni) {
+        return fail('dni', 'Ya existe un paciente cargado con ese DNI.', 'Ya existe un paciente cargado con ese DNI.');
+    }
+
+    return {
+        ok: true,
+        normalizedName,
+        normalizedDni
+    };
+}
+
+function applyPatientApiErrorToForm(form, error) {
+    if (!form || !error) return false;
+
+    const payload = error.payload || {};
+    const conflicts = Array.isArray(payload.conflicts) ? payload.conflicts : [];
+    const message = payload.error || error.message || 'No se pudo guardar el paciente.';
+    const lowerMessage = String(message).toLowerCase();
+
+    const fieldMap = {
+        name: form.querySelector('#p-name'),
+        dni: form.querySelector('#p-dni'),
+        phone: form.querySelector('#p-phone'),
+        email: form.querySelector('#p-email')
+    };
+
+    const mark = (fieldKey, fieldMessage, summary = message) => {
+        showFormFeedback(form, summary);
+        markFieldInvalid(fieldMap[fieldKey], fieldMessage);
+        focusField(fieldMap[fieldKey]);
+        return true;
+    };
+
+    if (conflicts.length > 0) {
+        const dniConflict = conflicts.find((item) => /dni/i.test(item));
+        const nameConflict = conflicts.find((item) => /nombre/i.test(item));
+
+        if (dniConflict) return mark('dni', dniConflict, dniConflict);
+        if (nameConflict) return mark('name', nameConflict, nameConflict);
+    }
+
+    if (lowerMessage.includes('dni')) {
+        return mark('dni', message, message);
+    }
+
+    if (lowerMessage.includes('nombre')) {
+        return mark('name', message, message);
+    }
+
+    if (lowerMessage.includes('email')) {
+        return mark('email', message, message);
+    }
+
+    if (lowerMessage.includes('telefono') || lowerMessage.includes('teléfono')) {
+        return mark('phone', message, message);
+    }
+
+    showFormFeedback(form, message);
+    return false;
+}
+
 async function deleteViaApiOrLocal({ path, localTable, localId, fallbackAction, sync = true }) {
     if (state.authToken) {
         await apiFetch(path, { method: 'DELETE' });
@@ -759,7 +1059,7 @@ async function deleteViaApiOrLocal({ path, localTable, localId, fallbackAction, 
     }
 
     if (localTable && localId !== undefined) {
-        DB.delete(localTable, localId);
+        DB.archive(localTable, localId);
     }
 }
 
@@ -1128,6 +1428,12 @@ function coerceAppointmentDate(value) {
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
         return value;
     }
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+        const date = new Date(value);
+        if (!Number.isNaN(date.getTime())) {
+            return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+        }
+    }
     return formatDateToLocalIso(new Date(value));
 }
 
@@ -1164,7 +1470,7 @@ function mapApiBillingToLegacy(entry = {}) {
         appointmentId: entry.appointmentId,
         type: entry.type,
         amount: Number(entry.amount || 0),
-        date: entry.date ? formatDateToLocalIso(new Date(entry.date)) : '',
+        date: coerceAppointmentDate(entry.date),
         description: entry.description || '',
         patientName: entry.patient?.fullName || ''
     };
@@ -1373,7 +1679,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         await apiFetch(`/patients/${patientId}`, { method: 'DELETE' });
                         await syncBackendSnapshotToLocalDb();
                     } else {
-                        DB.delete('patients', patientId);
+                        DB.archive('patients', patientId);
                     }
                     refreshCurrentView();
                 } catch (error) {
@@ -1389,8 +1695,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (canAccessPatient(patientId)) loadClinicalHistory(patientId);
         }
+        if (e.target.closest('.btn-view-patient-billing')) {
+            const patientId = parseInt(e.target.closest('.btn-view-patient-billing').dataset.id);
+            if (Number.isInteger(patientId)) {
+                if (document.getElementById('patient-billing-picker-results')) {
+                    closeModal();
+                }
+                openPatientBilling(patientId);
+            }
+        }
 
         if (e.target.closest('#btn-add-tx')) openBillingModal();
+        if (e.target.closest('#btn-open-patient-billing')) openPatientBillingPicker();
+        if (e.target.closest('#btn-clear-patient-billing')) clearPatientBillingFilter();
         if (e.target.closest('.btn-delete-tx')) {
             const txId = parseInt(e.target.closest('.btn-delete-tx').dataset.id);
             const tx = DB.get('billing').find(item => item.id === txId);
@@ -1422,6 +1739,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 date.setDate(date.getDate() - 1);
             } else if (calendarState.viewMode === 'week') {
                 date.setDate(date.getDate() - 7);
+            } else if (calendarState.viewMode === 'month') {
+                date.setMonth(date.getMonth() - 1);
             }
             calendarState.currentDate = formatDateToLocalIso(date);
             refreshCurrentView();
@@ -1432,16 +1751,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 date.setDate(date.getDate() + 1);
             } else if (calendarState.viewMode === 'week') {
                 date.setDate(date.getDate() + 7);
+            } else if (calendarState.viewMode === 'month') {
+                date.setMonth(date.getMonth() + 1);
             }
             calendarState.currentDate = formatDateToLocalIso(date);
             refreshCurrentView();
         }
-        if (e2.target.closest('#cal-today')) {
-            calendarState.currentDate = getTodayIsoLocal();
-            refreshCurrentView();
-        }
-        if (e2.target.closest('#cal-view-day')) {
+        if (e2.target.closest('#cal-view-today')) {
             calendarState.viewMode = 'day';
+            calendarState.currentDate = getTodayIsoLocal();
             refreshCurrentView();
         }
         if (e2.target.closest('#cal-view-week')) {
@@ -1451,6 +1769,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e2.target.closest('#cal-view-month')) {
             calendarState.viewMode = 'month';
             refreshCurrentView();
+        }
+        const dayJumpTarget = e2.target.closest('[data-calendar-date]');
+        if (dayJumpTarget) {
+            const nextDate = dayJumpTarget.dataset.calendarDate;
+            if (nextDate) {
+                calendarState.currentDate = nextDate;
+                calendarState.viewMode = 'day';
+                refreshCurrentView();
+            }
         }
     });
 
@@ -1482,12 +1809,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.style.display = text.includes(term) ? '' : 'none';
             });
         }
+
+        if (e.target.id === 'search-patient-billing-main') {
+            syncBillingPatientSearchResults(e.target.value || '');
+        }
+
+        if (e.target.id === 'patient-billing-picker-search') {
+            syncPatientBillingPickerResults(e.target.value || '');
+        }
     });
 
     document.addEventListener('click', (e) => {
         const settingsButton = e.target.closest('[data-settings-view]');
         if (settingsButton) {
             state.settingsSubView = settingsButton.dataset.settingsView;
+            refreshCurrentView();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        const billingButton = e.target.closest('[data-billing-view]');
+        if (billingButton) {
+            state.billingSubView = billingButton.dataset.billingView;
             refreshCurrentView();
         }
     });
@@ -1760,6 +2103,129 @@ function isProfessionalUser() {
     return !!state.user && state.user.roles.includes('professional');
 }
 
+function canManagePatientBillingUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
+}
+
+function getBillingEntriesForPatient(patientId) {
+    return DB.get('billing')
+        .filter((entry) => entry.patientId === patientId && canAccessProfessional(entry.professionalId))
+        .sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.id - a.id));
+}
+
+function getPatientCurrentAccountSummary(patientId) {
+    const patient = getAccessiblePatients().find((item) => item.id === patientId);
+    const entries = getBillingEntriesForPatient(patientId);
+    const professionals = getAccessibleProfessionals();
+    const byProfessionalMap = new Map();
+
+    entries.forEach((entry) => {
+        const professional = professionals.find((item) => item.id === entry.professionalId);
+        if (!professional) return;
+
+        if (!byProfessionalMap.has(entry.professionalId)) {
+            byProfessionalMap.set(entry.professionalId, {
+                professionalId: professional.id,
+                professionalName: professional.name,
+                deuda: 0,
+                pagado: 0
+            });
+        }
+
+        const item = byProfessionalMap.get(entry.professionalId);
+        if (entry.type === 'debt') item.deuda += entry.amount;
+        if (entry.type === 'income' || entry.type === 'payment') item.pagado += entry.amount;
+    });
+
+    const byProfessional = Array.from(byProfessionalMap.values())
+        .map((item) => ({
+            ...item,
+            balance: item.deuda - item.pagado
+        }))
+        .sort((a, b) => a.professionalName.localeCompare(b.professionalName));
+
+    const deuda = byProfessional.reduce((sum, item) => sum + item.deuda, 0);
+    const pagado = byProfessional.reduce((sum, item) => sum + item.pagado, 0);
+
+    return {
+        patient,
+        entries,
+        byProfessional,
+        deuda,
+        pagado,
+        balance: deuda - pagado
+    };
+}
+
+function getPatientCurrentAccountSummaries() {
+    return getAccessiblePatients()
+        .map((patient) => {
+            const summary = getPatientCurrentAccountSummary(patient.id);
+            return {
+                patientId: patient.id,
+                name: patient.name,
+                dni: patient.dni,
+                deuda: summary.deuda,
+                pagado: summary.pagado,
+                balance: summary.balance,
+                byProfessional: summary.byProfessional,
+                movementCount: summary.entries.length
+            };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getPatientProfessionalAccountRows() {
+    return getAccessiblePatients()
+        .flatMap((patient) => {
+            const summary = getPatientCurrentAccountSummary(patient.id);
+            if (!summary.byProfessional.length) {
+                return [{
+                    patientId: patient.id,
+                    name: patient.name,
+                    dni: patient.dni,
+                    professionalId: null,
+                    professionalName: 'Sin movimientos',
+                    deuda: 0,
+                    pagado: 0,
+                    balance: 0
+                }];
+            }
+
+            return summary.byProfessional.map((item) => ({
+                patientId: patient.id,
+                name: patient.name,
+                dni: patient.dni,
+                professionalId: item.professionalId,
+                professionalName: item.professionalName,
+                deuda: item.deuda,
+                pagado: item.pagado,
+                balance: item.balance
+            }));
+        })
+        .sort((a, b) => {
+            const byPatient = a.name.localeCompare(b.name);
+            if (byPatient !== 0) return byPatient;
+            return a.professionalName.localeCompare(b.professionalName);
+        });
+}
+
+window.openPatientBilling = async function(patientId) {
+    if (!canManagePatientBillingUi() || !canAccessPatient(patientId)) {
+        showAlert('No tienes permisos para acceder a la cuenta corriente de este paciente.', { title: 'Facturación', variant: 'error' });
+        return;
+    }
+    state.billingSubView = 'accounts';
+    state.billingPatientId = patientId;
+    await loadView('billing', 'Cuentas Corrientes', { skipUnsavedCheck: true });
+};
+
+window.clearPatientBillingFilter = async function() {
+    state.billingPatientId = null;
+    state.billingSubView = 'accounts';
+    await loadView('billing', 'Cuentas Corrientes', { skipUnsavedCheck: true });
+};
+
 function getAccessibleProfessionalIds() {
     const allProfs = DB.get('professionals');
     if (!state.user) return [];
@@ -1794,10 +2260,6 @@ function getAccessibleAppointments() {
 }
 
 function getAccessiblePatientIds() {
-    if (state.authToken) {
-        return DB.get('patients').map(p => p.id);
-    }
-
     if (isSuperadmin()) {
         return DB.get('patients').map(p => p.id);
     }
@@ -1820,10 +2282,6 @@ function canAccessPatient(patientId) {
 }
 
 function getAccessiblePatients() {
-    if (state.authToken) {
-        return DB.get('patients');
-    }
-
     const allowedIds = new Set(getAccessiblePatientIds());
     return DB.get('patients').filter(p => allowedIds.has(p.id));
 }
@@ -1860,10 +2318,19 @@ function getAppointmentStatusMeta(status) {
 }
 
 function canManageAppointmentStatusUi() {
-    return !!state.user && state.user.roles.some(r => ['superadmin', 'admin', 'secretary', 'professional'].includes(r));
+    return !!state.user && state.user.roles.some(r => ['superadmin', 'secretary'].includes(r));
+}
+
+function canSendAppointmentWhatsappUi() {
+    return !!state.user && state.user.roles.some(r => ['superadmin', 'secretary'].includes(r));
 }
 
 window.updateAppointmentStatus = async function(aptId, nextStatus) {
+    if (!canManageAppointmentStatusUi()) {
+        showAlert('No tienes permisos para modificar la confirmación de los turnos.', { title: 'Turnos', variant: 'error' });
+        return;
+    }
+
     const apt = DB.get('appointments').find(item => item.id === aptId);
     if (!apt || !nextStatus) return;
 
@@ -1905,6 +2372,11 @@ function getWhatsAppLink(patient, apt) {
 }
 
 window.markAppointmentAsSent = async function(aptId) {
+    if (!canSendAppointmentWhatsappUi()) {
+        showAlert('No tienes permisos para enviar confirmaciones por WhatsApp.', { title: 'Turnos', variant: 'error' });
+        return;
+    }
+
     const apt = DB.get('appointments').find(item => item.id === aptId);
     if (!apt) return;
     const normalizedStatus = normalizeAppointmentStatus(apt.status);
@@ -2398,17 +2870,23 @@ function openScheduleModal(profId) {
     for(let i=0; i<7; i++) {
         const d = prof.schedule[i] || { active: false, start: '08:00', end: '16:00' };
         daysHtml += `
-            <div class="flex items-center gap-4 mb-2 p-2 border-b">
-                <div class="w-28">
-                    <label class="flex items-center gap-2 cursor-pointer">
+            <div class="schedule-day-row">
+                <div class="schedule-day-label">
+                    <label class="schedule-day-check">
                         <input type="checkbox" id="sch-active-${i}" ${d.active ? 'checked' : ''} class="w-4 h-4 text-primary-600 rounded">
-                        <span class="font-semibold text-sm">${days[i]}</span>
+                        <span class="schedule-day-name">${days[i]}</span>
                     </label>
                 </div>
-                <div class="flex-1 flex gap-2">
-                    <input type="time" id="sch-start-${i}" value="${d.start}" class="form-input text-sm px-2 py-1 h-8">
-                    <span class="text-gray-500 self-center">a</span>
-                    <input type="time" id="sch-end-${i}" value="${d.end}" class="form-input text-sm px-2 py-1 h-8">
+                <div class="schedule-time-grid">
+                    <div class="schedule-time-field">
+                        <span class="schedule-time-caption">Desde</span>
+                        <input type="time" id="sch-start-${i}" value="${d.start}" class="form-input schedule-time-input">
+                    </div>
+                    <div class="schedule-time-separator">a</div>
+                    <div class="schedule-time-field">
+                        <span class="schedule-time-caption">Hasta</span>
+                        <input type="time" id="sch-end-${i}" value="${d.end}" class="form-input schedule-time-input">
+                    </div>
                 </div>
             </div>
         `;
@@ -2416,16 +2894,20 @@ function openScheduleModal(profId) {
 
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
-            <div class="modal-content w-auto max-w-2xl" onclick="event.stopPropagation()">
+            <div class="modal-content modal-content-schedule w-auto max-w-2xl" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>Horarios Diarios de ${prof.name}</h3>
                 </div>
                 <form id="schedule-form">
                     <div class="modal-body max-h-[60vh] overflow-y-auto">
-                        <p class="text-sm text-gray-600 mb-4">Selecciona quÃ© dÃ­as trabaja el profesional y su horario de entrada/salida.</p>
-                        ${daysHtml}
+                        <div class="schedule-form-shell">
+                            <p class="schedule-form-intro">Selecciona qué días trabaja el profesional y define su horario de entrada y salida.</p>
+                            <div class="schedule-days-list">
+                                ${daysHtml}
+                            </div>
+                        </div>
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer schedule-modal-footer">
                         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
                         <button type="submit" class="btn btn-primary">Actualizar Agenda</button>
                     </div>
@@ -2483,6 +2965,7 @@ function openPatientModal(editId = null) {
                 </div>
                 <form id="patient-form">
                     <div class="modal-body">
+                        <div class="form-feedback" id="patient-form-feedback" hidden></div>
                         <div class="input-group"><label>Nombre y Apellido *</label><input type="text" id="p-name" value="${p?p.name:''}" required></div>
                         <div class="patient-form-row patient-form-row-2">
                             <div class="input-group flex-1"><label>DNI *</label><input type="text" id="p-dni" value="${p?p.dni||'':''}" required></div>
@@ -2508,44 +2991,29 @@ function openPatientModal(editId = null) {
             </div>
         </div>
     `;
-    document.getElementById('patient-form').addEventListener('submit', async (e) => {
+    const patientForm = document.getElementById('patient-form');
+
+    ['#p-name', '#p-dni', '#p-phone', '#p-email'].forEach((selector) => {
+        const field = patientForm.querySelector(selector);
+        if (!field) return;
+
+        field.addEventListener('input', () => {
+            if (field.classList.contains('input-invalid')) {
+                clearFormValidation(patientForm);
+            }
+        });
+    });
+
+    patientForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const rawName = document.getElementById('p-name').value;
-        const rawDni = document.getElementById('p-dni').value;
-        const normalizedName = normalizePatientName(rawName);
-        const normalizedDni = normalizeDni(rawDni);
-
-        if (!normalizedName) {
-            alert('Ingresa un nombre vÃ¡lido.');
-            return;
-        }
-
-        if (!normalizedDni) {
-            alert('Ingresa un DNI vÃ¡lido.');
-            return;
-        }
-
-        const duplicatedByName = DB.get('patients').find(patient =>
-            normalizePatientName(patient.name) === normalizedName && patient.id !== editId
-        );
-
-        if (duplicatedByName) {
-            alert('Ya existe un paciente cargado con ese nombre.');
-            return;
-        }
-
-        const duplicatedPatient = DB.get('patients').find(patient =>
-            normalizeDni(patient.dni) === normalizedDni && patient.id !== editId
-        );
-
-        if (duplicatedPatient) {
-            alert('Ya existe un paciente cargado con ese DNI.');
+        const validation = validatePatientForm(patientForm, editId);
+        if (!validation.ok) {
             return;
         }
 
         const data = {
             name: document.getElementById('p-name').value,
-            dni: normalizedDni,
+            dni: validation.normalizedDni,
             email: document.getElementById('p-email').value,
             phone: document.getElementById('p-phone').value,
             fechaNacimiento: document.getElementById('p-nacimiento').value,
@@ -2583,7 +3051,10 @@ function openPatientModal(editId = null) {
             closeModal();
             refreshCurrentView();
         } catch (error) {
-            alert(error.message || 'No se pudo guardar el paciente.');
+            const mapped = applyPatientApiErrorToForm(patientForm, error);
+            if (!mapped) {
+                showFormFeedback(patientForm, error.message || 'No se pudo guardar el paciente.');
+            }
         }
     });
 }
@@ -2596,7 +3067,7 @@ function openBillingModal() {
 
     modalsContainer.innerHTML = `
         <div class="modal-overlay active">
-            <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-content modal-content-billing" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>Nueva TransacciÃ³n</h3>
                     <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
@@ -2657,6 +3128,126 @@ function openBillingModal() {
             showAlert(error.message || 'No se pudo registrar el movimiento.', { title: 'Facturación', variant: 'error' });
         }
     });
+}
+
+function openPatientBillingPicker() {
+    if (!canManagePatientBillingUi()) {
+        showAlert('No tienes permisos para acceder a cuentas corrientes por paciente.', { title: 'Facturación', variant: 'error' });
+        return;
+    }
+
+    const patients = getAccessiblePatients().sort((a, b) => a.name.localeCompare(b.name));
+    if (!patients.length) {
+        showAlert('No hay pacientes disponibles para consultar.', { title: 'Facturación', variant: 'warning' });
+        return;
+    }
+
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active">
+            <div class="modal-content modal-content-billing" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3>Cuenta Corriente por Paciente</h3>
+                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="billing-patient-search-card billing-patient-search-card-modal">
+                        <div class="billing-patient-search-head">
+                            <div>
+                                <span class="section-eyebrow">Buscar paciente</span>
+                                <h4>Selecciona una cuenta corriente</h4>
+                                <p>Escribe nombre o DNI para encontrar rápidamente al paciente correcto.</p>
+                            </div>
+                        </div>
+                        <div class="patient-search-shell billing-patient-search-shell">
+                            <input
+                                type="search"
+                                id="patient-billing-picker-search"
+                                class="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                                placeholder="Buscar por nombre o DNI..."
+                                autocomplete="off"
+                            >
+                        </div>
+                        <div id="patient-billing-picker-results" class="billing-patient-search-results"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    syncPatientBillingPickerResults('');
+}
+
+function getBillingPatientSearchMatches(query = '', patients = getAccessiblePatients()) {
+    const normalizedQuery = normalizePatientName(query);
+    const normalizedDniQuery = normalizeDni(query);
+    const sortedPatients = [...patients].sort((a, b) => a.name.localeCompare(b.name));
+
+    if (!normalizedQuery && !normalizedDniQuery) {
+        return [];
+    }
+
+    return sortedPatients
+        .filter((patient) => {
+            const patientName = normalizePatientName(patient.name);
+            const patientDni = normalizeDni(patient.dni);
+            return patientName.includes(normalizedQuery) || patientDni.includes(normalizedDniQuery);
+        })
+        .slice(0, 10);
+}
+
+function renderBillingPatientSearchResultsMarkup(query = '', options = {}) {
+    const { inModal = false } = options;
+    const matches = getBillingPatientSearchMatches(query);
+
+    if (!query.trim()) {
+        return `
+            <div class="billing-patient-search-empty">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <p>Escribe nombre o DNI para buscar una cuenta corriente.</p>
+            </div>
+        `;
+    }
+
+    if (!matches.length) {
+        return `
+            <div class="billing-patient-search-empty">
+                <i class="fa-regular fa-folder-open"></i>
+                <p>No encontramos pacientes que coincidan con esa búsqueda.</p>
+            </div>
+        `;
+    }
+
+    return matches.map((patient) => {
+        const account = getPatientCurrentAccountSummary(patient.id);
+        const professionalCount = account?.byProfessional?.length || 0;
+        return `
+            <button type="button" class="billing-patient-result btn-view-patient-billing" data-id="${patient.id}">
+                <div class="billing-patient-result-main">
+                    <strong>${patient.name}</strong>
+                    <span>DNI ${patient.dni}</span>
+                </div>
+                <div class="billing-patient-result-meta">
+                    <span>${professionalCount} profesional${professionalCount === 1 ? '' : 'es'} con movimientos</span>
+                    <i class="fa-solid fa-chevron-right"></i>
+                </div>
+            </button>
+        `;
+    }).join('');
+}
+
+function syncPatientBillingPickerResults(query = '') {
+    const resultsContainer = document.getElementById('patient-billing-picker-results');
+    if (!resultsContainer) return;
+    resultsContainer.innerHTML = renderBillingPatientSearchResultsMarkup(query, { inModal: true });
+}
+
+function syncBillingPatientSearchResults(query = '') {
+    const resultsContainer = document.getElementById('billing-patient-search-results');
+    if (!resultsContainer) return;
+    resultsContainer.innerHTML = renderBillingPatientSearchResultsMarkup(query);
 }
 
 // --- Views Rendering ---
@@ -2794,17 +3385,23 @@ function isCompactAppointmentsLayout() {
     return window.innerWidth <= 1024;
 }
 
-function renderCalendarFilterLegend(professionals) {
+function renderCalendarFilterLegend(professionals, options = {}) {
+    const {
+        horizontal = false,
+        compact = false
+    } = options;
     const selectedId = ensureSingleCalendarProfessional(professionals);
     return `
-        <div class="cal-legend ${isCompactAppointmentsLayout() ? 'cal-legend-mobile' : ''}">
+        <div class="cal-legend ${isCompactAppointmentsLayout() ? 'cal-legend-mobile' : ''} ${horizontal ? 'cal-legend-horizontal' : ''} ${compact ? 'cal-legend-compact' : ''}">
             <div class="cal-legend-title">Profesionales</div>
-            ${professionals.map(p => {
-                const color = getProfColor(p.id);
-                return `<button type="button" class="cal-legend-item cal-prof-select ${selectedId === p.id ? 'is-active' : ''}" data-id="${p.id}">
-                    <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
-                </button>`;
-            }).join('')}
+            <div class="cal-legend-list">
+                ${professionals.map(p => {
+                    const color = getProfColor(p.id);
+                    return `<button type="button" class="cal-legend-item cal-prof-select ${selectedId === p.id ? 'is-active' : ''}" data-id="${p.id}">
+                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
+                    </button>`;
+                }).join('')}
+            </div>
         </div>`;
 }
 
@@ -2818,12 +3415,21 @@ function renderCalendarToolbar(dateLabel, canEdit) {
                     <button class="btn btn-ghost btn-sm" id="cal-next" aria-label="Día siguiente"><i class="fa-solid fa-chevron-right"></i></button>
                 </div>
                 <div class="cal-toolbar-actions">
-                    <button class="btn btn-secondary btn-sm" id="cal-today">Hoy</button>
+                    <div class="cal-view-switcher" role="tablist" aria-label="Vista del calendario">
+                        <button class="btn btn-secondary btn-sm ${calendarState.viewMode === 'day' ? 'is-active' : ''}" id="cal-view-today">Hoy</button>
+                        <button class="btn btn-secondary btn-sm ${calendarState.viewMode === 'week' ? 'is-active' : ''}" id="cal-view-week">Semana</button>
+                        <button class="btn btn-secondary btn-sm ${calendarState.viewMode === 'month' ? 'is-active' : ''}" id="cal-view-month">Mes</button>
+                    </div>
                     ${canEdit ? '<button class="btn btn-primary btn-sm" id="btn-add-apt"><i class="fa-solid fa-plus"></i> Nuevo Turno</button>' : ''}
                 </div>
             </div>
         </div>
     `;
+}
+
+function formatAppointmentCountLabel(count) {
+    if (!count) return 'Sin turnos';
+    return `${count} turno${count === 1 ? '' : 's'}`;
 }
 
 function renderAppointmentCompactCard(apt) {
@@ -2863,7 +3469,8 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
     let sectionsHtml = '';
 
     if (calendarState.viewMode === 'day') {
-        const visibleProfs = professionals.filter(p => calendarState.visibleProfs[p.id]);
+        const selectedProfessionalId = ensureSingleCalendarProfessional(professionals);
+        const visibleProfs = professionals.filter((p) => p.id === selectedProfessionalId);
         sectionsHtml = visibleProfs.map(prof => {
             const profApts = allApts
                 .filter(apt => apt.date === currentDate && apt.professionalId === prof.id)
@@ -2947,12 +3554,8 @@ function renderCalendarViewSwitcher() {
 }
 
 function renderAppointments() {
-    if (calendarState.viewMode !== 'day') {
-        calendarState.viewMode = 'day';
-    }
-
     const professionals = getAccessibleProfessionals();
-    ensureSingleCalendarProfessional(professionals);
+    const selectedProfessionalId = ensureSingleCalendarProfessional(professionals);
 
     const allApts = getAccessibleAppointments();
     const currentDate = calendarState.currentDate;
@@ -2964,6 +3567,16 @@ function renderAppointments() {
 
     // For day view: columns per professional
     if (calendarState.viewMode === 'day') {
+        const activeProfessional = professionals.find((p) => p.id === selectedProfessionalId) || professionals[0] || null;
+        if (!activeProfessional) {
+            return `
+                <div class="cal-wrapper">
+                    ${renderCalendarToolbar(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}), canEdit)}
+                    <div class="card p-6 text-center text-gray-500">No hay profesionales disponibles para mostrar esta agenda.</div>
+                </div>
+            `;
+        }
+
         // Build time labels (left gutter)
         let timeLabelsHtml = '';
         for (let h = CAL_START_HOUR; h <= CAL_END_HOUR; h++) {
@@ -2983,7 +3596,7 @@ function renderAppointments() {
 
         // Build professional columns
         let profCols = '';
-        professionals.filter(p => calendarState.visibleProfs[p.id]).forEach(p => {
+        [activeProfessional].forEach(p => {
             const color = getProfColor(p.id);
             const dayApts = allApts
                 .filter(a => a.date === currentDate && a.professionalId === p.id)
@@ -3012,9 +3625,11 @@ function renderAppointments() {
                 return `<div class="${blockClasses}" 
                     style="${blockStyle}"
                     onclick="openAppointmentViewModal(${apt.id})">
-                    <span class="cal-apt-name">${apt.patient}</span>
-                    <span class="cal-apt-meta">${apt.time} - ${duration}min</span>
-                    ${apt.isOverbook ? '<span class="cal-apt-tag">Sobreturno</span>' : ''}
+                    <div class="cal-apt-content">
+                        <span class="cal-apt-name">${apt.patient}</span>
+                        <span class="cal-apt-meta">${apt.time} - ${duration}min</span>
+                        ${apt.isOverbook ? '<span class="cal-apt-tag">Sobreturno</span>' : ''}
+                    </div>
                     ${canEdit ? `<div class="cal-apt-actions">
                         ${patient && canViewClinicalHistoryUi() ? `<button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia clinica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>` : ''}
                         <button class="cal-apt-btn btn-edit-apt" data-id="${apt.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
@@ -3038,35 +3653,32 @@ function renderAppointments() {
         });
 
         // Sidebar legend
-        const legendHtml = renderCalendarFilterLegend(professionals);
+        const legendHtml = renderCalendarFilterLegend(professionals, { horizontal: true, compact: true });
 
         return `
         <div class="cal-wrapper">
             ${renderCalendarToolbar(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}), canEdit)}
-
-            <div class="cal-layout">
-                <!-- Calendar grid -->
-                <div class="cal-scroll-wrap">
-                    <div class="cal-grid-day">
-                        <!-- Gutter -->
-                        <div class="cal-gutter-col">
-                            <div class="cal-gutter-header"></div>
-                            <div class="cal-gutter-body" style="height:${CAL_TOTAL_HEIGHT}px; position:relative;">
-                                ${timeLabelsHtml}
-                            </div>
+            ${legendHtml}
+            <div class="cal-scroll-wrap cal-scroll-wrap-day">
+                <div class="cal-grid-day">
+                    <!-- Gutter -->
+                    <div class="cal-gutter-col">
+                        <div class="cal-gutter-header"></div>
+                        <div class="cal-gutter-body" style="height:${CAL_TOTAL_HEIGHT}px; position:relative;">
+                            ${timeLabelsHtml}
                         </div>
-                        <!-- Professional columns -->
-                        ${profCols}
                     </div>
+                    <!-- Professional columns -->
+                    ${profCols}
                 </div>
-                <!-- Sidebar -->
-                ${legendHtml}
             </div>
         </div>`;
     } else if (calendarState.viewMode === 'week') {
         // Week view: days as columns, appointments listed per day
         const startOfWeek = parseLocalIsoDate(currentDate);
         startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday
+        const selectedProfessionalId = getSelectedCalendarProfessionalId(professionals);
+        const selectedProfessionalColor = selectedProfessionalId ? getProfColor(selectedProfessionalId) : { bg: '#64748b', text: '#ffffff' };
         const days = [];
         for (let i = 0; i < 7; i++) {
             const d = new Date(startOfWeek);
@@ -3082,48 +3694,47 @@ function renderAppointments() {
             const dayNum = d.getDate();
 
             const dayApts = allApts.filter(a => a.date === iso && calendarState.visibleProfs[a.professionalId]);
+            const countLabel = formatAppointmentCountLabel(dayApts.length);
 
-            const aptList = dayApts.map(apt => {
-                const profName = getProfName(apt.professionalId);
-                const visual = getAppointmentVisual(apt);
-
-                return `<div class="cal-week-apt ${apt.isOverbook ? 'is-overbook' : ''}" style="background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border};" onclick="openAppointmentViewModal(${apt.id})">
-                    <div class="cal-week-apt-name">${apt.patient}</div>
-                    <div class="cal-week-apt-meta">${profName} Â· ${apt.time}</div>
-                </div>`;
-            }).join('');
+            const summaryCard = dayApts.length
+                ? `<button type="button" class="cal-day-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
+                        <span class="cal-day-summary-label">${countLabel}</span>
+                   </button>`
+                : '<div class="cal-day-summary-empty">Sin turnos</div>';
 
             dayCols += `
             <div class="cal-day-col">
-                <div class="cal-day-header ${isToday ? 'cal-today-header' : ''}">
+                <button type="button" class="cal-day-header ${isToday ? 'cal-today-header' : ''}" data-calendar-date="${iso}">
                     <span class="cal-day-name">${dayName}</span>
                     <span class="cal-day-number ${isToday ? 'cal-today-badge' : ''}">${dayNum}</span>
-                </div>
-                <div class="cal-day-body" style="height:600px; padding:0.5rem; overflow-y:auto;">
-                    ${aptList || '<div class="text-gray-400 text-sm">Sin turnos</div>'}
+                </button>
+                <div class="cal-day-body" style="height:600px; padding:0.9rem 0.5rem 0.5rem; overflow-y:auto;">
+                    ${summaryCard}
                 </div>
             </div>`;
         });
 
-        const legendHtml = renderCalendarFilterLegend(professionals);
+        const legendHtml = renderCalendarFilterLegend(professionals, { horizontal: true, compact: true });
 
         return `
         <div class="cal-wrapper">
             ${renderCalendarToolbar(`${days[0].toLocaleDateString('es-AR',{day:'numeric',month:'short'})} â€“ ${days[6].toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'numeric'})}`, canEdit)}
 
-            <div class="cal-layout">
+            <div class="cal-month-layout">
+                ${legendHtml}
                 <div class="cal-scroll-wrap">
                     <div class="cal-grid-v2">
                         ${dayCols}
                     </div>
                 </div>
-                ${legendHtml}
             </div>
         </div>`;
     } else if (calendarState.viewMode === 'month') {
         const date = parseLocalIsoDate(currentDate);
         const month = date.getMonth();
         const year = date.getFullYear();
+        const selectedProfessionalId = getSelectedCalendarProfessionalId(professionals);
+        const selectedProfessionalColor = selectedProfessionalId ? getProfColor(selectedProfessionalId) : { bg: '#64748b', text: '#ffffff' };
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         const daysInMonth = lastDay.getDate();
@@ -3145,23 +3756,20 @@ function renderAppointments() {
                 const isToday = iso === getTodayIsoLocal();
                 let dayApts = allApts.filter(a => a.date === iso && calendarState.visibleProfs[a.professionalId]);
                 dayApts = dayApts.sort((a,b)=>a.time.localeCompare(b.time));
+                const countLabel = formatAppointmentCountLabel(dayApts.length);
 
-                const aptList = dayApts.map(apt => {
-                    const profName = getProfName(apt.professionalId);
-                    const visual = getAppointmentVisual(apt);
-                    return `<button type="button" class="cal-month-apt ${apt.isOverbook ? 'is-overbook' : ''}" style="border-left-color:${visual.border}; background:${visual.bg}; color:${visual.text};" onclick="openAppointmentViewModal(${apt.id})">
-                        <span class="cal-month-apt-time">${apt.time}</span>
-                        <span class="cal-month-apt-name">${apt.patient}</span>
-                        <span class="cal-month-apt-prof">${profName}</span>
-                    </button>`;
-                }).join('');
+                const summaryContent = dayApts.length
+                    ? `<button type="button" class="cal-month-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
+                            <span class="cal-month-summary-label">${countLabel}</span>
+                       </button>`
+                    : '<div class="cal-month-dayempty">Sin turnos</div>';
 
                 content = `
-                    <div class="cal-month-dayhead ${isToday ? 'is-today' : ''}">
+                    <button type="button" class="cal-month-dayhead ${isToday ? 'is-today' : ''}" data-calendar-date="${iso}">
                         <span class="cal-month-daynum">${dayNum}</span>
-                    </div>
+                    </button>
                     <div class="cal-month-daybody">
-                        ${aptList || '<div class="cal-month-dayempty">Sin turnos</div>'}
+                        ${summaryContent}
                     </div>
                 `;
             }
@@ -3171,14 +3779,15 @@ function renderAppointments() {
 
         const monthName = date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
 
-        const legend = renderCalendarFilterLegend(professionals);
+        const legend = renderCalendarFilterLegend(professionals, { horizontal: true, compact: true });
 
         return `
         <div class="cal-wrapper">
             ${renderCalendarToolbar(monthName, canEdit)}
 
-            <div class="cal-layout">
-                <div class="cal-scroll-wrap">
+            <div class="cal-month-layout">
+                ${legend}
+                <div class="cal-scroll-wrap cal-scroll-wrap-month">
                     <div class="cal-month-board">
                         <div class="cal-month-weekdays">
                             <div class="cal-month-weekday">Dom</div>
@@ -3194,7 +3803,6 @@ function renderAppointments() {
                         </div>
                     </div>
                 </div>
-                ${legend}
             </div>
         </div>`;
     }
@@ -3212,7 +3820,7 @@ function renderProfessionals() {
         </div>
         <div class="table-container table-container-schedules shadow-sm">
             <table class="w-full text-left table-agenda-professionals">
-                <thead><tr><th>Profesional</th><th>Acciones</th></tr></thead>
+                <thead><tr><th>Profesional</th><th class="table-actions-head">Acciones</th></tr></thead>
                 <tbody>
                     ${profs.map(p => `
                         <tr>
@@ -3221,7 +3829,7 @@ function renderProfessionals() {
                                 ${p.name}
                             </td>
                             <td data-label="Acciones" class="table-actions-cell">
-                                ${state.user.roles.some(r => ['superadmin', 'admin', 'secretary'].includes(r)) ? `
+                                ${canAccessProfessional(p.id) ? `
                                 <button class="btn btn-secondary btn-sm btn-edit-schedule btn-schedule-mobile" data-id="${p.id}" aria-label="Configurar horarios de ${p.name}" title="Configurar horarios de ${p.name}"><i class="fa-solid fa-clock"></i><span class="btn-label">Configurar Horarios por Día</span></button>
                                 ` : ''}
                             </td>
@@ -3272,6 +3880,7 @@ function renderPatients() {
                                     <button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}"><i class="fa-solid fa-pen text-primary-600"></i></button>
                                     ${isSuperadmin() ? `<button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}"><i class="fa-solid fa-trash text-danger"></i></button>` : ''}
                                 ` : `${canViewClinicalHistoryUi() ? '<button class="btn btn-secondary btn-sm btn-view-history" data-id="'+p.id+'"><i class="fa-solid fa-eye"></i> Historia</button>' : ''}`}
+                                ${canManagePatientBillingUi() ? `<button class="btn btn-ghost p-1 btn-view-patient-billing" data-id="${p.id}" title="Cuenta Corriente"><i class="fa-solid fa-wallet text-emerald-600"></i></button>` : ''}
                                 </div>
                             </td>
                         </tr>
@@ -3284,100 +3893,127 @@ function renderPatients() {
 
 function renderBilling() {
     const txs = DB.get('billing').filter(t => canAccessProfessional(t.professionalId));
-    const patients = getAccessiblePatients();
+    const patients = getAccessiblePatients().sort((a,b)=>a.name.localeCompare(b.name));
     const professionals = getAccessibleProfessionals();
     const today = getTodayIsoLocal();
-    const todaysTxs = txs.filter(t => t.date === today);
+    const billingSections = [
+        { id: 'movements', label: 'Últimos movimientos', icon: 'fa-clock-rotate-left', description: 'Movimientos diarios y registro reciente.' },
+        { id: 'accounts', label: 'Cuentas corrientes por paciente', icon: 'fa-wallet', description: 'Saldo individual de cada paciente por profesional.' }
+    ];
+    const activeBillingSection = billingSections.some((section) => section.id === state.billingSubView)
+        ? state.billingSubView
+        : 'movements';
+    state.billingSubView = activeBillingSection;
+    const selectedPatientId = Number.isInteger(Number(state.billingPatientId)) ? Number(state.billingPatientId) : null;
+    const selectedAccount = selectedPatientId ? getPatientCurrentAccountSummary(selectedPatientId) : null;
+    const filteredTxs = selectedPatientId ? txs.filter((entry) => entry.patientId === selectedPatientId) : txs;
+    const metricsSourceTxs = selectedPatientId ? filteredTxs : txs;
+    const todaysTxs = metricsSourceTxs.filter((t) => coerceAppointmentDate(t.date) === today);
+    const selectedPatientTransactionsByProfessional = selectedPatientId
+        ? selectedAccount.byProfessional.map((item) => {
+            const movements = filteredTxs
+                .filter((entry) => entry.professionalId === item.professionalId)
+                .sort((a, b) => {
+                    const dateCompare = coerceAppointmentDate(b.date).localeCompare(coerceAppointmentDate(a.date));
+                    return dateCompare || (b.id - a.id);
+                });
+            return {
+                ...item,
+                movementCount: movements.length,
+                lastMovementDate: movements[0]?.date || null,
+                movements
+            };
+        })
+        : [];
     
-    const ingresos = todaysTxs.filter(t=>t.type==='income').reduce((sum,t)=>sum+t.amount,0);
+    const ingresos = todaysTxs.filter(t => ['income', 'payment'].includes(t.type)).reduce((sum,t)=>sum+t.amount,0);
     const deudas = todaysTxs.filter(t=>t.type==='debt').reduce((sum,t)=>sum+t.amount,0);
-    
-    const patientBalanceMap = new Map();
-    txs.forEach((tx) => {
-        if (!tx.professionalId) return;
-        const patient = patients.find((item) => item.id === tx.patientId);
-        const professional = professionals.find((item) => item.id === tx.professionalId);
-        if (!patient || !professional) return;
 
-        const key = `${tx.patientId}-${tx.professionalId}`;
-        if (!patientBalanceMap.has(key)) {
-            patientBalanceMap.set(key, {
-                patientId: patient.id,
-                professionalId: professional.id,
-                name: patient.name,
-                dni: patient.dni,
-                professionalName: professional.name,
-                deuda: 0,
-                pagado: 0
-            });
-        }
-
-        const item = patientBalanceMap.get(key);
-        if (tx.type === 'debt') item.deuda += tx.amount;
-        if (tx.type === 'income' || tx.type === 'payment') item.pagado += tx.amount;
-    });
-
-    const patientBalances = Array.from(patientBalanceMap.values())
-        .map((item) => ({
-            ...item,
-            balance: item.deuda - item.pagado
-        }))
-        .filter((item) => item.deuda > 0 || item.pagado > 0)
-        .sort((a, b) => {
-            const byPatient = a.name.localeCompare(b.name);
-            if (byPatient !== 0) return byPatient;
-            return a.professionalName.localeCompare(b.professionalName);
-        });
-    
-    return `
-        <div class="metrics-grid">
-            <div class="card metric-card">
-                <div class="metric-icon metric-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
-                <div class="metric-info"><h3>Total Recaudado Hoy</h3><p>$${ingresos.toLocaleString()}</p></div>
-            </div>
-            <div class="card metric-card">
-                <div class="metric-icon metric-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
-                <div class="metric-info"><h3>Cargos Emitidos Hoy</h3><p>$${deudas.toLocaleString()}</p></div>
-            </div>
-        </div>
-        
+    const patientAccountHero = selectedAccount?.patient ? `
         <div class="card mt-6 mb-6 billing-summary-card">
             <div class="section-headline">
                 <div>
-                    <span class="section-eyebrow">Facturación</span>
-                    <h3 class="section-title section-title-sm">Estado de Cuentas por Paciente y Profesional</h3>
-                    <p class="section-subtitle">Cada deuda o ingreso queda vinculado al profesional responsable.</p>
+                    <span class="section-eyebrow">Cuenta corriente por paciente</span>
+                    <h3 class="section-title section-title-sm">${selectedAccount.patient.name}</h3>
+                    <p class="section-subtitle">DNI ${selectedAccount.patient.dni} · Seguimiento individual de movimientos, cargos y pagos.</p>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button class="btn btn-secondary" id="btn-clear-patient-billing"><i class="fa-solid fa-arrow-left"></i> Volver a la vista general</button>
                 </div>
             </div>
-            <div class="table-container shadow-sm border border-gray-100">
+            <div class="mt-4 text-sm text-gray-500">
+                La cuenta corriente se muestra separada por profesional. Un mismo paciente puede deber, estar al día o tener saldo a favor según cada profesional.
+            </div>
+            <div class="billing-patient-professional-details mt-4">
+                ${selectedPatientTransactionsByProfessional.map((item) => `
+                    <article class="billing-patient-professional-card">
+                        <div class="billing-patient-professional-card-top">
+                            <div>
+                                <h4>${item.professionalName}</h4>
+                                <p>${item.movementCount} movimiento${item.movementCount === 1 ? '' : 's'}${item.lastMovementDate ? ` · Último registro ${item.lastMovementDate}` : ''}</p>
+                            </div>
+                            <div>
+                                ${item.balance > 0
+                                    ? `<span class="badge badge-warning text-xs">Debe $${item.balance.toLocaleString()}</span>`
+                                    : item.balance < 0
+                                        ? `<span class="badge badge-success text-xs">A favor $${Math.abs(item.balance).toLocaleString()}</span>`
+                                        : `<span class="badge badge-gray text-xs">Al día</span>`}
+                            </div>
+                        </div>
+                        <div class="billing-patient-professional-metrics">
+                            <div><span>Cargos</span><strong>$${item.deuda.toLocaleString()}</strong></div>
+                            <div><span>Pagos / Ingresos</span><strong>$${item.pagado.toLocaleString()}</strong></div>
+                            <div><span>Saldo actual</span><strong>${item.balance > 0 ? `-$${item.balance.toLocaleString()}` : item.balance < 0 ? `+$${Math.abs(item.balance).toLocaleString()}` : '$0'}</strong></div>
+                        </div>
+                    </article>
+                `).join('')}
+            </div>
+            <div class="table-container shadow-sm border border-gray-100 mt-4">
                 <table class="w-full text-left bg-white">
-                    <thead class="bg-gray-50 text-gray-600"><tr><th>Paciente</th><th>Profesional</th><th>DNI</th><th>Cargos Generados</th><th>Pagos Realizados</th><th>Saldo Pendiente</th></tr></thead>
+                    <thead class="bg-gray-50 text-gray-600"><tr><th>Profesional</th><th>Cargos</th><th>Pagos</th><th>Saldo</th></tr></thead>
                     <tbody>
-                        ${patientBalances.map(pb => `
+                        ${selectedAccount.byProfessional.map((item) => `
                             <tr>
-                                <td class="font-bold">${pb.name}</td>
-                                <td class="text-sm text-gray-600">${pb.professionalName}</td>
-                                <td class="text-sm text-gray-500">${pb.dni}</td>
-                                <td>$${pb.deuda.toLocaleString()}</td>
-                                <td class="text-success font-semibold">$${pb.pagado.toLocaleString()}</td>
+                                <td class="font-medium">${item.professionalName}</td>
+                                <td>$${item.deuda.toLocaleString()}</td>
+                                <td class="text-success font-semibold">$${item.pagado.toLocaleString()}</td>
                                 <td>
-                                    ${pb.balance > 0 
-                                      ? `<span class="badge badge-warning text-xs">Debe $${pb.balance.toLocaleString()}</span>` 
-                                      : `<span class="badge badge-success text-xs">Al d�a ${pb.balance < 0 ? `(A favor: $${Math.abs(pb.balance).toLocaleString()})` : ''}</span>`}
+                                    ${item.balance > 0
+                                        ? `<span class="badge badge-warning text-xs">Debe $${item.balance.toLocaleString()}</span>`
+                                        : `<span class="badge badge-success text-xs">${item.balance < 0 ? `A favor $${Math.abs(item.balance).toLocaleString()}` : 'Al día'}</span>`}
                                 </td>
                             </tr>
                         `).join('')}
-                        ${patientBalances.length === 0 ? '<tr><td colspan="6" class="text-center py-4 text-gray-400">No hay cuentas corrientes activas.</td></tr>' : ''}
+                        ${selectedAccount.byProfessional.length === 0 ? '<tr><td colspan="4" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos en cuenta corriente.</td></tr>' : ''}
                     </tbody>
                 </table>
             </div>
         </div>
+    ` : '';
+
+    const movementsContent = `
+        <div class="metrics-grid">
+            <div class="card metric-card">
+                <div class="metric-icon metric-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                <div class="metric-info">
+                    <h3>${selectedAccount?.patient ? 'Recaudado Hoy del Paciente' : 'Total Recaudado Hoy'}</h3>
+                    <p>$${ingresos.toLocaleString()}</p>
+                </div>
+            </div>
+            <div class="card metric-card">
+                <div class="metric-icon metric-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                <div class="metric-info">
+                    <h3>${selectedAccount?.patient ? 'Cargos de Hoy del Paciente' : 'Cargos Emitidos Hoy'}</h3>
+                    <p>$${deudas.toLocaleString()}</p>
+                </div>
+            </div>
+        </div>
         
-        <div class="card mb-4 section-hero-card section-hero-inline section-hero-compact">
+        <div class="card mb-4 mt-6 section-hero-card section-hero-inline section-hero-compact">
             <div class="section-hero-copy">
                 <span class="section-eyebrow">Movimientos</span>
-                <h3 class="section-title section-title-sm">Historial de Transacciones</h3>
-                <p class="section-subtitle">Registro completo de ingresos, cargos y movimientos asociados.</p>
+                <h3 class="section-title section-title-sm">${selectedAccount?.patient ? `Movimientos de ${selectedAccount.patient.name}` : 'Últimos Movimientos'}</h3>
+                <p class="section-subtitle">${selectedAccount?.patient ? 'Historial completo de cargos, pagos e ingresos del paciente, detallado por profesional.' : 'Movimientos del día y últimos registros de cuenta corriente cargados en el sistema.'}</p>
             </div>
             ${state.user.roles.some(r => ['admin', 'superadmin'].includes(r)) ? 
             '<button class="btn btn-primary" id="btn-add-tx"><i class="fa-solid fa-plus"></i> Registrar Movimiento</button>' : ''}
@@ -3385,19 +4021,32 @@ function renderBilling() {
         
         <div class="table-container shadow-sm">
             <table class="w-full text-left">
-                <thead><tr><th>Fecha</th><th>Paciente</th><th>Profesional</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th>AcciÃ³n</th></tr></thead>
+                <thead><tr><th>Fecha</th>${selectedAccount?.patient ? '' : '<th>Paciente</th>'}<th>Profesional</th><th>Tipo</th><th>Concepto</th><th>Detalle</th><th>Monto</th><th>Acción</th></tr></thead>
                 <tbody>
-                    ${txs.sort((a,b)=>b.id - a.id).map(t => {
+                    ${filteredTxs.sort((a,b)=>b.id - a.id).map(t => {
                         const pName = patients.find(p=>p.id === t.patientId)?.name || 'Desconocido';
                         const professionalName = professionals.find(p=>p.id === t.professionalId)?.name || 'Sin profesional';
+                        const isPositiveMovement = ['income', 'payment'].includes(t.type);
+                        const typeLabel = t.type === 'debt'
+                            ? 'Cargo / Deuda'
+                            : t.type === 'payment'
+                                ? 'Pago'
+                                : 'Ingreso';
                         return `
                         <tr>
                             <td class="text-sm text-gray-500">${t.date}</td>
-                            <td class="font-medium">${pName}</td>
+                            ${selectedAccount?.patient ? '' : `<td class="font-medium">${pName}</td>`}
                             <td class="text-sm text-gray-600">${professionalName}</td>
-                            <td><span class="badge ${t.type==='income'?'badge-success':'badge-warning'}">${t.type==='income'?'Ingreso':'Cargo / Deuda'}</span></td>
-                            <td class="text-gray-700">${t.description}</td>
-                            <td class="font-bold ${t.type==='income'?'text-success':'text-warning'}">$${t.amount.toLocaleString()}</td>
+                            <td><span class="badge ${isPositiveMovement ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
+                            <td class="text-gray-700">${t.description || 'Sin descripción'}</td>
+                            <td class="text-sm text-gray-500">
+                                ${t.type === 'debt'
+                                    ? 'Cargo generado a la cuenta corriente'
+                                    : t.type === 'payment'
+                                        ? 'Pago imputado a la deuda del paciente'
+                                        : 'Ingreso acreditado a favor del profesional'}
+                            </td>
+                            <td class="font-bold ${isPositiveMovement ? 'text-success' : 'text-warning'}">$${t.amount.toLocaleString()}</td>
                             <td>
                                 ${state.user.roles.some(r => ['superadmin', 'admin'].includes(r)) ? 
                                 `<button class="btn btn-ghost text-danger p-1 btn-delete-tx" data-id="${t.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
@@ -3405,10 +4054,74 @@ function renderBilling() {
                         </tr>
                         `;
                     }).join('')}
-                    ${txs.length===0?'<tr><td colspan="7" class="text-center py-6 text-gray-500">No hay transacciones registradas</td></tr>':''}
+                    ${filteredTxs.length===0?`<tr><td colspan="${selectedAccount?.patient ? '7' : '8'}" class="text-center py-6 text-gray-500">${selectedAccount?.patient ? 'Este paciente todavía no tiene movimientos registrados.' : 'No hay transacciones registradas'}</td></tr>`:''}
                 </tbody>
             </table>
         </div>
+    `;
+
+    const accountsOverview = `
+        <div class="card mt-6 mb-6 billing-summary-card">
+            <div class="section-headline">
+                <div>
+                    <span class="section-eyebrow">Cuenta corriente</span>
+                    <h3 class="section-title section-title-sm">Cuentas Corrientes por Paciente</h3>
+                    <p class="section-subtitle">Cada paciente mantiene un saldo independiente con cada profesional.</p>
+                </div>
+                ${canManagePatientBillingUi() ? `
+                <div class="flex gap-2 flex-wrap">
+                    <button class="btn btn-secondary" id="btn-open-patient-billing"><i class="fa-solid fa-wallet"></i> Buscar paciente</button>
+                </div>
+                ` : ''}
+            </div>
+            <div class="billing-patient-search-card">
+                <div class="billing-patient-search-head">
+                    <div>
+                        <h4>Buscar paciente</h4>
+                        <p>No mostramos listados masivos. Busca por nombre o DNI y abre solo la cuenta que necesitas revisar.</p>
+                    </div>
+                    <span class="billing-patient-search-count">${patients.length} paciente${patients.length === 1 ? '' : 's'} disponible${patients.length === 1 ? '' : 's'}</span>
+                </div>
+                <div class="patient-search-shell billing-patient-search-shell">
+                    <input
+                        type="search"
+                        id="search-patient-billing-main"
+                        placeholder="Buscar cuenta corriente por nombre o DNI..."
+                        class="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                        autocomplete="off"
+                    >
+                </div>
+                <div id="billing-patient-search-results" class="billing-patient-search-results">
+                    <div class="billing-patient-search-empty">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <p>Empieza a escribir para encontrar un paciente.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return `
+        <section class="settings-card settings-nav-card mb-6">
+            <div class="settings-nav-header">
+                <div>
+                    <span class="section-eyebrow">Facturación</span>
+                    <h3 class="section-title section-title-sm">Cuentas Corrientes</h3>
+                    <p class="subtext">Organizá la facturación entre movimientos recientes y cuentas corrientes por paciente.</p>
+                </div>
+            </div>
+            <div class="settings-subnav">
+                ${billingSections.map(section => `
+                    <button type="button" class="settings-subnav-item ${section.id === activeBillingSection ? 'active' : ''}" data-billing-view="${section.id}">
+                        <i class="fa-solid ${section.icon}"></i>
+                        <span>${section.label}</span>
+                        <small>${section.description}</small>
+                    </button>
+                `).join('')}
+            </div>
+        </section>
+
+        ${activeBillingSection === 'movements' ? movementsContent : `${accountsOverview}${patientAccountHero}`}
     `;
 }
 
@@ -3435,6 +4148,8 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
     const activeOverbooksCount = currentRunningApts.filter(apt => apt.isOverbook).length;
     const selectedLabel = formatDashboardDateLabel(selectedDate);
     const selectedTitle = selectedDate === getTodayIsoLocal() ? 'Turnos de Hoy' : 'Turnos Programados';
+    const canManageStatus = canManageAppointmentStatusUi();
+    const canUseWhatsapp = canSendAppointmentWhatsappUi();
 
     return `
         <div class="metrics-grid">
@@ -3477,7 +4192,7 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                     <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
                                     <td>${getProfName(apt.professionalId)}</td>
                                     <td>
-                                        ${canManageAppointmentStatusUi() ? `
+                                        ${canManageStatus ? `
                                             <select class="dashboard-status-select ${statusMeta.badge}" onchange="updateAppointmentStatus(${apt.id}, this.value)">
                                                 <option value="not_sent" ${statusMeta.key === 'not_sent' ? 'selected' : ''}>Sin enviar</option>
                                                 <option value="sent" ${statusMeta.key === 'sent' ? 'selected' : ''}>Enviado</option>
@@ -3487,7 +4202,7 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                             </select>
                                         ` : `<span class="badge ${statusMeta.badge}">${statusMeta.label}</span>`}
                                     </td>
-                                    <td>${whatsappLink ? `<a class="btn btn-secondary btn-sm dashboard-wa-btn" href="${whatsappLink}" target="_blank" rel="noopener noreferrer" onclick="markAppointmentAsSent(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</a>` : '<span class="text-xs text-gray-400">Sin telefono</span>'}</td>
+                                    <td>${canUseWhatsapp ? (whatsappLink ? `<a class="btn btn-secondary btn-sm dashboard-wa-btn" href="${whatsappLink}" target="_blank" rel="noopener noreferrer" onclick="markAppointmentAsSent(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</a>` : '<span class="text-xs text-gray-400">Sin telefono</span>') : '<span class="text-xs text-gray-400">Sin acceso</span>'}</td>
                                 </tr>
                             `;
                         }).join('')}
@@ -3529,7 +4244,7 @@ function renderSettingsSubpages() {
                 <td>${u.type || '-'}</td>
                 <td>${roles}</td>
                 <td>${profNames}</td>
-                <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash text-danger"></i></button></td>
+                <td class="text-center">${isSuper ? `<button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash text-danger"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
             </tr>`;
     }).join('');
 
@@ -3550,19 +4265,19 @@ function renderSettingsSubpages() {
     }).join('');
 
     const settingsSections = [
-        { id: 'create-user', label: 'Crear usuario', icon: 'fa-user-plus', description: 'Alta de nuevos usuarios y permisos.' },
+        ...(canManageSettings ? [{ id: 'create-user', label: 'Crear usuario', icon: 'fa-user-plus', description: 'Alta de nuevos usuarios y permisos.' }] : []),
         { id: 'create-professional', label: 'Crear profesional', icon: 'fa-user-doctor', description: 'Registro de profesionales y datos base.' },
-        { id: 'users-list', label: 'Usuarios existentes', icon: 'fa-users-gear', description: 'Listado de usuarios y accesos asignados.' },
+        ...(canManageSettings ? [{ id: 'users-list', label: 'Usuarios existentes', icon: 'fa-users-gear', description: 'Listado de usuarios y accesos asignados.' }] : []),
         { id: 'professionals-list', label: 'Profesionales existentes', icon: 'fa-address-card', description: 'Vista de profesionales y acceso al calendario.' }
     ];
 
     const activeSection = settingsSections.some(section => section.id === state.settingsSubView)
         ? state.settingsSubView
-        : 'create-user';
+        : (settingsSections[0]?.id || 'create-professional');
     state.settingsSubView = activeSection;
 
     const settingsContent = {
-        'create-user': `
+        'create-user': canManageSettings ? `
             <section class="settings-card settings-panel-card">
                 <header>
                     <div>
@@ -3597,7 +4312,7 @@ function renderSettingsSubpages() {
                     <button type="submit" class="btn btn-primary">Guardar Usuario</button>
                 </form>
             </section>
-        `,
+        ` : '',
         'create-professional': `
             <section class="settings-card settings-panel-card">
                 <header>
@@ -3617,7 +4332,7 @@ function renderSettingsSubpages() {
                 </form>
             </section>
         `,
-        'users-list': `
+        'users-list': canManageSettings ? `
             <section class="settings-card settings-panel-card">
                 <header><h3>Usuarios Existentes</h3></header>
                 <div class="table-container overflow-x-auto">
@@ -3635,7 +4350,7 @@ function renderSettingsSubpages() {
                     </table>
                 </div>
             </section>
-        `,
+        ` : '',
         'professionals-list': `
             <section class="settings-card settings-panel-card">
                 <header><h3>Profesionales Existentes</h3></header>
@@ -3718,7 +4433,7 @@ function renderSettings() {
                 <td>${u.type || '-'}</td>
                 <td>${roles}</td>
                 <td>${profNames}</td>
-                <td class="text-center"><button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash text-danger"></i></button></td>
+                <td class="text-center">${isSuper ? `<button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash text-danger"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
             </tr>`;
     }).join('');
 
@@ -4031,7 +4746,7 @@ function renderClinicalHistory(patientId) {
             </div>
 
             <!-- ODONTOGRAMA -->
-            <div class="mb-10">
+            <div class="mb-10 clinical-odontogram-block">
                 <div class="odontogram-header mb-4 clinical-odontogram-section">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma Inicial</h3>
                     <div class="odontogram-legend text-xs">
@@ -4118,14 +4833,30 @@ function renderClinicalHistory(patientId) {
                     <div class="clinical-images-grid">
                     ${clinicalImages.map((image, idx) => `
                         <article class="clinical-image-card">
+                            <div class="clinical-image-actions">
+                                <button type="button" class="clinical-image-action-btn clinical-image-action-view" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
+                                    <i class="fa-solid fa-expand"></i>
+                                    <span>Ver</span>
+                                </button>
+                                ${canEditClinical ? `
+                                <button type="button" class="clinical-image-action-btn clinical-image-action-delete" onclick="deleteClinicalImage(${patientId}, ${image.id ?? idx})" aria-label="Eliminar imagen clínica">
+                                    <i class="fa-solid fa-trash"></i>
+                                    <span>Eliminar</span>
+                                </button>
+                                ` : ''}
+                            </div>
                             <button type="button" class="clinical-image-preview-button" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
                                 <img src="${image.dataUrl}" alt="${image.description || 'Imagen clinica'}" class="clinical-image-preview" onerror="this.style.display='none'; this.closest('.clinical-image-card')?.querySelector('.clinical-image-body')?.classList.add('clinical-image-body--error'); this.closest('.clinical-image-card')?.classList.add('clinical-image-card--broken');">
                             </button>
                             <div class="clinical-image-body">
-                                <div class="clinical-image-date">${image.date ? image.date.split('-').reverse().join('/') : 'Sin fecha'}</div>
+                                <div class="clinical-image-meta">
+                                    <div class="clinical-image-date">${image.date ? image.date.split('-').reverse().join('/') : 'Sin fecha'}</div>
+                                    <button type="button" class="clinical-image-inline-link" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})">
+                                        Abrir
+                                    </button>
+                                </div>
                                 <p class="clinical-image-description">${image.description || 'Sin descripcion'}</p>
                                 <p class="clinical-image-error">La imagen guardada está incompleta. Vuelve a cargarla.</p>
-                                ${canEditClinical ? `<button class="btn btn-ghost btn-sm clinical-image-delete" onclick="deleteClinicalImage(${patientId}, ${image.id ?? idx})"><i class="fa-solid fa-trash"></i> Eliminar</button>` : ''}
                             </div>
                         </article>
                     `).join('')}
@@ -4356,6 +5087,10 @@ window.saveClinicalHistory = async function(patientId) {
 };
 
 window.deleteUser = async function(userId) {
+    if (!isSuperadmin()) {
+        showAlert('Solo el superadmin puede gestionar usuarios.', { title: 'Usuarios', variant: 'error' });
+        return;
+    }
     if (!await showConfirm('¿Eliminar usuario?', { title: 'Eliminar usuario', confirmText: 'Eliminar' })) return;
 
     try {

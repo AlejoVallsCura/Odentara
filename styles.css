@@ -569,8 +569,10 @@ body {
 
 .appointment-modal-footer {
     position: static !important;
-    background: #f8fafc !important;
+    background: transparent !important;
     backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-top: 1px solid var(--border-soft) !important;
 }
 
 .app-loading-overlay {
@@ -986,6 +988,19 @@ body.app-loading-active {
 
     .app-brand {
         padding: 1rem;
+        justify-content: flex-start;
+        gap: 0;
+    }
+
+    .app-brand-copy {
+        display: none;
+    }
+
+    .app-brand-mark {
+        width: 2.55rem !important;
+        height: 2.55rem !important;
+        min-width: 2.55rem;
+        min-height: 2.55rem;
     }
 
     .nav-item {
@@ -1192,6 +1207,33 @@ body.app-loading-active {
     border-color: var(--primary-500);
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
+.form-feedback {
+    display: none;
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(239, 68, 68, 0.18);
+    background: linear-gradient(180deg, rgba(254, 242, 242, 0.98) 0%, rgba(255, 247, 247, 0.98) 100%);
+    color: #b91c1c;
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+.form-feedback.is-visible {
+    display: block;
+}
+.input-invalid {
+    border-color: rgba(239, 68, 68, 0.65) !important;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1) !important;
+    background: rgba(255, 250, 250, 0.98) !important;
+}
+.field-error-message {
+    margin-top: 0.45rem;
+    color: #dc2626;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
 #search-patient {
     margin-bottom: 1rem;
     border-radius: 0.85rem;
@@ -1295,6 +1337,23 @@ body.app-loading-active {
     max-width: 760px;
     width: min(760px, calc(100vw - 2rem));
 }
+.modal-content-schedule {
+    max-width: 720px;
+    width: min(720px, calc(100vw - 2rem));
+}
+.modal-content-billing {
+    max-width: 540px;
+    width: min(540px, calc(100vw - 2rem));
+}
+.modal-content-billing .modal-body {
+    padding: 1.2rem 1.35rem;
+}
+.modal-content-billing .input-group + .input-group {
+    margin-top: 0.15rem;
+}
+.modal-content-billing .modal-footer {
+    background: var(--gray-50);
+}
 .modal-content-patient #patient-form .modal-body > .patient-form-row {
     display: grid;
     gap: 1rem;
@@ -1322,6 +1381,99 @@ body.app-loading-active {
     justify-content: flex-end;
     gap: 1rem;
     background: var(--gray-50);
+}
+
+.schedule-form-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.schedule-form-intro {
+    margin: 0;
+    color: var(--gray-600);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.schedule-days-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.schedule-day-row {
+    display: grid;
+    grid-template-columns: minmax(132px, 160px) minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: center;
+    padding: 0.78rem 0.9rem;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 1rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.92) 100%);
+}
+
+.schedule-day-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.schedule-day-check input {
+    flex-shrink: 0;
+}
+
+.schedule-day-name {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+
+.schedule-time-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.schedule-time-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.schedule-time-caption {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+    padding-left: 0.1rem;
+}
+
+.schedule-time-separator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.6rem;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--gray-400);
+    padding-bottom: 0.05rem;
+}
+
+.schedule-time-input {
+    min-height: 2.65rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.02em;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+}
+
+.schedule-modal-footer {
+    background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(248,250,252,0.95) 100%);
 }
 
 /* Login View Adjustments */
@@ -1667,6 +1819,20 @@ body:has(#login-view.active) {
     flex-wrap: wrap;
 }
 
+.cal-view-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.cal-view-switcher .btn.is-active {
+    background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-400) 100%);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 12px 24px rgba(79, 70, 229, 0.18);
+}
+
 .brand-logo-img {
     display: block;
     width: 100%;
@@ -1876,6 +2042,12 @@ tr:hover td {
     padding: 0.5rem 0.25rem;
     text-align: center;
     border-left: 1px solid var(--gray-100);
+    width: 100%;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
 }
 
 .cal-day-name {
@@ -1898,6 +2070,15 @@ tr:hover td {
     font-weight: 600;
     color: var(--gray-700);
     margin-top: 2px;
+}
+
+.cal-day-count {
+    display: block;
+    margin-top: 0.18rem;
+    font-size: 0.66rem;
+    font-weight: 600;
+    color: var(--gray-500);
+    line-height: 1.2;
 }
 
 .cal-today-header .cal-day-name { color: var(--primary-600); }
@@ -2016,6 +2197,12 @@ tr:hover td {
     height: fit-content;
     position: sticky;
     top: 0.5rem;
+}
+
+.cal-legend-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
 }
 
 .cal-legend-title {
@@ -2226,12 +2413,25 @@ tr:hover td {
     height: 48px;
     padding: 6px 4px;
     text-align: center;
+    border-top: none;
+    border-right: none;
+    border-left: none;
     border-bottom: 2px solid var(--gray-200);
     position: sticky;
     top: 0;
     background: #fff;
     z-index: 5;
     flex-shrink: 0;
+}
+
+.cal-day-header:hover {
+    background: rgba(99, 102, 241, 0.04);
+}
+
+.cal-day-header:focus-visible,
+.cal-month-dayhead:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.42);
+    outline-offset: -2px;
 }
 
 .cal-today-header {
@@ -2278,7 +2478,7 @@ tr:hover td {
     left: 3px;
     right: 3px;
     border-radius: 6px;
-    padding: 4px 6px;
+    padding: 0.38rem 0.5rem;
     font-size: 0.72rem;
     display: flex;
     flex-direction: column;
@@ -2292,6 +2492,14 @@ tr:hover td {
     border-left: 4px solid transparent;
 }
 
+.cal-apt-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.08rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
 .cal-apt-block:hover {
     filter: brightness(0.92);
     transform: scaleX(1.02);
@@ -2300,19 +2508,25 @@ tr:hover td {
 }
 
 .cal-apt-name {
+    display: block;
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .cal-apt-meta {
+    display: block;
     font-size: 0.65rem;
     opacity: 0.85;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-top: 1px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .cal-apt-tag {
@@ -2357,8 +2571,8 @@ tr:hover td {
 .cal-apt-overbook {
     left: 52%;
     right: 3px;
-    min-height: 24px;
-    padding: 3px 5px;
+    min-height: 26px;
+    padding: 0.24rem 0.4rem 0.26rem;
     z-index: 4;
     box-shadow: 0 4px 14px rgba(249, 115, 22, 0.22);
 }
@@ -2368,11 +2582,32 @@ tr:hover td {
 }
 
 .cal-apt-overbook .cal-apt-name {
-    font-size: 0.68rem;
+    font-size: 0.64rem;
+    line-height: 1.15;
 }
 
 .cal-apt-overbook .cal-apt-meta {
-    font-size: 0.58rem;
+    font-size: 0.53rem;
+    line-height: 1.05;
+}
+
+.cal-apt-overbook .cal-apt-content {
+    gap: 0.02rem;
+    padding-right: 5.2rem;
+}
+
+.cal-apt-overbook .cal-apt-tag {
+    position: absolute;
+    top: 0.22rem;
+    right: 0.24rem;
+    margin-top: 0;
+    max-width: calc(100% - 0.5rem);
+    padding: 0.08rem 0.34rem;
+    font-size: 0.5rem;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cal-apt-overbook .cal-apt-actions {
@@ -2689,7 +2924,7 @@ tr:hover td {
 
     .cal-toolbar-actions {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         align-items: stretch;
         gap: 0.7rem;
     }
@@ -2697,6 +2932,12 @@ tr:hover td {
     .cal-toolbar-actions .btn {
         width: 100%;
         justify-content: center;
+    }
+
+    .cal-view-switcher {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
     }
 
     .table-container.table-container-schedules,
@@ -2794,11 +3035,57 @@ tr:hover td {
 }
 
 .clinical-image-card {
+    position: relative;
     background: #fff;
     border: 1px solid var(--gray-200);
     border-radius: 1rem;
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+}
+
+.clinical-image-actions {
+    position: absolute;
+    top: 0.8rem;
+    right: 0.8rem;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.clinical-image-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background: rgba(15, 23, 42, 0.72);
+    color: #fff;
+    padding: 0.42rem 0.72rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.clinical-image-action-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(15, 23, 42, 0.86);
+    border-color: rgba(255, 255, 255, 0.65);
+}
+
+.clinical-image-action-delete {
+    background: rgba(127, 29, 29, 0.76);
+}
+
+.clinical-image-action-delete:hover {
+    background: rgba(153, 27, 27, 0.9);
+}
+
+.clinical-image-preview-button {
+    display: block;
+    width: 100%;
 }
 
 .clinical-image-preview {
@@ -2811,6 +3098,14 @@ tr:hover td {
 
 .clinical-image-body {
     padding: 0.9rem;
+}
+
+.clinical-image-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.45rem;
 }
 
 .clinical-image-error {
@@ -2836,20 +3131,30 @@ tr:hover td {
     font-size: 0.72rem;
     font-weight: 700;
     color: var(--primary-700);
-    margin-bottom: 0.35rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+}
+
+.clinical-image-inline-link {
+    border: none;
+    background: transparent;
+    color: var(--primary-700);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0;
+    white-space: nowrap;
+}
+
+.clinical-image-inline-link:hover {
+    color: var(--primary-800);
+    text-decoration: underline;
 }
 
 .clinical-image-description {
     font-size: 0.9rem;
     color: var(--gray-700);
     min-height: 2.5rem;
-    margin-bottom: 0.65rem;
-}
-
-.clinical-image-delete {
-    padding-left: 0;
+    margin-bottom: 0;
 }
 
 .clinical-image-empty {
@@ -2886,9 +3191,19 @@ tr:hover td {
     padding: 0.75rem;
     background: var(--gray-50);
     border-bottom: 1px solid var(--gray-200);
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-weight: 600;
     color: var(--gray-700);
+}
+
+.cal-day-count {
+    margin-top: 0.12rem;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--gray-500);
 }
 
 .cal-prof-body {
@@ -2931,7 +3246,7 @@ tr:hover td {
     top: 0;
     z-index: 4;
     background: #fff;
-    border-bottom: 1px solid var(--gray-200);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.34);
 }
 
 .cal-month-weekday {
@@ -2941,7 +3256,7 @@ tr:hover td {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--gray-500);
-    border-right: 1px solid var(--gray-100);
+    border-right: 1px solid rgba(148, 163, 184, 0.22);
 }
 
 .cal-month-weekday:last-child {
@@ -2956,8 +3271,8 @@ tr:hover td {
 
 .cal-month-cell {
     min-height: 160px;
-    border-right: 1px solid var(--gray-100);
-    border-bottom: 1px solid var(--gray-100);
+    border-right: 1px solid rgba(148, 163, 184, 0.2);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
     padding: 0.55rem;
     display: flex;
     flex-direction: column;
@@ -2970,7 +3285,7 @@ tr:hover td {
 }
 
 .cal-month-cell.is-outside-month {
-    background: linear-gradient(180deg, #fbfcff 0%, #f8fafc 100%);
+    background: linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
 }
 
 .cal-month-empty-slot {
@@ -2980,7 +3295,19 @@ tr:hover td {
 .cal-month-dayhead {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.24rem;
+    padding: 0.55rem 0.6rem 0.5rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+    margin: -0.35rem -0.35rem 0.45rem;
+    min-height: 3rem;
+    width: calc(100% + 0.7rem);
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    background: transparent;
+    cursor: pointer;
 }
 
 .cal-month-dayhead.is-today .cal-month-daynum {
@@ -2990,8 +3317,9 @@ tr:hover td {
 }
 
 .cal-month-daynum {
-    width: 2rem;
+    min-width: 2rem;
     height: 2rem;
+    padding: 0 0.42rem;
     border-radius: 999px;
     display: inline-flex;
     align-items: center;
@@ -2999,10 +3327,18 @@ tr:hover td {
     font-size: 0.82rem;
     font-weight: 700;
     color: var(--gray-700);
+    line-height: 1;
 }
 
 .cal-month-cell.is-outside-month .cal-month-daynum {
     color: var(--gray-400);
+}
+
+.cal-month-daycount {
+    font-size: 0.67rem;
+    font-weight: 700;
+    color: var(--gray-500);
+    line-height: 1.2;
 }
 
 .cal-month-daybody {
@@ -3347,6 +3683,10 @@ body {
     border-bottom: 1px solid var(--border-soft) !important;
 }
 
+.app-brand-copy {
+    min-width: 0;
+}
+
 .app-brand-mark,
 .mobile-header-brand-mark {
     border-radius: 1rem;
@@ -3566,6 +3906,12 @@ table th {
     background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(248,250,252,0.72) 100%);
 }
 
+.modal-content-billing .modal-footer {
+    background: rgba(248, 250, 252, 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
 .metric-card {
     padding: 1.35rem 1.45rem;
 }
@@ -3720,12 +4066,11 @@ table th {
 .table-agenda-professionals {
     table-layout: fixed;
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
+    border-collapse: collapse;
 }
 
 .table-agenda-professionals tbody tr + tr td {
-    border-top: 1px solid rgba(226, 232, 240, 0.9) !important;
+    border-top: none !important;
 }
 
 .table-agenda-professionals td,
@@ -3735,10 +4080,24 @@ table th {
 
 .table-agenda-professionals tbody tr {
     box-shadow: none;
+    background-image: none;
 }
 
 .table-agenda-professionals tbody tr:first-child {
     box-shadow: none;
+}
+
+.table-agenda-professionals tbody tr + tr {
+    background-image: linear-gradient(
+        to right,
+        transparent 1.25rem,
+        rgba(226, 232, 240, 0.92) 1.25rem,
+        rgba(226, 232, 240, 0.92) calc(100% - 1.25rem),
+        transparent calc(100% - 1.25rem)
+    );
+    background-repeat: no-repeat;
+    background-size: 100% 1px;
+    background-position: center top;
 }
 
 .table-agenda-professionals thead th {
@@ -3775,8 +4134,58 @@ table th {
 }
 
 .table-actions-cell {
-    text-align: right;
+    text-align: center;
     white-space: nowrap;
+}
+
+.cal-month-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.cal-scroll-wrap-month {
+    width: 100%;
+}
+
+.cal-legend-horizontal {
+    width: 100%;
+    min-width: 0;
+    position: static;
+    top: auto;
+    padding: 0.95rem 1rem;
+}
+
+.cal-legend-horizontal .cal-legend-title {
+    margin-bottom: 0;
+}
+
+.cal-legend-horizontal .cal-legend-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.cal-legend-horizontal .cal-legend-item {
+    width: auto;
+    flex: 0 0 auto;
+}
+
+.cal-legend-horizontal .cal-legend-chip {
+    width: auto;
+    min-width: 158px;
+    justify-content: center;
+    padding-inline: 1rem;
+}
+
+.cal-legend-compact {
+    box-shadow: var(--shadow-xs);
+}
+
+.table-actions-head {
+    text-align: center;
+    padding-left: 1.15rem;
+    padding-right: 1.15rem;
 }
 
 .btn-schedule-mobile {
@@ -3791,6 +4200,7 @@ table th {
     border-color: rgba(203, 213, 225, 0.95);
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
     color: var(--gray-700);
+    margin-inline: auto;
 }
 
 .btn-schedule-mobile .btn-label {
@@ -3798,7 +4208,14 @@ table th {
 }
 
 .btn-schedule-mobile i {
+    width: 1rem;
+    min-width: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.78rem;
+    line-height: 1;
+    transform: translateY(-0.01em);
 }
 
 .calendar-container,
@@ -3858,6 +4275,74 @@ table th {
     background: rgba(255,255,255,0.72);
 }
 
+.cal-day-summary-card,
+.cal-month-summary-card {
+    width: 100%;
+    min-height: 84px;
+    border: 1px dashed rgba(148, 163, 184, 0.45);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.76);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    text-align: center;
+    color: var(--gray-700);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.cal-day-summary-card:hover,
+.cal-month-summary-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+    border-color: rgba(99, 102, 241, 0.42);
+}
+
+.cal-day-summary-count,
+.cal-month-summary-count {
+    font-family: "Manrope", "Inter", sans-serif;
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--gray-900);
+}
+
+.cal-day-summary-label,
+.cal-month-summary-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--gray-500);
+}
+
+.cal-day-summary-card .cal-day-summary-label,
+.cal-month-summary-card .cal-month-summary-label {
+    color: inherit;
+    font-size: 0.96rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.cal-day-summary-empty {
+    width: 100%;
+    min-height: 84px;
+    border: 1px dashed rgba(203, 213, 225, 0.72);
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gray-400);
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: center;
+    background: rgba(255,255,255,0.54);
+}
+
+.cal-day-body > .cal-day-summary-card,
+.cal-day-body > .cal-day-summary-empty {
+    margin-top: 0.25rem;
+}
+
 .cal-month-board {
     border: 1px solid var(--border-soft);
     background: rgba(255,255,255,0.78);
@@ -3887,7 +4372,12 @@ table th {
 }
 
 .cal-month-dayhead {
-    padding: 0.35rem 0.35rem 0.55rem;
+    padding: 0.7rem 0.75rem 0.6rem;
+    margin: -0.35rem -0.35rem 0.5rem;
+}
+
+.cal-month-dayhead:hover {
+    background: rgba(99, 102, 241, 0.03);
 }
 
 .cal-month-daynum {
@@ -3992,6 +4482,19 @@ table th {
     border-radius: 1.5rem;
 }
 
+.clinical-odontogram-block {
+    margin-top: 2rem;
+}
+
+.clinical-odontogram-section {
+    margin-top: 0.35rem;
+    margin-bottom: 1.15rem !important;
+}
+
+.clinical-odontogram-section .odontogram-legend {
+    row-gap: 0.75rem;
+}
+
 .badge-state {
     border-radius: 999px;
     border: 1px solid transparent;
@@ -4075,6 +4578,11 @@ table th {
     padding: 1rem;
 }
 
+.clinical-image-actions {
+    top: 0.9rem;
+    right: 0.9rem;
+}
+
 .clinical-image-description {
     line-height: 1.45;
 }
@@ -4086,6 +4594,16 @@ table th {
 }
 
 @media (max-width: 1024px) {
+    .clinical-image-actions {
+        top: 0.7rem;
+        right: 0.7rem;
+    }
+
+    .clinical-image-action-btn {
+        padding: 0.4rem 0.62rem;
+        font-size: 0.72rem;
+    }
+
     .metric-info p {
         font-size: 1.75rem;
     }
@@ -4096,6 +4614,30 @@ table th {
 }
 
 @media (max-width: 768px) {
+    .clinical-odontogram-block {
+        display: none !important;
+    }
+
+    .modal-content-schedule {
+        width: calc(100vw - 1rem);
+        max-width: calc(100vw - 1rem);
+    }
+
+    .schedule-day-row {
+        grid-template-columns: 1fr;
+        gap: 0.85rem;
+        padding: 0.95rem;
+    }
+
+    .schedule-time-grid {
+        grid-template-columns: 1fr;
+        gap: 0.7rem;
+    }
+
+    .schedule-time-separator {
+        display: none;
+    }
+
     .table-header,
     .treatments-header,
     .odontogram-header {
@@ -4239,6 +4781,198 @@ table th {
     padding: 1.25rem 1.3rem 1.35rem;
 }
 
+.billing-patient-search-card {
+    border: 1px solid rgba(226, 232, 240, 0.82);
+    background: rgba(255,255,255,0.72);
+    border-radius: 1.25rem;
+    padding: 1rem;
+    display: grid;
+    gap: 0.95rem;
+}
+
+.billing-patient-search-card-modal {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.billing-patient-search-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.billing-patient-search-head h4 {
+    margin: 0;
+    font-family: "Manrope", "Inter", sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--gray-900);
+}
+
+.billing-patient-search-head p {
+    margin: 0.35rem 0 0;
+    color: var(--gray-500);
+    font-size: 0.92rem;
+}
+
+.billing-patient-search-count {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.25rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(88, 101, 242, 0.08);
+    color: var(--primary-700);
+    font-size: 0.84rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.billing-patient-search-shell .form-input {
+    min-height: 3.2rem;
+}
+
+.billing-patient-search-results {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.billing-patient-search-empty {
+    min-height: 8.5rem;
+    border: 1px dashed rgba(203, 213, 225, 0.9);
+    border-radius: 1.1rem;
+    display: grid;
+    place-items: center;
+    gap: 0.4rem;
+    text-align: center;
+    color: var(--gray-500);
+    padding: 1.25rem;
+}
+
+.billing-patient-search-empty i {
+    font-size: 1.15rem;
+    color: var(--primary-500);
+}
+
+.billing-patient-search-empty p {
+    margin: 0;
+    max-width: 28rem;
+}
+
+.billing-patient-result {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    background: rgba(248, 250, 252, 0.82);
+    text-align: left;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.billing-patient-result:hover {
+    transform: translateY(-1px);
+    border-color: rgba(88, 101, 242, 0.28);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.billing-patient-result-main,
+.billing-patient-result-meta {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.billing-patient-result-main strong {
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: var(--gray-900);
+}
+
+.billing-patient-result-main span,
+.billing-patient-result-meta span {
+    color: var(--gray-500);
+    font-size: 0.84rem;
+}
+
+.billing-patient-result-meta {
+    justify-items: end;
+}
+
+.billing-patient-result-meta i {
+    color: var(--primary-500);
+    font-size: 0.9rem;
+}
+
+.billing-patient-professional-details {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.billing-patient-professional-card {
+    border: 1px solid rgba(226, 232, 240, 0.84);
+    border-radius: 1.1rem;
+    background: rgba(248, 250, 252, 0.78);
+    padding: 1rem;
+    display: grid;
+    gap: 0.8rem;
+}
+
+.billing-patient-professional-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem;
+}
+
+.billing-patient-professional-card-top h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--gray-900);
+}
+
+.billing-patient-professional-card-top p {
+    margin: 0.3rem 0 0;
+    color: var(--gray-500);
+    font-size: 0.86rem;
+}
+
+.billing-patient-professional-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.billing-patient-professional-metrics div {
+    border-radius: 0.95rem;
+    border: 1px solid rgba(226, 232, 240, 0.82);
+    background: rgba(255,255,255,0.75);
+    padding: 0.8rem 0.9rem;
+    display: grid;
+    gap: 0.3rem;
+}
+
+.billing-patient-professional-metrics span {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gray-500);
+}
+
+.billing-patient-professional-metrics strong {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--gray-900);
+}
+
 .billing-summary-card .table-container,
 .settings-panel-card .table-container {
     border-radius: 1.15rem;
@@ -4379,6 +5113,30 @@ table th {
     .patient-search-shell .form-input {
         padding-left: 2.55rem !important;
     }
+
+    .billing-patient-search-head,
+    .billing-patient-result {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .billing-patient-search-count {
+        white-space: normal;
+        justify-content: center;
+    }
+
+    .billing-patient-result-meta {
+        justify-items: start;
+    }
+
+    .billing-patient-professional-card-top {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .billing-patient-professional-metrics {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* ===== VISUAL REFRESH V4 ===== */
@@ -4388,11 +5146,15 @@ table th {
 }
 
 .cal-layout {
+    display: flex;
     align-items: flex-start;
     gap: 1rem;
+    flex: 1;
+    min-height: 0;
 }
 
 .cal-scroll-wrap {
+    flex: 1;
     border: 1px solid var(--border-soft);
     border-radius: 1.5rem;
     background: rgba(255,255,255,0.72);
@@ -4408,7 +5170,9 @@ table th {
 }
 
 .cal-grid-day {
+    display: flex;
     height: auto;
+    min-width: calc(64px + 240px);
 }
 
 .cal-gutter-col {
@@ -4428,6 +5192,8 @@ table th {
 }
 
 .cal-prof-col {
+    flex: 1;
+    min-width: 220px;
     border-right: 1px solid rgba(226, 232, 240, 0.82);
 }
 
@@ -4440,6 +5206,9 @@ table th {
     top: 0;
     z-index: 4;
     padding: 1rem 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: rgba(255,255,255,0.94);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -4447,6 +5216,9 @@ table th {
 }
 
 .cal-prof-name {
+    display: block;
+    width: 100%;
+    text-align: center;
     font-family: "Manrope", "Inter", sans-serif;
     font-size: 0.98rem;
     font-weight: 800;
@@ -4471,7 +5243,7 @@ table th {
     border-radius: 1rem;
     border: 1px solid rgba(255,255,255,0.42);
     box-shadow: 0 14px 24px rgba(15, 23, 42, 0.08);
-    padding: 0.7rem 0.75rem;
+    padding: 0.62rem 0.72rem;
 }
 
 .cal-apt-name {
@@ -4492,6 +5264,10 @@ table th {
     background: rgba(255,255,255,0.82);
     color: #9a3412;
     border: 1px solid rgba(251, 146, 60, 0.25);
+}
+
+.cal-apt-overbook {
+    padding: 0.3rem 0.46rem 0.3rem;
 }
 
 .cal-apt-actions {
@@ -4630,12 +5406,33 @@ table th {
         grid-template-columns: 1fr;
     }
 
+    .cal-scroll-wrap {
+        flex: none;
+        width: 100%;
+        min-height: fit-content;
+    }
+
+    .cal-grid-day {
+        min-width: max-content;
+    }
+
     .cal-legend {
         width: 100%;
         min-width: 0;
         position: static;
         top: auto;
         order: -1;
+    }
+
+    .cal-legend-horizontal .cal-legend-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cal-legend-horizontal .cal-legend-item,
+    .cal-legend-horizontal .cal-legend-chip {
+        width: 100%;
+        min-width: 0;
     }
 }
 
@@ -4658,8 +5455,107 @@ table th {
         border-radius: 1rem;
     }
 
+    .cal-legend-horizontal {
+        padding: 0.85rem;
+    }
+
+    .cal-legend-horizontal .cal-legend-list {
+        grid-template-columns: 1fr;
+        gap: 0.6rem;
+    }
+
     .cal-legend-title {
         margin-bottom: 0.1rem;
+    }
+
+    .table-container.table-container-schedules {
+        overflow: visible;
+    }
+
+    .table-container.table-container-schedules table {
+        min-width: 0 !important;
+        width: 100%;
+    }
+
+    .table-container.table-container-schedules thead {
+        display: none;
+    }
+
+    .table-container.table-container-schedules tbody {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .table-container.table-container-schedules tr,
+    .table-agenda-professionals tbody tr,
+    .table-agenda-professionals tbody tr + tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.85rem;
+        padding: 1rem;
+        border: 1px solid var(--border-soft);
+        border-radius: 1.15rem;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: var(--shadow-sm);
+        background-image: none !important;
+    }
+
+    .table-container.table-container-schedules td,
+    .table-agenda-professionals td {
+        display: block;
+        width: auto !important;
+        min-width: 0;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    .table-container.table-container-schedules td::before {
+        display: none !important;
+    }
+
+    .table-agenda-professionals th:first-child,
+    .table-agenda-professionals td:first-child {
+        width: auto;
+    }
+
+    .table-agenda-professionals th:last-child,
+    .table-agenda-professionals td:last-child {
+        width: 5.2rem;
+    }
+
+    .table-actions-head,
+    .table-actions-cell {
+        text-align: right;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    .table-container.table-container-schedules .table-prof-name-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+
+    .table-container.table-container-schedules .table-actions-cell {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .btn-schedule-mobile {
+        width: 2.8rem;
+        min-width: 2.8rem;
+        height: 2.8rem;
+        min-height: 2.8rem;
+        padding: 0;
+        gap: 0;
+    }
+
+    .btn-schedule-mobile .btn-label {
+        display: none;
     }
 
     .cal-prof-select .cal-legend-chip {
@@ -4736,6 +5632,26 @@ table th {
     flex-shrink: 0;
 }
 
+.sidebar-theme-control {
+    margin-top: 0.75rem;
+    padding: 0.8rem 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.sidebar-theme-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--gray-700);
+}
+
 .app-brand {
     position: relative;
 }
@@ -4798,6 +5714,7 @@ body.theme-dark .clinical-images-shell,
 body.theme-dark .modal-content,
 body.theme-dark .modal-content-treatment,
 body.theme-dark .modal-content-patient,
+body.theme-dark .modal-content-schedule,
 body.theme-dark .feedback-dialog,
 body.theme-dark .login-card,
 body.theme-dark .login-test-users,
@@ -4819,6 +5736,22 @@ body.theme-dark .settings-panel-card .table-container {
 
 body.theme-dark .app-brand {
     background: transparent !important;
+}
+
+body.theme-dark .form-feedback {
+    background: linear-gradient(180deg, rgba(68, 22, 22, 0.82) 0%, rgba(52, 18, 18, 0.86) 100%);
+    border-color: rgba(248, 113, 113, 0.22);
+    color: #fecaca;
+}
+
+body.theme-dark .input-invalid {
+    background: rgba(60, 22, 28, 0.88) !important;
+    border-color: rgba(248, 113, 113, 0.45) !important;
+    color: #fff5f5 !important;
+}
+
+body.theme-dark .field-error-message {
+    color: #fda4af;
 }
 
 body.theme-dark .app-header {
@@ -4912,6 +5845,21 @@ body.theme-dark .btn-edit-schedule:hover {
     background: rgba(255,255,255,0.08);
     border-color: var(--border-strong);
     color: var(--gray-950);
+}
+
+body.theme-dark .schedule-day-row {
+    background: rgba(255,255,255,0.02) !important;
+    border-color: rgba(132, 151, 202, 0.16) !important;
+}
+
+body.theme-dark .schedule-day-name {
+    color: var(--gray-900) !important;
+}
+
+body.theme-dark .schedule-time-caption,
+body.theme-dark .schedule-time-separator,
+body.theme-dark .schedule-form-intro {
+    color: var(--gray-500) !important;
 }
 
 body.theme-dark .btn-primary {
@@ -5088,14 +6036,66 @@ body.theme-dark .cal-day-col {
     border-color: rgba(132,151,202,0.14) !important;
 }
 
+body.theme-dark .cal-month-cell {
+    background: linear-gradient(180deg, rgba(20, 29, 49, 0.96) 0%, rgba(14, 21, 38, 0.98) 100%) !important;
+}
+
 body.theme-dark .cal-month-cell.is-outside-month {
-    background: rgba(255,255,255,0.02) !important;
+    background: linear-gradient(180deg, rgba(15, 22, 38, 0.98) 0%, rgba(11, 17, 30, 0.98) 100%) !important;
 }
 
 body.theme-dark .cal-month-daynum {
-    background: rgba(255,255,255,0.04);
+    background: rgba(255,255,255,0.06);
     color: var(--gray-900);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+body.theme-dark .cal-month-dayhead {
+    background: rgba(255,255,255,0.02);
+    border-bottom-color: rgba(132, 151, 202, 0.2);
+}
+
+body.theme-dark .cal-grid-v2 .cal-day-header {
+    background: rgba(17, 25, 43, 0.98) !important;
+    border-bottom-color: rgba(132, 151, 202, 0.18) !important;
+}
+
+body.theme-dark .cal-grid-v2 .cal-day-body {
+    background: linear-gradient(180deg, rgba(20, 29, 49, 0.96) 0%, rgba(14, 21, 38, 0.98) 100%) !important;
+}
+
+body.theme-dark .cal-grid-v2 .cal-day-col {
+    border-color: rgba(132,151,202,0.14) !important;
+}
+
+body.theme-dark .cal-grid-v2 .cal-day-summary-empty {
+    background: rgba(255,255,255,0.03) !important;
+    border-color: rgba(132,151,202,0.2) !important;
+    color: var(--gray-500) !important;
+}
+
+body.theme-dark .cal-grid-v2 .cal-day-number {
+    color: var(--gray-900) !important;
+}
+
+body.theme-dark .cal-day-header:hover,
+body.theme-dark .cal-month-dayhead:hover {
+    background: rgba(255,255,255,0.04);
+}
+
+body.theme-dark .cal-day-count,
+body.theme-dark .cal-month-daycount {
+    color: var(--gray-500);
+}
+
+body.theme-dark .cal-month-weekdays {
+    background: rgba(17, 25, 43, 0.98) !important;
+    border-bottom-color: rgba(132, 151, 202, 0.18) !important;
+}
+
+body.theme-dark .cal-month-weekday {
+    border-right-color: rgba(132, 151, 202, 0.14) !important;
+    color: var(--gray-500) !important;
 }
 
 body.theme-dark .cal-month-dayempty,
@@ -5160,6 +6160,29 @@ body.theme-dark .clinical-history-card .bg-yellow-50,
 body.theme-dark .clinical-history-card .bg-gray-50,
 body.theme-dark .clinical-images-shell {
     background: transparent !important;
+}
+
+body.theme-dark .clinical-image-action-btn {
+    background: rgba(15, 23, 42, 0.82);
+    border-color: rgba(132, 151, 202, 0.26);
+    color: #f8fafc;
+}
+
+body.theme-dark .clinical-image-action-btn:hover {
+    background: rgba(30, 41, 59, 0.94);
+    border-color: rgba(132, 151, 202, 0.4);
+}
+
+body.theme-dark .clinical-image-action-delete {
+    background: rgba(127, 29, 29, 0.78);
+}
+
+body.theme-dark .clinical-image-inline-link {
+    color: #a5b4fc;
+}
+
+body.theme-dark .clinical-image-inline-link:hover {
+    color: #c7d2fe;
 }
 
 body.theme-dark .login-card {
@@ -5376,6 +6399,65 @@ body.theme-dark .patient-search-shell::before {
     color: var(--gray-400);
 }
 
+body.theme-dark .billing-patient-search-card {
+    background: rgba(15, 23, 42, 0.42);
+    border-color: rgba(99, 102, 241, 0.16);
+}
+
+body.theme-dark .billing-patient-search-head h4 {
+    color: rgba(248, 250, 252, 0.96);
+}
+
+body.theme-dark .billing-patient-search-head p,
+body.theme-dark .billing-patient-search-empty,
+body.theme-dark .billing-patient-result-main span,
+body.theme-dark .billing-patient-result-meta span {
+    color: rgba(191, 219, 254, 0.72);
+}
+
+body.theme-dark .billing-patient-search-count {
+    background: rgba(99, 102, 241, 0.16);
+    color: rgba(224, 231, 255, 0.95);
+}
+
+body.theme-dark .billing-patient-search-empty {
+    border-color: rgba(148, 163, 184, 0.22);
+}
+
+body.theme-dark .billing-patient-result {
+    background: rgba(30, 41, 59, 0.72);
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+body.theme-dark .billing-patient-result:hover {
+    border-color: rgba(129, 140, 248, 0.38);
+    box-shadow: 0 14px 34px rgba(2, 8, 23, 0.3);
+}
+
+body.theme-dark .billing-patient-result-main strong {
+    color: rgba(248, 250, 252, 0.96);
+}
+
+body.theme-dark .billing-patient-professional-card {
+    background: rgba(30, 41, 59, 0.72);
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+body.theme-dark .billing-patient-professional-card-top h4,
+body.theme-dark .billing-patient-professional-metrics strong {
+    color: rgba(248, 250, 252, 0.96);
+}
+
+body.theme-dark .billing-patient-professional-card-top p,
+body.theme-dark .billing-patient-professional-metrics span {
+    color: rgba(191, 219, 254, 0.72);
+}
+
+body.theme-dark .billing-patient-professional-metrics div {
+    background: rgba(15, 23, 42, 0.55);
+    border-color: rgba(148, 163, 184, 0.16);
+}
+
 body.theme-dark .theme-toggle-btn {
     background: rgba(255,255,255,0.05);
     color: var(--gray-700);
@@ -5385,6 +6467,16 @@ body.theme-dark .theme-toggle-btn {
 body.theme-dark .theme-toggle-btn:hover {
     background: rgba(255,255,255,0.09);
     color: var(--gray-950);
+}
+
+body.theme-dark .sidebar-theme-control {
+    border-color: var(--border-soft);
+    background: rgba(255,255,255,0.04);
+    box-shadow: none;
+}
+
+body.theme-dark .sidebar-theme-label {
+    color: var(--gray-500);
 }
 
 body.theme-dark .settings-subnav-item {
@@ -5622,6 +6714,7 @@ body.theme-dark .btn-edit-schedule:hover {
 
 body.theme-dark .table-agenda-professionals tbody tr {
     box-shadow: none !important;
+    background-image: none !important;
 }
 
 body.theme-dark .table-agenda-professionals tbody tr:first-child {
@@ -5634,7 +6727,20 @@ body.theme-dark .table-agenda-professionals th {
 }
 
 body.theme-dark .table-agenda-professionals tbody tr + tr td {
-    border-top: 1px solid rgba(132, 151, 202, 0.16) !important;
+    border-top: none !important;
+}
+
+body.theme-dark .table-agenda-professionals tbody tr + tr {
+    background-image: linear-gradient(
+        to right,
+        transparent 1.25rem,
+        rgba(132, 151, 202, 0.16) 1.25rem,
+        rgba(132, 151, 202, 0.16) calc(100% - 1.25rem),
+        transparent calc(100% - 1.25rem)
+    ) !important;
+    background-repeat: no-repeat !important;
+    background-size: 100% 1px !important;
+    background-position: center top !important;
 }
 
 body.theme-dark .table-agenda-professionals tbody tr:hover td {
@@ -5644,6 +6750,10 @@ body.theme-dark .table-agenda-professionals tbody tr:hover td {
 body.theme-dark .cal-legend {
     background: rgba(15, 22, 40, 0.92) !important;
     border-color: rgba(132, 151, 202, 0.16) !important;
+}
+
+body.theme-dark .cal-legend-horizontal {
+    background: rgba(15, 22, 40, 0.96) !important;
 }
 
 body.theme-dark .cal-prof-select.is-active .cal-legend-chip {

@@ -14,6 +14,33 @@ const {
 const router = express.Router();
 const VALID_TYPES = new Set(["income", "debt", "payment", "adjustment"]);
 
+function formatDateOnly(value) {
+  if (!value) return null;
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    date.getUTCDate()
+  ).padStart(2, "0")}`;
+}
+
+function parseDateOnlyInput(value) {
+  if (!value) return new Date();
+
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date();
+  }
+
+  return parsed;
+}
+
 function serializeEntry(entry) {
   return {
     id: entry.id,
@@ -25,7 +52,7 @@ function serializeEntry(entry) {
     amount: entry.amount,
     currency: entry.currency,
     description: entry.description,
-    date: entry.date,
+    date: formatDateOnly(entry.date),
     patient: entry.patient ? { id: entry.patient.id, fullName: entry.patient.fullName, dni: entry.patient.dni } : null,
     professional: entry.professional ? { id: entry.professional.id, fullName: entry.professional.fullName } : null,
   };
@@ -130,7 +157,7 @@ router.post("/", requireAuth, async (req, res) => {
         amount: req.body.amount,
         currency: req.body.currency ? String(req.body.currency).trim().toUpperCase() : "ARS",
         description: req.body.description ? String(req.body.description).trim() : null,
-        date: req.body.date ? new Date(req.body.date) : new Date(),
+        date: parseDateOnlyInput(req.body.date),
         deletedAt: null,
       },
       include: {
@@ -197,7 +224,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         amount: req.body.amount !== undefined ? req.body.amount : existing.amount,
         currency: req.body.currency ? String(req.body.currency).trim().toUpperCase() : existing.currency,
         description: req.body.description !== undefined ? (req.body.description ? String(req.body.description).trim() : null) : existing.description,
-        date: req.body.date ? new Date(req.body.date) : existing.date,
+        date: req.body.date ? parseDateOnlyInput(req.body.date) : existing.date,
         deletedAt: null,
       },
       include: {

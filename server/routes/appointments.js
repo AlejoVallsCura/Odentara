@@ -14,12 +14,36 @@ const router = express.Router();
 
 const VALID_STATUSES = new Set(["not_sent", "sent", "confirmed", "rescheduled", "cancelled"]);
 const VALID_CHANNELS = new Set(["whatsapp", "phone", "email", "manual"]);
+const BUSINESS_TIME_ZONE = "America/Buenos_Aires";
+
+function getBusinessNowParts() {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+
+  const parts = formatter.formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+  };
+}
 
 function getTodayIsoLocal() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+  const now = getBusinessNowParts();
+  const year = now.year;
+  const month = String(now.month).padStart(2, "0");
+  const day = String(now.day).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -52,8 +76,8 @@ function timeToMinutes(timeStr = "") {
 }
 
 function currentMinutes() {
-  const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
+  const now = getBusinessNowParts();
+  return now.hour * 60 + now.minute;
 }
 
 function getAppointmentEndMinutes(payload) {
