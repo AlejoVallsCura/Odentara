@@ -650,9 +650,6 @@ body.app-loading-active {
     .clinical-info-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
-    .clinical-info-item.col-span-full {
-        grid-column: 1 / -1;
-    }
     .odontogram-wrapper {
         transform: scale(1);
     }
@@ -2459,13 +2456,6 @@ tr:hover td {
     color: var(--gray-700);
 }
 
-.cal-today-header .cal-day-name { color: var(--primary-600); }
-
-.cal-today-badge {
-    background: var(--primary-600);
-    color: #fff !important;
-}
-
 /* Day body — appointments go here absolutely */
 .cal-day-body {
     position: relative;
@@ -2549,8 +2539,6 @@ tr:hover td {
     right: 3px;
     gap: 3px;
 }
-
-.cal-apt-block:hover .cal-apt-actions { display: flex; }
 
 .cal-apt-btn {
     background: rgba(0,0,0,0.25);
@@ -2759,10 +2747,6 @@ tr:hover td {
         min-width: 0;
         margin-left: 0 !important;
         height: 100vh;
-    }
-
-    #app-view.sidebar-open aside {
-        transform: translateX(0);
     }
 
     #app-view.sidebar-open .sidebar-backdrop {
@@ -3728,6 +3712,36 @@ body {
     color: var(--primary-700);
     border: 1px solid rgba(88, 101, 242, 0.12);
     box-shadow: 0 10px 30px rgba(88, 101, 242, 0.09);
+}
+
+.nav-sub-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.1rem 0.75rem 0.1rem 2rem;
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--gray-500);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.nav-sub-item:hover {
+    background: rgba(88, 101, 242, 0.06);
+    color: var(--gray-700);
+}
+.nav-sub-item.active {
+    background: rgba(88, 101, 242, 0.1);
+    color: var(--primary-600);
+    font-weight: 600;
+}
+.nav-sub-item i {
+    width: 1rem;
+    text-align: center;
+    font-size: 0.76rem;
+    flex-shrink: 0;
 }
 
 .sidebar-user-wrap {
@@ -5197,15 +5211,13 @@ table th {
     border-right: 1px solid rgba(226, 232, 240, 0.82);
 }
 
-.cal-prof-col:last-child {
-    border-right: none;
-}
-
 .cal-prof-header {
     position: sticky;
     top: 0;
     z-index: 4;
-    padding: 1rem 0.9rem;
+    height: 48px;
+    box-sizing: border-box;
+    padding: 0 0.9rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -5291,10 +5303,6 @@ table th {
 
 .cal-day-col {
     border-right: 1px solid rgba(226, 232, 240, 0.82);
-}
-
-.cal-day-col:last-child {
-    border-right: none;
 }
 
 .cal-day-header {
@@ -5781,6 +5789,18 @@ body.theme-dark .nav-item.active {
     box-shadow: 0 12px 28px rgba(88,101,242,0.16);
 }
 
+body.theme-dark .nav-sub-item {
+    color: var(--gray-500);
+}
+body.theme-dark .nav-sub-item:hover {
+    background: rgba(255,255,255,0.04);
+    color: var(--gray-900);
+}
+body.theme-dark .nav-sub-item.active {
+    background: rgba(88,101,242,0.18);
+    color: #c4caff;
+}
+
 body.theme-dark .app-brand h1,
 body.theme-dark .mobile-header-brand span,
 body.theme-dark .logo-container h2,
@@ -5952,6 +5972,12 @@ body.theme-dark .badge-gray {
 body.theme-dark .feedback-dialog-overlay,
 body.theme-dark .modal-overlay {
     background: rgba(1, 6, 18, 0.56);
+}
+
+body.theme-dark .modal-footer,
+body.theme-dark .schedule-modal-footer {
+    background: rgba(13, 19, 35, 0.96);
+    border-top-color: rgba(132, 151, 202, 0.14);
 }
 
 body.theme-dark .feedback-toast {

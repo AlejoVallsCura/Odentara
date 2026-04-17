@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(powershell.exe -Command \"Get-Service -Name 'MySQL84' -ErrorAction SilentlyContinue | Select-Object Name, Status, StartType\")"
+    ]
+  }
+}

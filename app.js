@@ -2012,7 +2012,19 @@ function logout() {
 function renderSidebar() {
     const sidebarNav = document.getElementById('sidebar-nav');
     sidebarNav.innerHTML = '';
-    
+
+    const SETTINGS_SUB_ITEMS = [
+        { id: 'create-user',          icon: 'fa-user-plus',    label: 'Crear usuario' },
+        { id: 'create-professional',  icon: 'fa-user-doctor',  label: 'Crear profesional' },
+        { id: 'users-list',           icon: 'fa-users-gear',   label: 'Usuarios existentes' },
+        { id: 'professionals-list',   icon: 'fa-address-card', label: 'Profesionales existentes' },
+    ];
+
+    const BILLING_SUB_ITEMS = [
+        { id: 'movements', icon: 'fa-clock-rotate-left', label: 'Últimos movimientos' },
+        { id: 'accounts',  icon: 'fa-wallet',            label: 'Cuentas corrientes' },
+    ];
+
     // Collect unique navItems from all user roles
     const navItems = new Map();
     state.user.roles.forEach(role => {
@@ -2022,13 +2034,13 @@ function renderSidebar() {
             });
         }
     });
-    
+
     Array.from(navItems.values()).forEach(item => {
         const link = document.createElement('a');
         link.className = `nav-item ${item.id === state.currentView ? 'active' : ''}`;
         link.dataset.view = item.id;
         link.innerHTML = `<i class="fa-solid ${item.icon} w-5 text-center"></i> <span>${item.label}</span>`;
-        
+
         link.addEventListener('click', async (e) => {
             e.preventDefault();
             const loaded = await loadView(item.id, item.label);
@@ -2036,6 +2048,26 @@ function renderSidebar() {
             if (isMobileLayout()) setSidebarOpen(false);
         });
         sidebarNav.appendChild(link);
+
+        if (item.id === 'settings' && state.currentView === 'settings') {
+            SETTINGS_SUB_ITEMS.forEach(sub => {
+                const subLink = document.createElement('a');
+                subLink.className = `nav-sub-item ${sub.id === state.settingsSubView ? 'active' : ''}`;
+                subLink.dataset.settingsView = sub.id;
+                subLink.innerHTML = `<i class="fa-solid ${sub.icon}"></i><span>${sub.label}</span>`;
+                sidebarNav.appendChild(subLink);
+            });
+        }
+
+        if (item.id === 'billing' && state.currentView === 'billing') {
+            BILLING_SUB_ITEMS.forEach(sub => {
+                const subLink = document.createElement('a');
+                subLink.className = `nav-sub-item ${sub.id === state.billingSubView ? 'active' : ''}`;
+                subLink.dataset.billingView = sub.id;
+                subLink.innerHTML = `<i class="fa-solid ${sub.icon}"></i><span>${sub.label}</span>`;
+                sidebarNav.appendChild(subLink);
+            });
+        }
     });
 }
 
