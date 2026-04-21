@@ -4,7 +4,7 @@ const state = {
     authToken: null,
     currentView: 'dashboard',
     sidebarOpen: true,
-    settingsSubView: 'create-user',
+    settingsSubView: 'clinic-settings',
     billingSubView: 'movements',
     billingPatientId: null,
     dashboardDate: null,
@@ -604,7 +604,10 @@ const defaultData = {
     billing: [
         { id: 1, patientId: 2, professionalId: 2, type: 'income', amount: 12500, date: '2026-03-24', description: 'Consulta Dra. MartÃ­nez' },
         { id: 2, patientId: 1, professionalId: 1, type: 'debt', amount: 45000, date: '2026-03-20', description: 'Tratamiento conducto' }
-    ]
+    ],
+    clinic: {
+        name: 'Centro odontológico'
+    }
 };
 
 const DB = {
@@ -642,6 +645,10 @@ const DB = {
         db.users = mergeBy(db.users, defaultData.users, item => item.email);
         db.professionals = mergeBy(db.professionals, defaultData.professionals, item => item.name);
         db.patients = mergeBy(db.patients, defaultData.patients, item => item.dni);
+        db.clinic = {
+            ...(defaultData.clinic || {}),
+            ...(db.clinic && typeof db.clinic === 'object' ? db.clinic : {})
+        };
 
         localStorage.setItem('odentara_db_v6', JSON.stringify(db));
     },
@@ -685,6 +692,101 @@ const DB = {
     }
 };
 DB.init();
+
+const DEFAULT_CLINIC_SETTINGS = {
+    name: 'Centro odontológico',
+    professionalColors: {}
+};
+
+function getDbSnapshot() {
+    try {
+        return JSON.parse(localStorage.getItem('odentara_db_v6')) || {};
+    } catch (_error) {
+        return {};
+    }
+}
+
+function saveDbSnapshot(snapshot) {
+    localStorage.setItem('odentara_db_v6', JSON.stringify(snapshot || {}));
+}
+
+function getClinicSettings() {
+    const db = getDbSnapshot();
+    const clinic = db.clinic && typeof db.clinic === 'object' ? db.clinic : {};
+    const professionalColors = clinic.professionalColors && typeof clinic.professionalColors === 'object'
+        ? clinic.professionalColors
+        : {};
+    return {
+        ...DEFAULT_CLINIC_SETTINGS,
+        ...clinic,
+        professionalColors: {
+            ...(DEFAULT_CLINIC_SETTINGS.professionalColors || {}),
+            ...professionalColors
+        }
+    };
+}
+
+function saveClinicSettings(partialSettings = {}) {
+    const db = getDbSnapshot();
+    const current = db.clinic && typeof db.clinic === 'object' ? db.clinic : {};
+    const nextProfessionalColors = partialSettings.professionalColors && typeof partialSettings.professionalColors === 'object'
+        ? partialSettings.professionalColors
+        : {};
+    db.clinic = {
+        ...DEFAULT_CLINIC_SETTINGS,
+        ...current,
+        ...partialSettings,
+        professionalColors: {
+            ...(DEFAULT_CLINIC_SETTINGS.professionalColors || {}),
+            ...(current.professionalColors && typeof current.professionalColors === 'object' ? current.professionalColors : {}),
+            ...nextProfessionalColors
+        }
+    };
+    saveDbSnapshot(db);
+}
+
+function getClinicDisplayName() {
+    const name = String(getClinicSettings().name || '').trim();
+    return name || DEFAULT_CLINIC_SETTINGS.name;
+}
+
+function normalizeHexColor(value, fallback = '#6366f1') {
+    const raw = String(value || '').trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+        const r = raw[1];
+        const g = raw[2];
+        const b = raw[3];
+        return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+    }
+    return fallback;
+}
+
+function getContrastingTextColor(hexColor) {
+    const normalized = normalizeHexColor(hexColor, '#6366f1');
+    const r = parseInt(normalized.slice(1, 3), 16);
+    const g = parseInt(normalized.slice(3, 5), 16);
+    const b = parseInt(normalized.slice(5, 7), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.62 ? '#111827' : '#ffffff';
+}
+
+function applyClinicBranding() {
+    const clinicName = getClinicDisplayName();
+    document.querySelectorAll('.app-brand-copy h1, .mobile-header-brand span')
+        .forEach((node) => {
+            if (node) node.textContent = 'Odentara';
+        });
+    document.querySelectorAll('.logo-container h2')
+        .forEach((node) => {
+            if (node) node.textContent = 'Odentara.app';
+        });
+    document.querySelectorAll('.app-brand-subtitle')
+        .forEach((node) => {
+            if (node) node.textContent = clinicName;
+        });
+    document.title = 'Odentara';
+}
 
 // --- Role Configurations ---
 const roleConfig = {
@@ -1072,6 +1174,7 @@ function applyAuthenticatedUiState() {
     setElementText('user-name', sourceName);
     setElementText('user-role-display', roleLabel);
     setElementText('user-initials', initials);
+    applyClinicBranding();
     renderSidebar();
     setSidebarOpen(!isMobileLayout());
     views.login.classList.remove('active');
@@ -1602,6 +1705,7 @@ function isTodayDate(dateStr) {
 document.addEventListener('DOMContentLoaded', () => {
     ensureThemeControls();
     applyTheme(getStoredTheme(), false);
+    applyClinicBranding();
     setupMojibakeAutoRepair();
 
     const loginForm = document.getElementById('login-form');
@@ -1836,6 +1940,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('submit', async (e) => {
+        if (e.target.id === 'clinic-settings-form') {
+            e.preventDefault();
+            const clinicNameInput = document.getElementById('clinic-name');
+            const clinicName = String(clinicNameInput?.value || '').trim();
+
+            if (!clinicName) {
+                alert('El nombre de la clínica es obligatorio.');
+                clinicNameInput?.focus();
+                return;
+            }
+
+            const colorInputs = Array.from(e.target.querySelectorAll('input[name="clinic-prof-color"]'));
+            const professionalColors = {};
+            colorInputs.forEach((input, idx) => {
+                const profId = parseInt(input.dataset.profId || '', 10);
+                if (!Number.isFinite(profId)) return;
+                const fallback = PROF_COLORS[idx % PROF_COLORS.length]?.bg || '#6366f1';
+                const color = normalizeHexColor(input.value, fallback);
+                professionalColors[String(profId)] = color;
+                DB.update('professionals', profId, { color });
+            });
+            saveClinicSettings({
+                name: clinicName,
+                professionalColors
+            });
+
+            applyClinicBranding();
+            showToast('Configuración de clínica guardada.', { type: 'success' });
+            refreshCurrentView();
+            renderSidebar();
+            return;
+        }
+
         if (e.target.id === 'new-user-form') {
             e.preventDefault();
             const name = document.getElementById('u-name').value.trim();
@@ -2014,6 +2151,7 @@ function renderSidebar() {
     sidebarNav.innerHTML = '';
 
     const SETTINGS_SUB_ITEMS = [
+        { id: 'clinic-settings',      icon: 'fa-hospital',     label: 'Clínica' },
         { id: 'create-user',          icon: 'fa-user-plus',    label: 'Crear usuario' },
         { id: 'create-professional',  icon: 'fa-user-doctor',  label: 'Crear profesional' },
         { id: 'users-list',           icon: 'fa-users-gear',   label: 'Usuarios existentes' },
@@ -3363,19 +3501,28 @@ function ensureSingleCalendarProfessional(professionals) {
 }
 
 const PROF_COLORS = [
-    { bg: '#14b8a6', text: '#fff' },
-    { bg: '#8b5cf6', text: '#fff' },
-    { bg: '#f97316', text: '#fff' },
-    { bg: '#3b82f6', text: '#fff' },
-    { bg: '#eab308', text: '#fff' },
-    { bg: '#ec4899', text: '#fff' },
-    { bg: '#10b981', text: '#fff' },
+    { bg: '#14b8a6', text: '#ffffff' },
+    { bg: '#8b5cf6', text: '#ffffff' },
+    { bg: '#f97316', text: '#ffffff' },
+    { bg: '#3b82f6', text: '#ffffff' },
+    { bg: '#eab308', text: '#111827' },
+    { bg: '#ec4899', text: '#ffffff' },
+    { bg: '#10b981', text: '#ffffff' },
 ];
 
 function getProfColor(profId) {
     const profs = DB.get('professionals');
+    const clinicSettings = getClinicSettings();
+    const customColorMap = clinicSettings.professionalColors || {};
     const idx = profs.findIndex(p => p.id === profId);
-    return PROF_COLORS[idx % PROF_COLORS.length] || { bg: '#6b7280', text: '#fff' };
+    const prof = profs[idx];
+    const fallbackPaletteColor = PROF_COLORS[(idx >= 0 ? idx : 0) % PROF_COLORS.length] || { bg: '#6b7280', text: '#ffffff' };
+    const customColor = customColorMap[String(profId)];
+    const bg = normalizeHexColor(customColor || prof?.color || fallbackPaletteColor.bg, fallbackPaletteColor.bg);
+    return {
+        bg,
+        text: getContrastingTextColor(bg)
+    };
 }
 
 function getAppointmentVisual(apt) {
@@ -3496,6 +3643,10 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
         parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
         canEdit
     );
+    const selectedProfessionalId = getSelectedCalendarProfessionalId(professionals);
+    const selectedProfessionalColor = selectedProfessionalId
+        ? getProfColor(selectedProfessionalId)
+        : { bg: '#64748b', text: '#ffffff' };
 
     let sectionsHtml = '';
 
@@ -3528,11 +3679,14 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
             const dayApts = allApts
                 .filter(apt => apt.date === iso && calendarState.visibleProfs[apt.professionalId])
                 .sort((a, b) => a.time.localeCompare(b.time));
+            const countLabel = formatAppointmentCountLabel(dayApts.length);
             return `
                 <section class="cal-mobile-section">
                     <header class="cal-mobile-section-header">${day.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</header>
                     <div class="cal-mobile-list">
-                        ${dayApts.length ? dayApts.map(renderAppointmentCompactCard).join('') : '<div class="cal-mobile-empty">Sin turnos.</div>'}
+                        ${dayApts.length
+                            ? `<div class="cal-mobile-empty" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border:1px solid ${selectedProfessionalColor.bg}; font-weight:700;">${countLabel}.</div>`
+                            : '<div class="cal-mobile-empty">Sin turnos.</div>'}
                     </div>
                 </section>
             `;
@@ -3558,7 +3712,9 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
             ? Object.entries(grouped).map(([dateStr, items]) => `
                 <section class="cal-mobile-section">
                     <header class="cal-mobile-section-header">${parseLocalIsoDate(dateStr).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</header>
-                    <div class="cal-mobile-list">${items.map(renderAppointmentCompactCard).join('')}</div>
+                    <div class="cal-mobile-list">
+                        <div class="cal-mobile-empty" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border:1px solid ${selectedProfessionalColor.bg}; font-weight:700;">${formatAppointmentCountLabel(items.length)}.</div>
+                    </div>
                 </section>
             `).join('')
             : '<div class="cal-mobile-empty cal-mobile-empty-root">No hay turnos para este mes.</div>';
@@ -3940,21 +4096,28 @@ function renderBilling() {
     const filteredTxs = selectedPatientId ? txs.filter((entry) => entry.patientId === selectedPatientId) : txs;
     const metricsSourceTxs = selectedPatientId ? filteredTxs : txs;
     const todaysTxs = metricsSourceTxs.filter((t) => coerceAppointmentDate(t.date) === today);
-    const selectedPatientTransactionsByProfessional = selectedPatientId
-        ? selectedAccount.byProfessional.map((item) => {
-            const movements = filteredTxs
-                .filter((entry) => entry.professionalId === item.professionalId)
-                .sort((a, b) => {
-                    const dateCompare = coerceAppointmentDate(b.date).localeCompare(coerceAppointmentDate(a.date));
-                    return dateCompare || (b.id - a.id);
-                });
-            return {
-                ...item,
-                movementCount: movements.length,
-                lastMovementDate: movements[0]?.date || null,
-                movements
-            };
-        })
+    const selectedPatientDetailedMovements = selectedPatientId
+        ? (() => {
+            const chronological = [...filteredTxs].sort((a, b) => {
+                const dateCompare = coerceAppointmentDate(a.date).localeCompare(coerceAppointmentDate(b.date));
+                return dateCompare || (a.id - b.id);
+            });
+            const runningBalanceByProfessional = new Map();
+            const enriched = chronological.map((entry) => {
+                const previousBalance = runningBalanceByProfessional.get(entry.professionalId) || 0;
+                const delta = entry.type === 'debt' ? entry.amount : -entry.amount;
+                const nextBalance = previousBalance + delta;
+                runningBalanceByProfessional.set(entry.professionalId, nextBalance);
+                return {
+                    ...entry,
+                    runningBalance: nextBalance
+                };
+            });
+            return enriched.sort((a, b) => {
+                const dateCompare = coerceAppointmentDate(b.date).localeCompare(coerceAppointmentDate(a.date));
+                return dateCompare || (b.id - a.id);
+            });
+        })()
         : [];
     
     const ingresos = todaysTxs.filter(t => ['income', 'payment'].includes(t.type)).reduce((sum,t)=>sum+t.amount,0);
@@ -3975,30 +4138,6 @@ function renderBilling() {
             <div class="mt-4 text-sm text-gray-500">
                 La cuenta corriente se muestra separada por profesional. Un mismo paciente puede deber, estar al día o tener saldo a favor según cada profesional.
             </div>
-            <div class="billing-patient-professional-details mt-4">
-                ${selectedPatientTransactionsByProfessional.map((item) => `
-                    <article class="billing-patient-professional-card">
-                        <div class="billing-patient-professional-card-top">
-                            <div>
-                                <h4>${item.professionalName}</h4>
-                                <p>${item.movementCount} movimiento${item.movementCount === 1 ? '' : 's'}${item.lastMovementDate ? ` · Último registro ${item.lastMovementDate}` : ''}</p>
-                            </div>
-                            <div>
-                                ${item.balance > 0
-                                    ? `<span class="badge badge-warning text-xs">Debe $${item.balance.toLocaleString()}</span>`
-                                    : item.balance < 0
-                                        ? `<span class="badge badge-success text-xs">A favor $${Math.abs(item.balance).toLocaleString()}</span>`
-                                        : `<span class="badge badge-gray text-xs">Al día</span>`}
-                            </div>
-                        </div>
-                        <div class="billing-patient-professional-metrics">
-                            <div><span>Cargos</span><strong>$${item.deuda.toLocaleString()}</strong></div>
-                            <div><span>Pagos / Ingresos</span><strong>$${item.pagado.toLocaleString()}</strong></div>
-                            <div><span>Saldo actual</span><strong>${item.balance > 0 ? `-$${item.balance.toLocaleString()}` : item.balance < 0 ? `+$${Math.abs(item.balance).toLocaleString()}` : '$0'}</strong></div>
-                        </div>
-                    </article>
-                `).join('')}
-            </div>
             <div class="table-container shadow-sm border border-gray-100 mt-4">
                 <table class="w-full text-left bg-white">
                     <thead class="bg-gray-50 text-gray-600"><tr><th>Profesional</th><th>Cargos</th><th>Pagos</th><th>Saldo</th></tr></thead>
@@ -4018,6 +4157,67 @@ function renderBilling() {
                         ${selectedAccount.byProfessional.length === 0 ? '<tr><td colspan="4" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos en cuenta corriente.</td></tr>' : ''}
                     </tbody>
                 </table>
+            </div>
+            <div class="card mt-4">
+                <div class="section-headline">
+                    <div>
+                        <span class="section-eyebrow">Detalle completo</span>
+                        <h3 class="section-title section-title-sm">Movimientos de cuenta corriente</h3>
+                        <p class="section-subtitle">Registro movimiento por movimiento con saldo acumulado por profesional.</p>
+                    </div>
+                </div>
+                <div class="table-container shadow-sm border border-gray-100 mt-4">
+                    <table class="w-full text-left bg-white">
+                        <thead class="bg-gray-50 text-gray-600">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Profesional</th>
+                                <th>Tipo</th>
+                                <th>Concepto</th>
+                                <th>Detalle</th>
+                                <th>Cargo</th>
+                                <th>Pago / Ingreso</th>
+                                <th>Saldo profesional</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${selectedPatientDetailedMovements.map((movement) => {
+                                const professionalName = professionals.find((p) => p.id === movement.professionalId)?.name || 'Sin profesional';
+                                const isPositiveMovement = ['income', 'payment'].includes(movement.type);
+                                const typeLabel = movement.type === 'debt'
+                                    ? 'Cargo / Deuda'
+                                    : movement.type === 'payment'
+                                        ? 'Pago'
+                                        : 'Ingreso';
+                                const detailLabel = movement.type === 'debt'
+                                    ? 'Cargo generado a la cuenta corriente'
+                                    : movement.type === 'payment'
+                                        ? 'Pago imputado a la deuda del paciente'
+                                        : 'Ingreso acreditado a favor del profesional';
+                                const movementDate = coerceAppointmentDate(movement.date);
+                                return `
+                                    <tr>
+                                        <td class="text-sm text-gray-500">${movementDate}</td>
+                                        <td class="font-medium">${professionalName}</td>
+                                        <td><span class="badge ${isPositiveMovement ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
+                                        <td class="text-gray-700">${movement.description || 'Sin descripción'}</td>
+                                        <td class="text-sm text-gray-500">${detailLabel}</td>
+                                        <td class="font-semibold text-warning">${movement.type === 'debt' ? `$${movement.amount.toLocaleString()}` : '-'}</td>
+                                        <td class="font-semibold text-success">${isPositiveMovement ? `$${movement.amount.toLocaleString()}` : '-'}</td>
+                                        <td>
+                                            ${movement.runningBalance > 0
+                                                ? `<span class="badge badge-warning text-xs">Debe $${movement.runningBalance.toLocaleString()}</span>`
+                                                : movement.runningBalance < 0
+                                                    ? `<span class="badge badge-success text-xs">A favor $${Math.abs(movement.runningBalance).toLocaleString()}</span>`
+                                                    : `<span class="badge badge-gray text-xs">Al día</span>`}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                            ${selectedPatientDetailedMovements.length === 0 ? '<tr><td colspan="8" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos registrados.</td></tr>' : ''}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     ` : '';
@@ -4248,6 +4448,8 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
 function renderSettingsSubpages() {
     const users = DB.get('users');
     const profs = DB.get('professionals');
+    const clinicSettings = getClinicSettings();
+    const clinicName = String(clinicSettings.name || DEFAULT_CLINIC_SETTINGS.name);
     const isSuper = state.user.roles.includes('superadmin');
     const canManageSettings = state.user.roles.some(role => ['superadmin', 'admin'].includes(role));
 
@@ -4295,7 +4497,22 @@ function renderSettingsSubpages() {
             </tr>`;
     }).join('');
 
+    const professionalColorRows = profs.length
+        ? profs.map((professional, idx) => {
+            const fallback = PROF_COLORS[idx % PROF_COLORS.length]?.bg || '#6366f1';
+            const savedColor = clinicSettings.professionalColors?.[String(professional.id)];
+            const currentColor = normalizeHexColor(savedColor || professional.color || fallback, fallback);
+            return `
+                <div class="checkbox-group" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                    <label>${professional.name}</label>
+                    <input type="color" name="clinic-prof-color" data-prof-id="${professional.id}" value="${currentColor}" style="width:3.25rem; min-width:3.25rem; height:2rem; padding:0.12rem; border-radius:0.55rem; cursor:pointer;">
+                </div>
+            `;
+        }).join('')
+        : '<p class="subtext">No hay profesionales cargados todavía.</p>';
+
     const settingsSections = [
+        { id: 'clinic-settings', label: 'Configuración clínica', icon: 'fa-hospital', description: 'Nombre comercial e identidad visual de profesionales.' },
         ...(canManageSettings ? [{ id: 'create-user', label: 'Crear usuario', icon: 'fa-user-plus', description: 'Alta de nuevos usuarios y permisos.' }] : []),
         { id: 'create-professional', label: 'Crear profesional', icon: 'fa-user-doctor', description: 'Registro de profesionales y datos base.' },
         ...(canManageSettings ? [{ id: 'users-list', label: 'Usuarios existentes', icon: 'fa-users-gear', description: 'Listado de usuarios y accesos asignados.' }] : []),
@@ -4308,6 +4525,32 @@ function renderSettingsSubpages() {
     state.settingsSubView = activeSection;
 
     const settingsContent = {
+        'clinic-settings': `
+            <section class="settings-card settings-panel-card">
+                <header>
+                    <div>
+                        <h3>Configuración de la Clínica</h3>
+                        <p class="subtext">"Odentara" queda fijo. Aquí personalizas el subtítulo (debajo del logo) y los colores de cada profesional en agenda y vistas de turnos.</p>
+                    </div>
+                </header>
+                <form id="clinic-settings-form" class="settings-form-row columns-1">
+                    <div class="input-group">
+                        <label>Subtítulo de la clínica (debajo de Odentara) *</label>
+                        <input type="text" id="clinic-name" value="${clinicName}" required>
+                    </div>
+
+                    <div class="settings-subsection">
+                        <h4>Color por profesional</h4>
+                        <p class="subtext">Estos colores se usan en chips, agenda diaria y referencias de turnos.</p>
+                        <div class="settings-list settings-list-static">
+                            ${professionalColorRows}
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Guardar Configuración</button>
+                </form>
+            </section>
+        `,
         'create-user': canManageSettings ? `
             <section class="settings-card settings-panel-card">
                 <header>

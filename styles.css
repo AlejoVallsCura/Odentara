@@ -2732,12 +2732,12 @@ tr:hover td {
 
     #app-view aside {
         position: fixed !important;
-        top: calc(4.5rem + env(safe-area-inset-top, 0px));
+        top: 0;
         left: 0;
         bottom: 0;
         width: min(86vw, 320px) !important;
         min-width: min(86vw, 320px) !important;
-        height: calc(100dvh - 4.5rem - env(safe-area-inset-top, 0px)) !important;
+        height: 100dvh !important;
         transform: translateX(-104%);
         transition: transform var(--transition-base);
         z-index: 40;
@@ -8742,11 +8742,25 @@ body.theme-dark .table-container,
 body.theme-dark .clinical-history-card,
 body.theme-dark .clinical-images-shell,
 body.theme-dark .cal-scroll-wrap,
-body.theme-dark .cal-month-board,
-body.theme-dark .cal-legend {
+body.theme-dark .cal-month-board {
     background:#ffffff !important;
     border:1px solid rgba(0,0,0,.07) !important;
     box-shadow:0 4px 6px rgba(0,0,0,.07), 0 28px 56px rgba(0,0,0,.55) !important;
+}
+
+/* En agenda dark, la leyenda de profesionales no debe quedar blanca. */
+body.theme-dark .cal-legend,
+body.theme-dark .cal-legend-horizontal,
+body.theme-dark .cal-legend-compact,
+body.theme-dark .cal-wrapper .cal-legend,
+body.theme-dark .cal-wrapper .cal-legend-horizontal,
+body.theme-dark .cal-wrapper .cal-legend-compact,
+body.theme-dark .cal-wrapper-mobile .cal-legend,
+body.theme-dark .cal-wrapper-mobile .cal-legend-horizontal,
+body.theme-dark .cal-wrapper-mobile .cal-legend-compact {
+    background: linear-gradient(180deg, rgba(19, 28, 49, 0.98) 0%, rgba(12, 19, 34, 0.99) 100%) !important;
+    border: 1px solid rgba(132, 151, 202, 0.24) !important;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.38) !important;
 }
 body.theme-dark .card:hover,
 body.theme-dark .settings-card:hover {
@@ -9265,4 +9279,19 @@ body.theme-dark .cal-wrapper .cal-prof-select .cal-legend-chip {
 body.theme-dark .cal-wrapper .cal-prof-select.is-active .cal-legend-chip {
     opacity: 1;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.16), 0 10px 24px rgba(0, 0, 0, 0.38) !important;
+}
+
+/* ===== Hard Override: Leyenda Profesionales en Dark ===== */
+body.theme-dark .cal-legend,
+body.theme-dark .cal-legend-horizontal,
+body.theme-dark .cal-legend-compact,
+body.theme-dark .calendar-legend,
+body.theme-dark .calendar-filter-legend {
+    background: linear-gradient(180deg, rgba(19, 28, 49, 0.98) 0%, rgba(12, 19, 34, 0.99) 100%) !important;
+    border: 1px solid rgba(132, 151, 202, 0.24) !important;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.38) !important;
+}
+
+body.theme-dark .cal-legend-title {
+    color: #9aa7c7 !important;
 }
