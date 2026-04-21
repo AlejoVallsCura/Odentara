@@ -2552,7 +2552,6 @@ function openAppointmentViewModal(aptId) {
                     <button type="button" class="btn btn-ghost" onclick="closeModal()">Cerrar</button>
                     ${patient && canViewClinicalHistoryUi() ? `<button type="button" class="btn btn-secondary" onclick="closeModal(); loadClinicalHistory(${patient.id})">Historia Clinica</button>` : ''}
                     <button type="button" class="btn btn-secondary" onclick="openAppointmentModal(${aptId})">Editar</button>
-                    <button type="button" class="btn btn-primary">Iniciar Cita</button>
                 </div>
             </div>
         </div>
@@ -3651,7 +3650,7 @@ function renderAppointments() {
                 const visual = getAppointmentVisual(apt);
                 const blockClasses = `cal-apt-block ${apt.isOverbook ? 'cal-apt-overbook' : ''}`;
                 const blockStyle = apt.isOverbook
-                    ? `background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border}; top:${topPx}px; height:${heightPx}px; cursor:pointer;`
+                    ? `background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border}; top:${topPx}px; height:${heightPx}px; cursor:pointer; z-index:20;`
                     : `background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border}; top:${topPx}px; height:${heightPx}px; cursor:pointer;`;
 
                 return `<div class="${blockClasses}" 
@@ -4684,44 +4683,110 @@ function enhanceClinicalPatientEditor(patientId) {
     `;
 }
 
+// ── Odontogram tool state ─────────────────────────────────────
+let odontogramTool = { color: 'rojo', treatment: null };
+
 function drawTeethRow(teethArray, patientOdontograma) {
     if(!patientOdontograma) patientOdontograma = {};
+    const S = '#b0a0a0';   // stroke color
+    const BG = '#f2e8e8';  // face background (light pinkish)
+
     return teethArray.map(id => {
         const toothData = patientOdontograma[id] || {};
-        const isAbsent = toothData.estado === 'ausente';
-        
+        const estado = toothData.estado;
+        const tColor = toothData.color || 'rojo';
+        const xColor = tColor === 'azul' ? '#2563eb' : '#dc2626';
+
+        const getColor = (f) => {
+            if(toothData[f] === 'caries')     return '#ef4444';
+            if(toothData[f] === 'restaurado') return '#2563eb';
+            return BG;
+        };
+
+        const baseFaces = (interactable = true) => {
+            const cls = interactable ? 'class="tooth-face cursor-pointer" pointer-events="all"' : 'pointer-events="none"';
+            const getC = interactable ? getColor : () => BG;
+            return `
+                <polygon points="2,2 98,2 50,50"   ${interactable ? `class="tooth-face cursor-pointer" data-tooth="${id}" data-face="top"` : ''} fill="${getC('top')}"    stroke="${S}" stroke-width="1.5" ${interactable ? 'pointer-events="all"' : 'pointer-events="none"'}/>
+                <polygon points="98,2 98,98 50,50"  ${interactable ? `class="tooth-face cursor-pointer" data-tooth="${id}" data-face="right"` : ''} fill="${getC('right')}"  stroke="${S}" stroke-width="1.5" ${interactable ? 'pointer-events="all"' : 'pointer-events="none"'}/>
+                <polygon points="98,98 2,98 50,50"  ${interactable ? `class="tooth-face cursor-pointer" data-tooth="${id}" data-face="bottom"` : ''} fill="${getC('bottom')}" stroke="${S}" stroke-width="1.5" ${interactable ? 'pointer-events="all"' : 'pointer-events="none"'}/>
+                <polygon points="2,98 2,2 50,50"    ${interactable ? `class="tooth-face cursor-pointer" data-tooth="${id}" data-face="left"` : ''} fill="${getC('left')}"   stroke="${S}" stroke-width="1.5" ${interactable ? 'pointer-events="all"' : 'pointer-events="none"'}/>
+                <circle cx="50" cy="50" r="24" ${interactable ? `class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center"` : ''} fill="${getC('center')}" stroke="${S}" stroke-width="2" ${interactable ? 'pointer-events="all"' : 'pointer-events="none"'}/>
+                <rect x="2" y="2" width="96" height="96" fill="transparent" stroke="${S}" stroke-width="2.5" pointer-events="none"/>
+            `;
+        };
+
         let facesHtml = '';
-        if(isAbsent) {
+        let extraOverlay = '';
+
+        if(estado === 'ausente') {
             facesHtml = `
-                <polygon points="0,0 100,0 75,25 25,25" fill="transparent" stroke="#94a3b8" stroke-width="2"></polygon>
-                <polygon points="100,0 100,100 75,75 75,25" fill="transparent" stroke="#94a3b8" stroke-width="2"></polygon>
-                <polygon points="100,100 0,100 25,75 75,75" fill="transparent" stroke="#94a3b8" stroke-width="2"></polygon>
-                <polygon points="0,100 0,0 25,25 25,75" fill="transparent" stroke="#94a3b8" stroke-width="2"></polygon>
-                <rect x="25" y="25" width="50" height="50" fill="transparent" stroke="#94a3b8" stroke-width="2"></rect>
-                <line x1="14" y1="14" x2="86" y2="86" stroke="#475569" stroke-width="8" stroke-linecap="round"></line>
-                <line x1="86" y1="14" x2="14" y2="86" stroke="#475569" stroke-width="8" stroke-linecap="round"></line>
-                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="transparent" stroke-width="0"></rect>
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(false)}
+                <line x1="12" y1="12" x2="88" y2="88" stroke="${xColor}" stroke-width="10" stroke-linecap="round"/>
+                <line x1="88" y1="12" x2="12" y2="88" stroke="${xColor}" stroke-width="10" stroke-linecap="round"/>
+                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
+            `;
+        } else if(estado === 'implante') {
+            const ic = tColor === 'azul' ? '#1d4ed8' : '#dc2626';
+            facesHtml = `
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(false)}
+                <rect x="36" y="18" width="28" height="64" rx="14" fill="${ic}" stroke="white" stroke-width="2"/>
+                <line x1="50" y1="26" x2="50" y2="74" stroke="white" stroke-width="2.5" stroke-dasharray="4,4"/>
+                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
+            `;
+        } else if(estado === 'corona') {
+            const cc = tColor === 'azul' ? '#2563eb' : '#dc2626';
+            facesHtml = `
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(false)}
+                <rect x="22" y="55" width="56" height="22" rx="4" fill="${cc}" stroke="white" stroke-width="1.5"/>
+                <polygon points="22,55 36,30 50,45 64,30 78,55" fill="${cc}" stroke="white" stroke-width="1.5"/>
+                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
+            `;
+        } else if(estado === 'endodoncia') {
+            const ec = tColor === 'azul' ? '#2563eb' : '#dc2626';
+            facesHtml = `
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(false)}
+                <circle cx="50" cy="50" r="24" fill="${ec}" stroke="${S}" stroke-width="2"/>
+                <line x1="50" y1="26" x2="50" y2="74" stroke="white" stroke-width="3"/>
+                <line x1="38" y1="34" x2="62" y2="34" stroke="white" stroke-width="2.5"/>
+                <line x1="35" y1="50" x2="65" y2="50" stroke="white" stroke-width="2.5"/>
+                <line x1="38" y1="66" x2="62" y2="66" stroke="white" stroke-width="2.5"/>
+                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
+            `;
+        } else if(estado === 'ortodoncia') {
+            const oc = tColor === 'azul' ? '#2563eb' : '#dc2626';
+            facesHtml = `
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(false)}
+                <rect x="30" y="42" width="40" height="16" rx="3" fill="${oc}" stroke="white" stroke-width="1.5"/>
+                <line x1="2" y1="50" x2="98" y2="50" stroke="${oc}" stroke-width="4"/>
+                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
+            `;
+        } else if(estado === 'sello') {
+            const sc = tColor === 'azul' ? '#2563eb' : '#dc2626';
+            facesHtml = `
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(false)}
+                <circle cx="50" cy="50" r="18" fill="${sc}" opacity="0.85" stroke="white" stroke-width="2"/>
+                <circle cx="50" cy="50" r="10" fill="white" opacity="0.5"/>
+                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
             `;
         } else {
-            const getColor = (f) => {
-                if(toothData[f] === 'caries') return '#ef4444';
-                if(toothData[f] === 'restaurado') return '#2563eb';
-                return 'transparent';
-            };
             facesHtml = `
-                <polygon points="0,0 100,0 75,25 25,25" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="top" fill="${getColor('top')}" stroke="#94a3b8" stroke-width="2" pointer-events="all"></polygon>
-                <polygon points="100,0 100,100 75,75 75,25" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="right" fill="${getColor('right')}" stroke="#94a3b8" stroke-width="2"></polygon>
-                <polygon points="100,100 0,100 25,75 75,75" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="bottom" fill="${getColor('bottom')}" stroke="#94a3b8" stroke-width="2"></polygon>
-                <polygon points="0,100 0,0 25,25 25,75" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="left" fill="${getColor('left')}" stroke="#94a3b8" stroke-width="2"></polygon>
-                <rect x="25" y="25" width="50" height="50" class="tooth-face cursor-pointer hover:opacity-80 transition-opacity" data-tooth="${id}" data-face="center" fill="${getColor('center')}" stroke="#94a3b8" stroke-width="2"></rect>
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(true)}
             `;
         }
 
         return `
         <div class="flex flex-col items-center tooth-box" data-tooth="${id}">
-            <span class="text-[8px] md:text-[10px] font-bold text-gray-700 w-full text-center">${id}</span>
-            <div class="relative w-8 h-8 md:w-10 md:h-10">
-                <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-sm" style="stroke-width:2.5;">
+            <span class="text-[9px] md:text-[11px] font-bold text-gray-600 w-full text-center leading-tight">${id}</span>
+            <div class="relative" style="width:48px;height:48px;">
+                <svg viewBox="0 0 100 100" class="w-full h-full" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.12));">
                     ${facesHtml}
                 </svg>
             </div>
@@ -4781,15 +4846,8 @@ function renderClinicalHistory(patientId) {
             <div class="mb-10 clinical-odontogram-block">
                 <div class="odontogram-header mb-4 clinical-odontogram-section">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma Inicial</h3>
-                    <div class="odontogram-legend text-xs">
-                        <span class="badge-state badge-sano">Sano</span>
-                        <span class="badge-state badge-caries">Caries</span>
-                        <span class="badge-state badge-restauracion">Restauración</span>
-                        <span class="badge-state badge-ausente">Ausente</span>
-                    </div>
                 </div>
                 
-                <p class="text-xs text-gray-500 mb-2 text-center w-full print-hidden">Haz clic en cada cara del diente para ciclar estado: 1 clic caries, 2 clics restauraciÃ³n, 3 clics ausente, 4 clics sano.</p>
                 <div class="odontogram-wrapper overflow-x-auto pb-4">
                     <div class="flex flex-col items-center gap-5 min-w-max">
                         <div class="w-full flex flex-col items-center gap-3">
@@ -4819,6 +4877,49 @@ function renderClinicalHistory(patientId) {
                         </div>
                     </div>
                 </div>
+                ${canEditClinical ? `
+                <div class="odontogram-toolbar print-hidden" id="odontogram-toolbar">
+                    <div class="odonto-color-group">
+                        <button class="odonto-color-btn odonto-rojo is-active" data-color="rojo" title="Rojo – Caries / Problema">
+                            <svg viewBox="0 0 32 32" width="22" height="22"><circle cx="16" cy="16" r="12" fill="#ef4444"/><circle cx="16" cy="16" r="7" fill="white" opacity=".4"/></svg>
+                        </button>
+                        <button class="odonto-color-btn odonto-azul" data-color="azul" title="Azul – Restaurado / Tratado">
+                            <svg viewBox="0 0 32 32" width="22" height="10"><rect x="2" y="10" width="28" height="12" rx="2" fill="#2563eb"/></svg>
+                        </button>
+                    </div>
+                    <div class="odonto-treat-group">
+                        <button class="odonto-treat-btn is-active" data-treatment="" title="Libre – aplica a la cara tocada">
+                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.07)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.07)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.07)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.07)" stroke="#b0a0a0" stroke-width="1"/><circle cx="16" cy="16" r="8" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5"/></svg>
+                        </button>
+                        <button class="odonto-treat-btn" data-treatment="ausente" title="Extracción / Ausente">
+                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><circle cx="16" cy="16" r="8" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="5" stroke-linecap="round"/><line x1="26" y1="6" x2="6" y2="26" stroke="#dc2626" stroke-width="5" stroke-linecap="round"/></svg>
+                        </button>
+                        <button class="odonto-treat-btn" data-treatment="endodoncia" title="Endodoncia / Tratamiento de conducto">
+                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><circle cx="16" cy="16" r="8" fill="#f59e0b" stroke="#b0a0a0" stroke-width="1"/><line x1="16" y1="8" x2="16" y2="24" stroke="white" stroke-width="2"/><line x1="12" y1="12" x2="20" y2="12" stroke="white" stroke-width="1.5"/><line x1="11" y1="16" x2="21" y2="16" stroke="white" stroke-width="1.5"/><line x1="12" y1="20" x2="20" y2="20" stroke="white" stroke-width="1.5"/></svg>
+                        </button>
+                        <button class="odonto-treat-btn" data-treatment="implante" title="Implante">
+                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><rect x="11" y="6" width="10" height="20" rx="5" fill="#1d4ed8" stroke="white" stroke-width="1.5"/><line x1="16" y1="9" x2="16" y2="23" stroke="white" stroke-width="1.5" stroke-dasharray="2,2"/></svg>
+                        </button>
+                        <button class="odonto-treat-btn" data-treatment="corona" title="Corona">
+                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><rect x="8" y="18" width="16" height="8" rx="2" fill="#7c3aed" stroke="white" stroke-width="1.2"/><polygon points="8,18 12,9 16,14 20,9 24,18" fill="#7c3aed" stroke="white" stroke-width="1.2"/></svg>
+                        </button>
+                        <button class="odonto-treat-btn" data-treatment="ortodoncia" title="Ortodoncia / Brackets">
+                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><rect x="10" y="13" width="12" height="6" rx="1.5" fill="#2563eb" stroke="white" stroke-width="1"/><line x1="1" y1="16" x2="31" y2="16" stroke="#2563eb" stroke-width="3"/></svg>
+                        </button>
+                        <button class="odonto-treat-btn" data-treatment="sello" title="Sellante / Fluoruro">
+                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><circle cx="16" cy="16" r="8" fill="#10b981" opacity=".85" stroke="white" stroke-width="1.5"/><circle cx="16" cy="16" r="4" fill="white" opacity=".5"/></svg>
+                        </button>
+                    </div>
+                    <div class="odonto-action-group">
+                        <button class="odonto-apply-btn" onclick="window.saveClinicalHistory(${patientId})">
+                            <i class="fa-solid fa-tooth"></i> APLICAR
+                        </button>
+                        <button class="odonto-clear-btn" onclick="window.clearOdontogramTooth(${patientId})" id="btn-odonto-clear">
+                            <i class="fa-solid fa-eraser"></i> LIMPIAR
+                        </button>
+                    </div>
+                </div>
+                ` : ''}
             </div>
 
             <!-- TRATAMIENTOS -->
@@ -4933,46 +5034,60 @@ window.printClinicalHistory = function() {
 function bindClinicalToothEvents(patientId) {
     document.querySelectorAll('.tooth-face').forEach(face => {
         face.addEventListener('click', (e) => {
+            e.stopPropagation();
             const tooth = e.target.dataset.tooth;
             const faceName = e.target.dataset.face;
+            if (!tooth) return;
+
             const draft = getClinicalDraft(patientId);
             if (!draft) return;
-            if(!draft.data.odontograma) draft.data.odontograma = {};
-            if(!draft.data.odontograma[tooth]) draft.data.odontograma[tooth] = {};
+            if (!draft.data.odontograma) draft.data.odontograma = {};
+            if (!draft.data.odontograma[tooth]) draft.data.odontograma[tooth] = {};
 
             const toothState = draft.data.odontograma[tooth];
-            const current = toothState.estado === 'ausente' ? 'ausente' : (toothState[faceName] || 'sano');
-            let next = 'sano';
+            const { color, treatment } = odontogramTool;
 
-            if(current === 'sano') next = 'caries';
-            else if(current === 'caries') next = 'restaurado';
-            else if(current === 'restaurado') next = 'ausente';
-            else if(current === 'ausente') next = 'sano';
+            // LIMPIAR mode
+            if (odontogramTool.clearing) {
+                delete draft.data.odontograma[tooth];
+                odontogramTool.clearing = false;
+                document.getElementById('btn-odonto-clear')?.classList.remove('is-clearing');
+                draft.isDirty = true;
+                renderClinicalOdontogram(patientId);
+                syncClinicalHistorySaveState();
+                return;
+            }
 
-            if (next === 'ausente') {
-                draft.data.odontograma[tooth] = { estado: 'ausente' };
-            } else {
-                if (toothState.estado === 'ausente') {
-                    delete toothState.estado;
-                    delete toothState.top;
-                    delete toothState.right;
-                    delete toothState.bottom;
-                    delete toothState.left;
-                    delete toothState.center;
+            const colorValue = color === 'rojo' ? 'caries' : 'restaurado';
+
+            if (treatment === 'ausente') {
+                // Toggle ausente
+                if (toothState.estado === 'ausente' && toothState.color === color) {
+                    delete draft.data.odontograma[tooth];
+                } else {
+                    draft.data.odontograma[tooth] = { estado: 'ausente', color };
                 }
-
-                if (next === 'sano') {
+            } else if (treatment && treatment !== '') {
+                // Apply treatment to whole tooth
+                if (toothState.estado === treatment && toothState.color === color) {
+                    delete draft.data.odontograma[tooth];
+                } else {
+                    draft.data.odontograma[tooth] = { estado: treatment, color };
+                }
+            } else {
+                // Libre: apply color to specific face
+                if (toothState.estado) {
+                    delete toothState.estado;
+                    delete toothState.color;
+                }
+                if (toothState[faceName] === colorValue) {
                     delete toothState[faceName];
                 } else {
-                    toothState[faceName] = next;
+                    toothState[faceName] = colorValue;
                 }
-
-                const activeFaces = ['top', 'right', 'bottom', 'left', 'center'].filter((key) => toothState[key]);
-                if (!activeFaces.length) {
-                    delete toothState.estado;
-                    if (Object.keys(toothState).length === 0) {
-                        delete draft.data.odontograma[tooth];
-                    }
+                const active = ['top','right','bottom','left','center'].filter(k => toothState[k]);
+                if (!active.length && !Object.keys(toothState).length) {
+                    delete draft.data.odontograma[tooth];
                 }
             }
 
@@ -4982,6 +5097,38 @@ function bindClinicalToothEvents(patientId) {
         });
     });
 }
+
+function attachOdontogramToolbar(patientId) {
+    const toolbar = document.getElementById('odontogram-toolbar');
+    if (!toolbar) return;
+
+    toolbar.querySelectorAll('.odonto-color-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            toolbar.querySelectorAll('.odonto-color-btn').forEach(b => b.classList.remove('is-active'));
+            btn.classList.add('is-active');
+            odontogramTool.color = btn.dataset.color;
+        });
+    });
+
+    toolbar.querySelectorAll('.odonto-treat-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const already = btn.classList.contains('is-active');
+            toolbar.querySelectorAll('.odonto-treat-btn').forEach(b => b.classList.remove('is-active'));
+            if (!already) {
+                btn.classList.add('is-active');
+                odontogramTool.treatment = btn.dataset.treatment;
+            } else {
+                odontogramTool.treatment = null;
+            }
+        });
+    });
+}
+
+window.clearOdontogramTooth = function(patientId) {
+    odontogramTool.clearing = !odontogramTool.clearing;
+    const btn = document.getElementById('btn-odonto-clear');
+    btn?.classList.toggle('is-clearing', odontogramTool.clearing);
+};
 
 function attachClinicalHistoryEvents(patientId) {
     if(!canEditClinicalHistoryUi()) return; // Read Only for clinical charting
@@ -5006,6 +5153,7 @@ function attachClinicalHistoryEvents(patientId) {
     bindDraftInput('#p-general-notes', 'notes');
 
     bindClinicalToothEvents(patientId);
+    attachOdontogramToolbar(patientId);
 
     document.getElementById('btn-add-treatment')?.addEventListener('click', () => {
         openTreatmentModal(patientId);
