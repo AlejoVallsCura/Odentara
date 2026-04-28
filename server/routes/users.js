@@ -206,6 +206,101 @@ router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (re
   }
 });
 
+router.put("/:id", requireAuth, requireAnyRole(["superadmin", "admin"]), async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    if (!Number.isInteger(userId)) {
+      return res.status(400).json({ ok: false, error: "Usuario inválido." });
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      include: { roles: true, professionalScopes: true },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({ ok: false, error: "Usuario no encontrado." });
+    }
+
+    const fullName = String(req.body?.fullName || req.body?.name || "").trim();
+    const email    = normalizeEmail(req.body?.email || "");
+    const password = String(req.body?.password || "");
+    const requestedRoles = normalizeRequestedRoles(req.body?.roles || []);
+    const allowedProfessionalIds = Array.isArray(req.body?.allowedProfessionalIds)
+      ? req.body.allowedProfessionalIds.map(Number).filter(Number.isInteger)
+      : [];
+
+    if (!fullName || !email) {
+      return res.status(400).json({ ok: false, error: "Nombre y email son obligatorios." });
+    }
+    if (requestedRoles.length === 0) {
+      return res.status(400).json({ ok: false, error: "Selecciona al menos un rol." });
+    }
+    if (!req.permissions?.isSuperadmin && requestedRoles.includes("superadmin")) {
+      return res.status(403).json({ ok: false, error: "Solo un superadmin puede asignar el rol superadmin." });
+    }
+    if (password && password.length < 6) {
+      return res.status(400).json({ ok: false, error: "La contraseña debe tener al menos 6 caracteres." });
+    }
+
+    // Verificar email duplicado (excluyendo al mismo usuario)
+    const emailConflict = await prisma.user.findFirst({
+      where: { email, deletedAt: null, NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (emailConflict) {
+      return res.status(409).json({ ok: false, error: "Ya existe otro usuario con ese email." });
+    }
+
+    const roles = await prisma.role.findMany({ where: { code: { in: requestedRoles } } });
+    if (roles.length !== requestedRoles.length) {
+      return res.status(400).json({ ok: false, error: "Roles inválidos." });
+    }
+
+    const updateData = { fullName, email };
+    if (password) {
+      updateData.passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...updateData,
+        roles: {
+          deleteMany: {},
+          create: roles.map((role) => ({ roleId: role.id })),
+        },
+        professionalScopes: {
+          deleteMany: {},
+          ...(allowedProfessionalIds.length > 0
+            ? { create: allowedProfessionalIds.map((professionalId) => ({ professionalId })) }
+            : {}),
+        },
+      },
+      include: {
+        roles: { include: { role: true } },
+        professionalScopes: { include: { professional: true } },
+        assignedProfessional: true,
+      },
+    });
+
+    return res.json({
+      ok: true,
+      user: {
+        ...serializeUser(updatedUser),
+        permissions: buildPermissionSummary(updatedUser),
+        allowedProfessionals: updatedUser.professionalScopes.map((s) => ({
+          id: s.professional.id,
+          fullName: s.professional.fullName,
+        })),
+      },
+      message: "Usuario actualizado correctamente.",
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: "No se pudo actualizar el usuario." });
+  }
+});
+
 router.delete("/:id", requireAuth, requireAnyRole(["superadmin"]), async (req, res) => {
   try {
     const userId = Number(req.params.id);

@@ -288,8 +288,10 @@ router.put("/:id", requireAuth, async (req, res) => {
       ? (req.body.color ? String(req.body.color).trim() : null)
       : existing.color;
     const active = canEditCoreData && req.body.active !== undefined ? Boolean(req.body.active) : existing.active;
-    const schedules = normalizeSchedules(req.body.schedules || []);
-    const exceptions = normalizeExceptions(req.body.exceptions || []);
+    const hasSchedules  = Array.isArray(req.body.schedules);
+    const hasExceptions = Array.isArray(req.body.exceptions);
+    const schedules  = hasSchedules  ? normalizeSchedules(req.body.schedules)  : [];
+    const exceptions = hasExceptions ? normalizeExceptions(req.body.exceptions) : [];
 
     if (!fullName) {
       return res.status(400).json({ ok: false, error: "El nombre del profesional es obligatorio." });
@@ -314,14 +316,12 @@ router.put("/:id", requireAuth, async (req, res) => {
         color,
         active,
         deletedAt: null,
-        schedules: {
-          deleteMany: {},
-          create: schedules,
-        },
-        scheduleExceptions: {
-          deleteMany: {},
-          create: exceptions,
-        },
+        ...(hasSchedules ? {
+          schedules: { deleteMany: {}, create: schedules },
+        } : {}),
+        ...(hasExceptions ? {
+          scheduleExceptions: { deleteMany: {}, create: exceptions },
+        } : {}),
       },
       include: {
         user: {

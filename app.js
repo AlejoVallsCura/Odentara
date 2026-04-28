@@ -1,12 +1,15 @@
 ﻿// --- Navigation & State ---
 const state = {
-    user: null, 
+    user: null,
     authToken: null,
     currentView: 'dashboard',
     sidebarOpen: true,
     settingsSubView: 'clinic-settings',
+    editingUserId: null,
+    editingProfId: null,
     billingSubView: 'movements',
     billingPatientId: null,
+    cajaPeriod: '7d',
     dashboardDate: null,
     clinicalDraft: null,
     loadingCount: 0,
@@ -232,6 +235,16 @@ function repairMojibakeString(value) {
         .replace(/^\?/, '¿')
         .replace(/\s+\?/g, '?');
     return repaired;
+}
+
+function escapeHtml(value) {
+    return repairMojibakeString(String(value ?? '')).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
 }
 
 function repairDomText(root = document.body) {
@@ -921,6 +934,7 @@ function clearAuthSession() {
     state.authToken = null;
     state.user = null;
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    stopDashboardAutoRefresh();
 }
 
 async function apiFetch(path, options = {}) {
@@ -1017,7 +1031,7 @@ function focusField(field) {
     }
 }
 
-function validatePatientForm(form, editId = null) {
+async function validatePatientForm(form, editId = null) {
     clearFormValidation(form);
 
     const fieldMap = {
@@ -1073,15 +1087,23 @@ function validatePatientForm(form, editId = null) {
         return fail('email', 'El email no tiene un formato válido.', 'Revisa el campo Email.');
     }
 
-    const duplicatedByName = DB.get('patients').find((patient) =>
-        normalizePatientName(patient.name) === normalizedName && patient.id !== editId
+    let allPatients = [];
+    try {
+        const patientsRes = await apiFetch('/patients');
+        allPatients = patientsRes.patients || [];
+    } catch (_e) {
+        // Si falla la carga, dejamos pasar — el backend validará duplicados al guardar
+    }
+
+    const duplicatedByName = allPatients.find((patient) =>
+        normalizePatientName(patient.fullName) === normalizedName && patient.id !== editId
     );
 
     if (duplicatedByName) {
         return fail('name', 'Ya existe un paciente cargado con ese nombre.', 'Ya existe un paciente cargado con ese nombre.');
     }
 
-    const duplicatedByDni = DB.get('patients').find((patient) =>
+    const duplicatedByDni = allPatients.find((patient) =>
         normalizeDni(patient.dni) === normalizedDni && patient.id !== editId
     );
 
@@ -1165,6 +1187,25 @@ async function deleteViaApiOrLocal({ path, localTable, localId, fallbackAction, 
     }
 }
 
+let _dashboardRefreshTimer = null;
+
+function startDashboardAutoRefresh() {
+    if (_dashboardRefreshTimer) clearInterval(_dashboardRefreshTimer);
+    _dashboardRefreshTimer = setInterval(async () => {
+        if (!state.user || !state.authToken) return;
+        try {
+            await syncBackendSnapshotToLocalDb();
+            if (state.currentView === 'dashboard') {
+                refreshCurrentView();
+            }
+        } catch (_) { /* silencioso */ }
+    }, 30_000); // cada 30 segundos
+}
+
+function stopDashboardAutoRefresh() {
+    if (_dashboardRefreshTimer) { clearInterval(_dashboardRefreshTimer); _dashboardRefreshTimer = null; }
+}
+
 function applyAuthenticatedUiState() {
     if (!state.user) return;
     state.dashboardDate = getTodayIsoLocal();
@@ -1181,7 +1222,9 @@ function applyAuthenticatedUiState() {
     views.login.classList.add('hidden');
     views.app.classList.remove('hidden');
     views.app.classList.add('active');
-    loadView('dashboard');
+    // skipSync: true porque tryRestoreSession/login ya hizo syncBackendSnapshotToLocalDb justo antes
+    loadView('dashboard', 'Dashboard', { skipSync: true });
+    startDashboardAutoRefresh();
 }
 
 function mapApiProfessionalToLegacy(professional = {}) {
@@ -1197,7 +1240,6 @@ function mapApiProfessionalToLegacy(professional = {}) {
     return {
         id: professional.id,
         name: professional.fullName,
-        firstName: professional.fullName,
         specialty: professional.specialty || '',
         email: professional.email || '',
         phone: professional.phone || '',
@@ -1469,8 +1511,9 @@ function syncClinicalHistorySaveState() {
 }
 
 async function syncPatientClinicalData(patientId) {
-    const patient = DB.get('patients').find((item) => item.id === patientId);
-    if (!state.authToken) return patient;
+    if (!state.authToken) {
+        return DB.get('patients').find((item) => item.id === patientId) || null;
+    }
 
     const [patientRes, treatmentsRes, imagesRes, clinicalRecordRes] = await Promise.all([
         apiFetch(`/patients/${patientId}`),
@@ -1482,7 +1525,6 @@ async function syncPatientClinicalData(patientId) {
     const mappedPatient = mapApiPatientToLegacy(patientRes.patient || {});
     const record = clinicalRecordRes.record || patientRes.patient?.clinicalRecord || null;
     const mergedPatient = {
-        ...(patient || {}),
         ...mappedPatient,
         odontograma: clinicalRecordEntriesToLegacyOdontogram(record?.odontogramEntries || []),
         treatments: (treatmentsRes.treatments || []).map(mapApiTreatmentToLegacy),
@@ -1769,6 +1811,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
+        if (e.target.closest('.btn-edit-user')) {
+            const userId = parseInt(e.target.closest('.btn-edit-user').dataset.id);
+            state.editingUserId = userId;
+            state.settingsSubView = 'create-user';
+            refreshCurrentView();
+        }
+        if (e.target.closest('.btn-edit-prof')) {
+            const profId = parseInt(e.target.closest('.btn-edit-prof').dataset.id);
+            state.editingProfId = profId;
+            state.settingsSubView = 'create-professional';
+            refreshCurrentView();
+        }
         if (e.target.closest('#btn-add-patient')) openPatientModal();
         if (e.target.closest('.btn-edit-patient')) openPatientModal(parseInt(e.target.closest('.btn-edit-patient').dataset.id));
         if (e.target.closest('.btn-delete-patient')) {
@@ -1814,8 +1868,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.closest('#btn-clear-patient-billing')) clearPatientBillingFilter();
         if (e.target.closest('.btn-delete-tx')) {
             const txId = parseInt(e.target.closest('.btn-delete-tx').dataset.id);
+            // Buscar en local DB (ya sincronizado al cargar la vista)
             const tx = DB.get('billing').find(item => item.id === txId);
-            if (tx && canAccessProfessional(tx.professionalId) && await showConfirm('¿Eliminar transacción?', { title: 'Eliminar transacción', confirmText: 'Eliminar' })) {
+            const canAccess = tx ? canAccessProfessional(tx.professionalId) : true; // si no está en local, asumir acceso y dejar que la API rechace
+            if (canAccess && await showConfirm('¿Eliminar transacción?', { title: 'Eliminar transacción', confirmText: 'Eliminar' })) {
                 try {
                     await deleteViaApiOrLocal({
                         path: `/billing/${txId}`,
@@ -1904,6 +1960,25 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshCurrentView();
     });
 
+    document.addEventListener('keydown', (event) => {
+        if (!state.clinicalImageViewer) return;
+
+        if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            stepClinicalImageViewer(-1);
+        }
+
+        if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            stepClinicalImageViewer(1);
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeModal();
+        }
+    });
+
     document.addEventListener('input', (e) => {
         if (e.target.id === 'search-patient') {
             const term = e.target.value.toLowerCase();
@@ -1927,6 +2002,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const settingsButton = e.target.closest('[data-settings-view]');
         if (settingsButton) {
             state.settingsSubView = settingsButton.dataset.settingsView;
+            state.editingUserId = null;
+            state.editingProfId = null;
             refreshCurrentView();
         }
     });
@@ -1935,6 +2012,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const billingButton = e.target.closest('[data-billing-view]');
         if (billingButton) {
             state.billingSubView = billingButton.dataset.billingView;
+            refreshCurrentView();
+        }
+        const cajaPeriodBtn = e.target.closest('[data-caja-period]');
+        if (cajaPeriodBtn) {
+            state.cajaPeriod = cajaPeriodBtn.dataset.cajaPeriod;
             refreshCurrentView();
         }
     });
@@ -1975,122 +2057,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (e.target.id === 'new-user-form') {
             e.preventDefault();
-            const name = document.getElementById('u-name').value.trim();
-            const email = document.getElementById('u-email').value.trim();
+            const editingId = parseInt(document.getElementById('u-editing-id')?.value || '', 10);
+            const isEditing = Number.isFinite(editingId) && editingId > 0;
+            const name     = document.getElementById('u-name').value.trim();
+            const email    = document.getElementById('u-email').value.trim();
             const password = document.getElementById('u-password').value;
-            const type = document.getElementById('u-type').value;
+            const type     = document.getElementById('u-type').value;
 
-            if (!name || !email || !password || !type) {
-                alert('Completa nombre, email, contraseña y tipo de usuario.');
+            if (!name || !email || (!isEditing && !password) || !type) {
+                alert(isEditing ? 'Completa nombre, email y tipo de usuario.' : 'Completa nombre, email, contraseña y tipo de usuario.');
                 return;
             }
-
-            if (password.length < 6) {
+            if (password && password.length < 6) {
                 alert('La contraseña debe tener al menos 6 caracteres.');
                 return;
             }
-
             const roleNodes = Array.from(document.querySelectorAll('input[name="u-role"]:checked'));
             const roles = roleNodes.map(r => r.value);
             if (roles.length === 0) {
                 alert('Selecciona al menos un rol de permisos.');
                 return;
             }
-
             const profNodes = Array.from(document.querySelectorAll('input[name="u-profs"]:checked'));
-            const selectedProfessionals = profNodes.length > 0 ? profNodes.map(p => parseInt(p.value)) : [];
+            const selectedProfessionals = profNodes.map(p => parseInt(p.value));
+            const payload = { fullName: name, email, type, roles, allowedProfessionalIds: selectedProfessionals };
+            if (password) payload.password = password;
 
             try {
-                await withAppLoading('Guardando usuario...', async () => {
+                await withAppLoading(isEditing ? 'Actualizando usuario...' : 'Guardando usuario...', async () => {
                     if (state.authToken) {
-                        await apiFetch('/users', {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                fullName: name,
-                                email,
-                                password,
-                                type,
-                                roles,
-                                allowedProfessionalIds: selectedProfessionals
-                            })
+                        await apiFetch(isEditing ? `/users/${editingId}` : '/users', {
+                            method: isEditing ? 'PUT' : 'POST',
+                            body: JSON.stringify(payload)
                         });
                         await syncBackendSnapshotToLocalDb();
+                    } else if (isEditing) {
+                        DB.update('users', editingId, { name, email, ...(password ? { password } : {}), type, roles, allowedProfessionals: selectedProfessionals });
                     } else {
-                        DB.add('users', {
-                            name,
-                            email,
-                            password,
-                            type,
-                            roles,
-                            allowedProfessionals: selectedProfessionals
-                        });
+                        DB.add('users', { name, email, password, type, roles, allowedProfessionals: selectedProfessionals });
                     }
                 });
-
+                state.editingUserId = null;
                 e.target.reset();
-                showToast('Usuario creado correctamente.', { type: 'success' });
+                showToast(isEditing ? 'Usuario actualizado correctamente.' : 'Usuario creado correctamente.', { type: 'success' });
             } catch (error) {
-                alert(error.message || 'No se pudo crear el usuario.');
+                alert(error.message || (isEditing ? 'No se pudo actualizar el usuario.' : 'No se pudo crear el usuario.'));
             }
-
             refreshCurrentView();
         }
 
         if (e.target.id === 'new-prof-form') {
             e.preventDefault();
-            const name = document.getElementById('p-name').value.trim();
-            const lastName = document.getElementById('p-lastname').value.trim();
+            const editingId = parseInt(document.getElementById('p-editing-id')?.value || '', 10);
+            const isEditing = Number.isFinite(editingId) && editingId > 0;
+            const name      = document.getElementById('p-name').value.trim();
+            const lastName  = document.getElementById('p-lastname').value.trim();
             const specialty = document.getElementById('p-specialty').value.trim();
-            const phone = document.getElementById('p-phone').value.trim();
-            const email = document.getElementById('p-email').value.trim();
-            const status = document.getElementById('p-status').value;
+            const phone     = document.getElementById('p-phone').value.trim();
+            const email     = document.getElementById('p-email').value.trim();
+            const status    = document.getElementById('p-status').value;
 
             if (!name || !lastName || !specialty) {
                 alert('Nombre, apellido y especialidad son obligatorios para un profesional.');
                 return;
             }
+            const payload = { fullName: `${name} ${lastName}`.trim(), specialty, phone, email, active: (status || 'activo') === 'activo' };
 
             try {
-                await withAppLoading('Guardando profesional...', async () => {
+                await withAppLoading(isEditing ? 'Actualizando profesional...' : 'Guardando profesional...', async () => {
                     if (state.authToken) {
-                        await apiFetch('/professionals', {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                fullName: `${name} ${lastName}`.trim(),
-                                specialty,
-                                phone,
-                                email,
-                                active: (status || 'activo') === 'activo'
-                            })
+                        await apiFetch(isEditing ? `/professionals/${editingId}` : '/professionals', {
+                            method: isEditing ? 'PUT' : 'POST',
+                            body: JSON.stringify(payload)
                         });
                         await syncBackendSnapshotToLocalDb();
+                    } else if (isEditing) {
+                        DB.update('professionals', editingId, { name: `${name} ${lastName}`, firstName: name, lastName, specialty, phone, email, status: status || 'activo', active: status === 'activo' });
                     } else {
-                        DB.add('professionals', {
-                            name: `${name} ${lastName}`,
-                            firstName: name,
-                            lastName,
-                            specialty,
-                            phone,
-                            email,
-                            status: status || 'activo',
-                            schedule: {
-                                1: {active: true, start: '08:00', end: '16:00'},
-                                2: {active: true, start: '08:00', end: '16:00'},
-                                3: {active: true, start: '08:00', end: '16:00'},
-                                4: {active: true, start: '08:00', end: '16:00'},
-                                5: {active: true, start: '08:00', end: '16:00'},
-                                6: {active: false, start: '', end: ''},
-                                0: {active: false, start: '', end: ''}
-                            }
-                        });
+                        DB.add('professionals', { name: `${name} ${lastName}`, firstName: name, lastName, specialty, phone, email, status: status || 'activo', schedule: { 1:{active:true,start:'08:00',end:'16:00'}, 2:{active:true,start:'08:00',end:'16:00'}, 3:{active:true,start:'08:00',end:'16:00'}, 4:{active:true,start:'08:00',end:'16:00'}, 5:{active:true,start:'08:00',end:'16:00'}, 6:{active:false,start:'',end:''}, 0:{active:false,start:'',end:''} } });
                     }
                 });
-
+                state.editingProfId = null;
                 e.target.reset();
-                refreshCurrentView();
+                showToast(isEditing ? 'Profesional actualizado correctamente.' : 'Profesional creado correctamente.', { type: 'success' });
             } catch (error) {
-                alert(error.message || 'No se pudo crear el profesional.');
+                alert(error.message || (isEditing ? 'No se pudo actualizar el profesional.' : 'No se pudo crear el profesional.'));
             }
+            refreshCurrentView();
         }
     });
 
@@ -2210,7 +2263,8 @@ function renderSidebar() {
 }
 
 function refreshCurrentView() {
-    loadView(state.currentView, getPageTitle(), { skipUnsavedCheck: true });
+    // skipSync: true porque las mutaciones que llaman a refreshCurrentView ya hicieron su propio sync
+    loadView(state.currentView, getPageTitle(), { skipUnsavedCheck: true, skipSync: true });
 }
 
 function formatDashboardDateLabel(dateStr) {
@@ -2233,19 +2287,32 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     setPageTitle(title);
     mainContent.innerHTML = '';
     syncSidebarLayout();
-    
+
+    // Sincronizar datos frescos desde la API antes de renderizar cualquier vista,
+    // excepto cuando el llamador ya hizo un sync (e.g. post-mutación via refreshCurrentView).
+    if (state.authToken && !options.skipSync) {
+        try {
+            await syncBackendSnapshotToLocalDb();
+        } catch (_err) {
+            // Si falla la sincronización, se renderiza con los datos cacheados
+        }
+    }
+
     const content = document.createElement('div');
     content.className = 'animate-fade-in';
-    
+
     if (viewId === 'dashboard') content.innerHTML = renderDashboard();
-    else if (viewId === 'appointments') content.innerHTML = renderAppointments();
+    else if (viewId === 'appointments') {
+        try { content.innerHTML = renderAppointments(); }
+        catch(e) { console.error('[renderAppointments]', e); content.innerHTML = `<div class="card p-6" style="color:var(--danger)"><b>Error al renderizar turnos:</b> ${e.message}</div>`; }
+    }
     else if (viewId === 'professionals') content.innerHTML = renderProfessionals();
     else if (viewId === 'patients') content.innerHTML = renderPatients();
     else if (viewId === 'billing') content.innerHTML = renderBilling();
     else if (viewId === 'settings') content.innerHTML = renderSettingsSubpages();
-    else if (viewId === 'patient-history') content.innerHTML = ''; // Se inyecta despuÃ©s por loadClinicalHistory
+    else if (viewId === 'patient-history') content.innerHTML = ''; // Se inyecta después por loadClinicalHistory
     else content.innerHTML = renderPlaceholder(viewId);
-    
+
     mainContent.appendChild(content);
     renderSidebar();
     return true;
@@ -2487,6 +2554,117 @@ function getAppointmentStatusMeta(status) {
     return { key: 'not_sent', label: 'Sin enviar', badge: 'badge-warning', color: '#f59e0b' };
 }
 
+function renderStatusDropdownHtml(aptId, statusMeta) {
+    const opts = [
+        { value: 'not_sent',    label: 'Sin enviar',   badge: 'badge-warning' },
+        { value: 'sent',        label: 'Enviado',       badge: 'badge-info' },
+        { value: 'confirmed',   label: 'Confirmado',    badge: 'badge-success' },
+        { value: 'rescheduled', label: 'Reprogramado',  badge: 'badge-purple' },
+        { value: 'cancelled',   label: 'Cancelado',     badge: 'badge-danger' }
+    ];
+    const optsHtml = opts.map(o =>
+        `<button type="button" class="status-opt ${o.badge}${o.value === statusMeta.key ? ' is-current' : ''}" onclick="selectStatusOpt(this,${aptId},'${o.value}')">${o.label}</button>`
+    ).join('');
+    return `<div class="status-dropdown"><button type="button" class="status-dropdown-trigger ${statusMeta.badge}" onclick="toggleStatusDropdown(this)"><span>${statusMeta.label}</span><i class="fa-solid fa-chevron-down status-dropdown-chevron"></i></button><div class="status-dropdown-menu">${optsHtml}</div></div>`;
+}
+
+let _openStatusMenu = null; // { dropdown, menu, originalParent, close }
+
+function _closeStatusMenu() {
+    if (!_openStatusMenu) return;
+    const { dropdown, menu, originalParent, close } = _openStatusMenu;
+    dropdown.classList.remove('is-open');
+    if (menu.parentNode === document.body) {
+        document.body.removeChild(menu);
+        originalParent.appendChild(menu);
+    }
+    menu.style.cssText = '';
+    document.removeEventListener('click', close, true);
+    _openStatusMenu = null;
+}
+
+window.toggleStatusDropdown = function(btn) {
+    const dropdown = btn.closest('.status-dropdown');
+    if (_openStatusMenu) {
+        const wasThis = _openStatusMenu.dropdown === dropdown;
+        _closeStatusMenu();
+        if (wasThis) return; // toggle: cerrar si era el mismo
+    }
+
+    const menu = dropdown.querySelector('.status-dropdown-menu');
+    if (!menu) return;
+
+    const originalParent = menu.parentNode;
+    const rect = btn.getBoundingClientRect();
+
+    // Mover al body para escapar cualquier overflow/stacking context
+    document.body.appendChild(menu);
+
+    menu.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: ${rect.bottom + 5}px;
+        left: ${rect.left}px;
+        min-width: ${Math.max(rect.width, 160)}px;
+        z-index: 99999;
+    `;
+
+    dropdown.classList.add('is-open');
+
+    const close = (e) => {
+        if (!dropdown.contains(e.target) && !menu.contains(e.target)) {
+            _closeStatusMenu();
+        }
+    };
+
+    setTimeout(() => document.addEventListener('click', close, true), 10);
+    _openStatusMenu = { dropdown, menu, originalParent, close };
+};
+
+window.selectStatusOpt = async function(btn, aptId, newStatus) {
+    _closeStatusMenu();
+    await updateAppointmentStatus(aptId, newStatus);
+};
+
+// ── Presencia en sala ──────────────────────────────────────────────────────
+const PRESENCE_STATES = [
+    { key: '',             label: 'Sin llegar',     icon: 'fa-circle-minus',    cls: 'presence-none'        },
+    { key: 'waiting',      label: 'En sala',         icon: 'fa-couch',           cls: 'presence-waiting'     },
+    { key: 'consulting',   label: 'En consultorio',  icon: 'fa-user-doctor',     cls: 'presence-consulting'  },
+    { key: 'done',         label: 'Finalizado',      icon: 'fa-circle-check',    cls: 'presence-done'        },
+];
+
+function getPresenceState(aptId) {
+    return localStorage.getItem(`apt_presence_${aptId}`) || '';
+}
+
+function renderPresenceBtnHtml(aptId) {
+    const key   = getPresenceState(aptId);
+    const state = PRESENCE_STATES.find(s => s.key === key) || PRESENCE_STATES[0];
+    return `<button type="button" class="presence-btn ${state.cls}" onclick="cyclePresence(${aptId})" title="${state.label}"><i class="fa-solid ${state.icon}"></i><span>${state.label}</span></button>`;
+}
+
+window.cyclePresence = function(aptId) {
+    const current = getPresenceState(aptId);
+    const idx     = PRESENCE_STATES.findIndex(s => s.key === current);
+    const next    = PRESENCE_STATES[(idx + 1) % PRESENCE_STATES.length];
+    if (next.key === '') {
+        localStorage.removeItem(`apt_presence_${aptId}`);
+    } else {
+        localStorage.setItem(`apt_presence_${aptId}`, next.key);
+    }
+    // Actualizar solo el botón sin re-renderizar toda la vista
+    const btn = document.querySelector(`.presence-btn[onclick="cyclePresence(${aptId})"]`);
+    if (btn) {
+        PRESENCE_STATES.forEach(s => btn.classList.remove(s.cls));
+        btn.classList.add(next.cls);
+        btn.title = next.label;
+        btn.innerHTML = `<i class="fa-solid ${next.icon}"></i><span>${next.label}</span>`;
+    }
+};
+// ──────────────────────────────────────────────────────────────────────────
+
 function canManageAppointmentStatusUi() {
     return !!state.user && state.user.roles.some(r => ['superadmin', 'secretary'].includes(r));
 }
@@ -2501,13 +2679,16 @@ window.updateAppointmentStatus = async function(aptId, nextStatus) {
         return;
     }
 
-    const apt = DB.get('appointments').find(item => item.id === aptId);
-    if (!apt || !nextStatus) return;
-
+    if (!nextStatus) return;
     const normalizedNextStatus = normalizeAppointmentStatus(nextStatus);
 
     try {
         if (state.authToken) {
+            // Leer el turno actual desde la API para obtener status fresco
+            const aptRes = await apiFetch(`/appointments/${aptId}`);
+            const apt = aptRes.appointment;
+            if (!apt) return;
+
             const payload = { status: normalizedNextStatus };
 
             if (normalizedNextStatus === 'sent' && normalizeAppointmentStatus(apt.status) !== 'sent') {
@@ -2521,6 +2702,8 @@ window.updateAppointmentStatus = async function(aptId, nextStatus) {
             });
             await syncBackendSnapshotToLocalDb();
         } else {
+            const apt = DB.get('appointments').find(item => item.id === aptId);
+            if (!apt) return;
             DB.update('appointments', aptId, { status: normalizedNextStatus });
         }
 
@@ -2547,30 +2730,76 @@ window.markAppointmentAsSent = async function(aptId) {
         return;
     }
 
-    const apt = DB.get('appointments').find(item => item.id === aptId);
-    if (!apt) return;
-    const normalizedStatus = normalizeAppointmentStatus(apt.status);
-    if (normalizedStatus === 'not_sent') {
-        try {
-            if (state.authToken) {
-                await apiFetch(`/appointments/${aptId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        status: 'sent',
-                        confirmationChannel: 'whatsapp',
-                        confirmationSentAt: new Date().toISOString()
-                    })
-                });
-                await syncBackendSnapshotToLocalDb();
-            } else {
-                DB.update('appointments', aptId, { status: 'sent' });
-            }
-        } catch (error) {
-            showAlert(error.message || 'No se pudo actualizar el estado del turno.', { title: 'Turnos', variant: 'error' });
-            return;
+    try {
+        if (state.authToken) {
+            // Leer el turno desde la API para obtener el estado actual
+            const aptRes = await apiFetch(`/appointments/${aptId}`);
+            const apt = aptRes.appointment;
+            if (!apt) return;
+            const normalizedStatus = normalizeAppointmentStatus(apt.status);
+            if (normalizedStatus !== 'not_sent') return;
+
+            await apiFetch(`/appointments/${aptId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    status: 'sent',
+                    confirmationChannel: 'whatsapp',
+                    confirmationSentAt: new Date().toISOString()
+                })
+            });
+            await syncBackendSnapshotToLocalDb();
+        } else {
+            const apt = DB.get('appointments').find(item => item.id === aptId);
+            if (!apt) return;
+            const normalizedStatus = normalizeAppointmentStatus(apt.status);
+            if (normalizedStatus !== 'not_sent') return;
+            DB.update('appointments', aptId, { status: 'sent' });
         }
-        if (state.currentView === 'dashboard' || state.currentView === 'appointments') refreshCurrentView();
+    } catch (error) {
+        showAlert(error.message || 'No se pudo actualizar el estado del turno.', { title: 'Turnos', variant: 'error' });
+        return;
     }
+    if (state.currentView === 'dashboard' || state.currentView === 'appointments') refreshCurrentView();
+};
+
+window.sendWhatsAppMessage = async function(aptId) {
+    if (!canSendAppointmentWhatsappUi()) {
+        showAlert('No tienes permisos para enviar confirmaciones por WhatsApp.', { title: 'Turnos', variant: 'error' });
+        return;
+    }
+    const aptLocal = DB.get('appointments').find(a => a.id === aptId);
+    const patient  = getPatientByAppointment(aptLocal);
+    const link     = getWhatsAppLink(patient, aptLocal);
+    if (!link) return;
+
+    // Abrir WhatsApp primero
+    window.open(link, '_blank', 'noopener,noreferrer');
+
+    // Confirmar si se pudo enviar
+    setTimeout(async () => {
+        const sent = await showConfirm(
+            '¿Pudiste enviar el mensaje de confirmación al paciente?',
+            {
+                title: 'Confirmar envío por WhatsApp',
+                variant: 'success',
+                confirmText: 'Sí, lo envié',
+                cancelText: 'Todavía no'
+            }
+        );
+        if (sent) await markAppointmentAsSent(aptId);
+    }, 400);
+};
+
+window._cancelEditUser = function() {
+    state.editingUserId = null;
+    state.settingsSubView = 'create-user';
+    refreshCurrentView();
+};
+
+window._cancelEditProf = function() {
+    state.editingProfId = null;
+    state.settingsSubView = 'create-professional';
+    refreshCurrentView();
 };
 
 function viewProfessionalCalendar(profId) {
@@ -2595,12 +2824,26 @@ function getClinicalImagesForPatient(patientId) {
         .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 }
 
+function formatClinicalImageDate(date) {
+    return date ? String(date).split('-').reverse().join('/') : 'Sin fecha';
+}
+
 window.openClinicalImageViewer = function(patientId, imageId) {
     const images = getClinicalImagesForPatient(patientId);
     if (!images.length) return;
 
     const imageIndex = Math.max(0, images.findIndex((image, index) => (image.id ?? index) === imageId));
     state.clinicalImageViewer = { patientId, index: imageIndex < 0 ? 0 : imageIndex };
+    renderClinicalImageViewer();
+};
+
+window.goToClinicalImageViewer = function(index) {
+    if (!state.clinicalImageViewer) return;
+
+    const images = getClinicalImagesForPatient(state.clinicalImageViewer.patientId);
+    if (!images.length) return;
+
+    state.clinicalImageViewer.index = Math.min(Math.max(Number(index) || 0, 0), images.length - 1);
     renderClinicalImageViewer();
 };
 
@@ -2628,32 +2871,88 @@ function renderClinicalImageViewer() {
     const safeIndex = Math.min(Math.max(viewer.index, 0), images.length - 1);
     state.clinicalImageViewer.index = safeIndex;
     const image = images[safeIndex];
+    const patient = getClinicalWorkingPatient(viewer.patientId);
     const label = image.description || 'Imagen clínica';
-    const dateLabel = image.date ? image.date.split('-').reverse().join('/') : 'Sin fecha';
+    const dateLabel = formatClinicalImageDate(image.date);
+    const progress = Math.round(((safeIndex + 1) / images.length) * 100);
+    const previousImage = images[(safeIndex - 1 + images.length) % images.length];
+    const nextImage = images[(safeIndex + 1) % images.length];
+    const viewerTitle = `${label} - ${safeIndex + 1} de ${images.length}`;
 
     modalsContainer.innerHTML = `
         <div class="modal-overlay active clinical-image-viewer-overlay">
-            <div class="clinical-image-viewer" onclick="event.stopPropagation()">
-                <button type="button" class="clinical-image-viewer-close" data-modal-close aria-label="Cerrar visor">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-                <div class="clinical-image-viewer-main">
-                    <button type="button" class="clinical-image-viewer-nav prev" onclick="stepClinicalImageViewer(-1)" aria-label="Imagen anterior">
-                        <i class="fa-solid fa-chevron-left"></i>
-                    </button>
-                    <figure class="clinical-image-viewer-figure">
-                        <img src="${image.dataUrl}" alt="${label}" class="clinical-image-viewer-img">
-                    </figure>
-                    <button type="button" class="clinical-image-viewer-nav next" onclick="stepClinicalImageViewer(1)" aria-label="Imagen siguiente">
-                        <i class="fa-solid fa-chevron-right"></i>
-                    </button>
-                </div>
-                <div class="clinical-image-viewer-footer">
-                    <div>
-                        <div class="clinical-image-viewer-date">${dateLabel}</div>
-                        <div class="clinical-image-viewer-title">${label}</div>
+            <div class="clinical-image-viewer" role="dialog" aria-modal="true" aria-label="${escapeHtml(viewerTitle)}" onclick="event.stopPropagation()">
+                <header class="clinical-image-viewer-header">
+                    <div class="clinical-image-viewer-heading">
+                        <span class="clinical-image-viewer-kicker">Secuencia clínica</span>
+                        <h3>${escapeHtml(patient?.name || 'Paciente')}</h3>
                     </div>
-                    <div class="clinical-image-viewer-counter">${safeIndex + 1} / ${images.length}</div>
+                    <div class="clinical-image-viewer-header-actions">
+                        <span class="clinical-image-viewer-counter">${safeIndex + 1} / ${images.length}</span>
+                        <button type="button" class="clinical-image-viewer-close" data-modal-close aria-label="Cerrar visor">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </header>
+
+                <div class="clinical-image-viewer-layout">
+                    <div class="clinical-image-viewer-stage">
+                        <button type="button" class="clinical-image-viewer-nav prev" onclick="stepClinicalImageViewer(-1)" aria-label="Imagen anterior">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <figure class="clinical-image-viewer-figure">
+                            <img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(label)}" class="clinical-image-viewer-img">
+                            <figcaption class="clinical-image-viewer-caption">
+                                <span>${escapeHtml(dateLabel)}</span>
+                                <strong>${escapeHtml(label)}</strong>
+                            </figcaption>
+                        </figure>
+                        <button type="button" class="clinical-image-viewer-nav next" onclick="stepClinicalImageViewer(1)" aria-label="Imagen siguiente">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <aside class="clinical-image-viewer-panel">
+                        <div class="clinical-image-viewer-progress" aria-hidden="true">
+                            <span style="width: ${progress}%"></span>
+                        </div>
+                        <div class="clinical-image-viewer-detail">
+                            <span>Fecha</span>
+                            <strong>${escapeHtml(dateLabel)}</strong>
+                        </div>
+                        <div class="clinical-image-viewer-detail">
+                            <span>Descripción</span>
+                            <strong>${escapeHtml(label)}</strong>
+                        </div>
+                        <div class="clinical-image-viewer-detail">
+                            <span>Registro</span>
+                            <strong>${safeIndex + 1} de ${images.length}</strong>
+                        </div>
+                        ${images.length > 1 ? `
+                        <div class="clinical-image-viewer-neighbors">
+                            <button type="button" onclick="stepClinicalImageViewer(-1)">
+                                <i class="fa-solid fa-arrow-left"></i>
+                                <span>${escapeHtml(formatClinicalImageDate(previousImage.date))}</span>
+                            </button>
+                            <button type="button" onclick="stepClinicalImageViewer(1)">
+                                <span>${escapeHtml(formatClinicalImageDate(nextImage.date))}</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                        ` : ''}
+                    </aside>
+                </div>
+
+                <div class="clinical-image-viewer-thumbs" aria-label="Miniaturas de imágenes clínicas">
+                    ${images.map((item, index) => {
+                        const itemLabel = item.description || 'Imagen clínica';
+                        return `
+                        <button type="button" class="clinical-image-viewer-thumb ${index === safeIndex ? 'is-active' : ''}" onclick="goToClinicalImageViewer(${index})" aria-label="Ver ${escapeHtml(itemLabel)}">
+                            <img src="${escapeHtml(item.dataUrl)}" alt="${escapeHtml(itemLabel)}">
+                            <span>${escapeHtml(formatClinicalImageDate(item.date))}</span>
+                        </button>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         </div>
@@ -3094,6 +3393,30 @@ function openScheduleModal(profId) {
                 end: document.getElementById(`sch-end-${i}`).value
             };
         }
+        // Validar cada día activo
+        for (let i = 0; i < 7; i++) {
+            if (!newSched[i].active) continue;
+            const start = newSched[i].start;
+            const end = newSched[i].end;
+
+            // Convertir a minutos
+            const [sh, sm] = start.split(':').map(Number);
+            const [eh, em] = end.split(':').map(Number);
+            const startMins = sh * 60 + sm;
+            const endMins = eh * 60 + em;
+
+            const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+            if (startMins >= endMins) {
+                alert(`${days[i]}: el horario de inicio debe ser antes que el de fin.`);
+                return;
+            }
+            if (endMins - startMins < 30) {
+                alert(`${days[i]}: el horario mínimo de atención es 30 minutos.`);
+                return;
+            }
+        }
+
         try {
             await withAppLoading('Guardando horarios...', async () => {
                 if (state.authToken) {
@@ -3175,7 +3498,7 @@ function openPatientModal(editId = null) {
 
     patientForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const validation = validatePatientForm(patientForm, editId);
+        const validation = await validatePatientForm(patientForm, editId);
         if (!validation.ok) {
             return;
         }
@@ -3362,7 +3685,7 @@ function getBillingPatientSearchMatches(query = '', patients = getAccessiblePati
         .filter((patient) => {
             const patientName = normalizePatientName(patient.name);
             const patientDni = normalizeDni(patient.dni);
-            return patientName.includes(normalizedQuery) || patientDni.includes(normalizedDniQuery);
+            return patientName.includes(normalizedQuery) || (normalizedDniQuery !== '' && patientDni.includes(normalizedDniQuery));
         })
         .slice(0, 10);
 }
@@ -3417,6 +3740,21 @@ function syncBillingPatientSearchResults(query = '') {
     const resultsContainer = document.getElementById('billing-patient-search-results');
     if (!resultsContainer) return;
     resultsContainer.innerHTML = renderBillingPatientSearchResultsMarkup(query);
+}
+
+function filterBillingTable(query = '') {
+    const q = query.trim().toLowerCase();
+    const table = document.querySelector('#billing-text-search')?.closest('.view-content, section, main')?.querySelector('.table-container table tbody');
+    if (!table) return;
+    const rows = table.querySelectorAll('tr');
+    rows.forEach(row => {
+        if (!q) {
+            row.style.display = '';
+            return;
+        }
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
 }
 
 // --- Views Rendering ---
@@ -3764,19 +4102,58 @@ function renderAppointments() {
             `;
         }
 
+        // Rango horario dinámico según schedule del profesional ese día
+        const daySchedule = getProfessionalDaySchedule(activeProfessional.id, currentDate);
+        const profWorksToday = !!daySchedule;
+        const CAL_PAD_MINS = 10; // margen visual antes y después del horario
+        let calStartMin = CAL_START_HOUR * 60;
+        let calEndMin   = CAL_END_HOUR   * 60;
+        if (daySchedule) {
+            const [sh, sm] = daySchedule.start.split(':').map(Number);
+            const [eh, em] = daySchedule.end.split(':').map(Number);
+            calStartMin = Math.max(0, sh * 60 + sm - CAL_PAD_MINS);
+            calEndMin   = eh * 60 + em + CAL_PAD_MINS;
+        }
+        const calTotalMins   = calEndMin - calStartMin;
+        const calTotalHeight = calTotalMins * CAL_PX_PER_MIN;
+        // hora entera más cercana hacia abajo/arriba para las etiquetas
+        const calLabelStart = Math.floor(calStartMin / 60);
+        const calLabelEnd   = Math.ceil(calEndMin   / 60);
+
+        // Mensaje si no trabaja hoy
+        if (!profWorksToday) {
+            const dateLabel = parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'});
+            const profColor = getProfColor(activeProfessional.id);
+            const legendHtml = renderCalendarFilterLegend(professionals, { horizontal: true, compact: true });
+            return `
+            <div class="cal-wrapper">
+                ${renderCalendarToolbar(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}), canEdit)}
+                ${legendHtml}
+                <div class="cal-no-work-card">
+                    <div class="cal-no-work-icon" style="background:${profColor.bg}22; color:${profColor.bg};">
+                        <i class="fa-solid fa-calendar-xmark"></i>
+                    </div>
+                    <div class="cal-no-work-body">
+                        <h4><span style="color:${profColor.bg}">${activeProfessional.name}</span> no trabaja este día</h4>
+                        <p>${dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)} no tiene horario configurado.</p>
+                    </div>
+                </div>
+            </div>`;
+        }
+
         // Build time labels (left gutter)
         let timeLabelsHtml = '';
-        for (let h = CAL_START_HOUR; h <= CAL_END_HOUR; h++) {
-            const top = (h - CAL_START_HOUR) * 60 * CAL_PX_PER_MIN;
+        for (let h = calLabelStart; h <= calLabelEnd; h++) {
+            const top = (h * 60 - calStartMin) * CAL_PX_PER_MIN;
             timeLabelsHtml += `<div class="cal-hour-label" style="top:${top}px">${String(h).padStart(2,'0')}:00</div>`;
         }
 
         // Build horizontal hour lines
         let linesHtml = '';
-        for (let h = CAL_START_HOUR; h <= CAL_END_HOUR; h++) {
-            const top = (h - CAL_START_HOUR) * 60 * CAL_PX_PER_MIN;
+        for (let h = calLabelStart; h <= calLabelEnd; h++) {
+            const top = (h * 60 - calStartMin) * CAL_PX_PER_MIN;
             linesHtml += `<div class="cal-h-line" style="top:${top}px"></div>`;
-            if (h < CAL_END_HOUR) {
+            if (h < calLabelEnd) {
                 linesHtml += `<div class="cal-h-line cal-h-half" style="top:${top + 60 * CAL_PX_PER_MIN / 2}px"></div>`;
             }
         }
@@ -3799,7 +4176,7 @@ function renderAppointments() {
                 const patient = getPatientByAppointment(apt);
                 const [ah, am] = apt.time.split(':').map(Number);
                 const startMin = ah * 60 + am;
-                const offsetMin = startMin - CAL_START_HOUR * 60;
+                const offsetMin = startMin - calStartMin;
                 const duration = apt.isOverbook ? 15 : apt.duration;
                 const topPx = offsetMin * CAL_PX_PER_MIN;
                 const heightPx = Math.max(duration * CAL_PX_PER_MIN, 28);
@@ -3830,9 +4207,12 @@ function renderAppointments() {
             profCols += `
             <div class="cal-prof-col">
                 <div class="cal-prof-header">
-                    <span class="cal-prof-name">${p.name}</span>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:0.15rem;">
+                        <span class="cal-prof-name">${p.name}</span>
+                        <span class="cal-prof-schedule-badge">${daySchedule.start} – ${daySchedule.end}</span>
+                    </div>
                 </div>
-                <div class="cal-prof-body" style="height:${CAL_TOTAL_HEIGHT}px; position:relative;">
+                <div class="cal-prof-body" style="height:${calTotalHeight}px; position:relative;">
                     ${linesHtml}
                     ${aptBlocks}
                 </div>
@@ -3851,7 +4231,7 @@ function renderAppointments() {
                     <!-- Gutter -->
                     <div class="cal-gutter-col">
                         <div class="cal-gutter-header"></div>
-                        <div class="cal-gutter-body" style="height:${CAL_TOTAL_HEIGHT}px; position:relative;">
+                        <div class="cal-gutter-body" style="height:${calTotalHeight}px; position:relative;">
                             ${timeLabelsHtml}
                         </div>
                     </div>
@@ -3873,24 +4253,38 @@ function renderAppointments() {
             days.push(d);
         }
 
+        const weekSelectedProf = professionals.find(p => p.id === selectedProfessionalId) || null;
+
         let dayCols = '';
         days.forEach(d => {
             const iso = formatDateToLocalIso(d);
             const isToday = iso === getTodayIsoLocal();
-            const dayName = ['Dom', 'Lun', 'Mar', 'MiÃ©', 'Jue', 'Vie', 'SÃ¡b'][d.getDay()];
+            const dayName = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d.getDay()];
             const dayNum = d.getDate();
+
+            // ¿Trabaja el profesional seleccionado este día?
+            const profScheduleDay = weekSelectedProf ? getProfessionalDaySchedule(weekSelectedProf.id, iso) : null;
+            const profWorksDay = !!profScheduleDay;
 
             const dayApts = allApts.filter(a => a.date === iso && calendarState.visibleProfs[a.professionalId]);
             const countLabel = formatAppointmentCountLabel(dayApts.length);
 
-            const summaryCard = dayApts.length
-                ? `<button type="button" class="cal-day-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
+            let summaryCard;
+            if (!profWorksDay && weekSelectedProf) {
+                summaryCard = `<div class="cal-day-no-work"><i class="fa-solid fa-moon"></i><span>No trabaja</span></div>`;
+            } else if (dayApts.length) {
+                const schedBadge = profScheduleDay ? `<span class="cal-day-sched-badge">${profScheduleDay.start}–${profScheduleDay.end}</span>` : '';
+                summaryCard = `<button type="button" class="cal-day-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
                         <span class="cal-day-summary-label">${countLabel}</span>
-                   </button>`
-                : '<div class="cal-day-summary-empty">Sin turnos</div>';
+                        ${schedBadge}
+                   </button>`;
+            } else {
+                const schedBadge = profScheduleDay ? `<span class="cal-day-sched-badge">${profScheduleDay.start}–${profScheduleDay.end}</span>` : '';
+                summaryCard = `<div class="cal-day-summary-empty">Sin turnos${schedBadge ? `<br>${schedBadge}` : ''}</div>`;
+            }
 
             dayCols += `
-            <div class="cal-day-col">
+            <div class="cal-day-col ${!profWorksDay && weekSelectedProf ? 'cal-day-col-no-work' : ''}">
                 <button type="button" class="cal-day-header ${isToday ? 'cal-today-header' : ''}" data-calendar-date="${iso}">
                     <span class="cal-day-name">${dayName}</span>
                     <span class="cal-day-number ${isToday ? 'cal-today-badge' : ''}">${dayNum}</span>
@@ -3935,6 +4329,7 @@ function renderAppointments() {
             let cellDate = null;
             let isCurrentMonth = false;
             let content = '<div class="cal-month-empty-slot"></div>';
+            let monthProfWorks = true; // default: fuera del mes actual no aplica
 
             if (dayNum > 0 && dayNum <= daysInMonth) {
                 isCurrentMonth = true;
@@ -3945,11 +4340,19 @@ function renderAppointments() {
                 dayApts = dayApts.sort((a,b)=>a.time.localeCompare(b.time));
                 const countLabel = formatAppointmentCountLabel(dayApts.length);
 
-                const summaryContent = dayApts.length
-                    ? `<button type="button" class="cal-month-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
+                const monthProfSched = selectedProfessionalId ? getProfessionalDaySchedule(selectedProfessionalId, iso) : null;
+                monthProfWorks = !selectedProfessionalId || !!monthProfSched;
+
+                let summaryContent;
+                if (!monthProfWorks) {
+                    summaryContent = `<div class="cal-month-no-work"><i class="fa-solid fa-moon"></i><span>No trabaja</span></div>`;
+                } else if (dayApts.length) {
+                    summaryContent = `<button type="button" class="cal-month-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
                             <span class="cal-month-summary-label">${countLabel}</span>
-                       </button>`
-                    : '<div class="cal-month-dayempty">Sin turnos</div>';
+                       </button>`;
+                } else {
+                    summaryContent = `<div class="cal-month-dayempty">Sin turnos</div>`;
+                }
 
                 content = `
                     <button type="button" class="cal-month-dayhead ${isToday ? 'is-today' : ''}" data-calendar-date="${iso}">
@@ -3961,7 +4364,7 @@ function renderAppointments() {
                 `;
             }
 
-            cells += `<div class="cal-month-cell ${isCurrentMonth ? '' : 'is-outside-month'}">${content}</div>`;
+            cells += `<div class="cal-month-cell ${isCurrentMonth ? '' : 'is-outside-month'}${isCurrentMonth && !monthProfWorks ? ' cal-month-cell-no-work' : ''}">${content}</div>`;
         }
 
         const monthName = date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
@@ -4084,8 +4487,8 @@ function renderBilling() {
     const professionals = getAccessibleProfessionals();
     const today = getTodayIsoLocal();
     const billingSections = [
-        { id: 'movements', label: 'Últimos movimientos', icon: 'fa-clock-rotate-left', description: 'Movimientos diarios y registro reciente.' },
-        { id: 'accounts', label: 'Cuentas corrientes por paciente', icon: 'fa-wallet', description: 'Saldo individual de cada paciente por profesional.' }
+        { id: 'movements', label: 'Caja', icon: 'fa-cash-register', description: 'Ingresos y cargos del período seleccionado.' },
+        { id: 'accounts', label: 'Cuentas corrientes', icon: 'fa-wallet', description: 'Historial completo por paciente.' }
     ];
     const activeBillingSection = billingSections.some((section) => section.id === state.billingSubView)
         ? state.billingSubView
@@ -4120,6 +4523,18 @@ function renderBilling() {
         })()
         : [];
     
+    // Caja: filtro por período
+    const cajaPeriod = state.cajaPeriod || '7d';
+    const cajaPeriodDays = cajaPeriod === '1d' ? 1 : cajaPeriod === '7d' ? 7 : cajaPeriod === '30d' ? 30 : 90;
+    const cajaPeriodLabel = cajaPeriod === '1d' ? 'Últimas 24 hs' : cajaPeriod === '7d' ? 'Últimos 7 días' : cajaPeriod === '30d' ? 'Últimos 30 días' : 'Últimos 90 días';
+    const cajaCutoff = (() => {
+        const d = new Date(); d.setDate(d.getDate() - (cajaPeriodDays - 1)); return formatDateToLocalIso(d);
+    })();
+    const cajaTxs = txs.filter(t => coerceAppointmentDate(t.date) >= cajaCutoff);
+    const cajaIngresos = cajaTxs.filter(t => ['income', 'payment'].includes(t.type)).reduce((sum,t)=>sum+t.amount,0);
+    const cajaCargos = cajaTxs.filter(t => t.type === 'debt').reduce((sum,t)=>sum+t.amount,0);
+    const cajaBalance = cajaIngresos - cajaCargos;
+
     const ingresos = todaysTxs.filter(t => ['income', 'payment'].includes(t.type)).reduce((sum,t)=>sum+t.amount,0);
     const deudas = todaysTxs.filter(t=>t.type==='debt').reduce((sum,t)=>sum+t.amount,0);
 
@@ -4174,7 +4589,6 @@ function renderBilling() {
                                 <th>Profesional</th>
                                 <th>Tipo</th>
                                 <th>Concepto</th>
-                                <th>Detalle</th>
                                 <th>Cargo</th>
                                 <th>Pago / Ingreso</th>
                                 <th>Saldo profesional</th>
@@ -4189,11 +4603,6 @@ function renderBilling() {
                                     : movement.type === 'payment'
                                         ? 'Pago'
                                         : 'Ingreso';
-                                const detailLabel = movement.type === 'debt'
-                                    ? 'Cargo generado a la cuenta corriente'
-                                    : movement.type === 'payment'
-                                        ? 'Pago imputado a la deuda del paciente'
-                                        : 'Ingreso acreditado a favor del profesional';
                                 const movementDate = coerceAppointmentDate(movement.date);
                                 return `
                                     <tr>
@@ -4201,7 +4610,6 @@ function renderBilling() {
                                         <td class="font-medium">${professionalName}</td>
                                         <td><span class="badge ${isPositiveMovement ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
                                         <td class="text-gray-700">${movement.description || 'Sin descripción'}</td>
-                                        <td class="text-sm text-gray-500">${detailLabel}</td>
                                         <td class="font-semibold text-warning">${movement.type === 'debt' ? `$${movement.amount.toLocaleString()}` : '-'}</td>
                                         <td class="font-semibold text-success">${isPositiveMovement ? `$${movement.amount.toLocaleString()}` : '-'}</td>
                                         <td>
@@ -4214,7 +4622,7 @@ function renderBilling() {
                                     </tr>
                                 `;
                             }).join('')}
-                            ${selectedPatientDetailedMovements.length === 0 ? '<tr><td colspan="8" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos registrados.</td></tr>' : ''}
+                            ${selectedPatientDetailedMovements.length === 0 ? '<tr><td colspan="7" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos registrados.</td></tr>' : ''}
                         </tbody>
                     </table>
                 </div>
@@ -4222,70 +4630,88 @@ function renderBilling() {
         </div>
     ` : '';
 
+    const cajaPeriodOptions = [
+        { key: '1d', label: '24 hs' },
+        { key: '7d', label: '7 días' },
+        { key: '30d', label: '30 días' },
+        { key: '90d', label: '90 días' },
+    ];
+
     const movementsContent = `
-        <div class="metrics-grid">
+        <div class="card mb-6 section-hero-card section-hero-inline section-hero-compact">
+            <div class="section-hero-copy">
+                <span class="section-eyebrow">Caja</span>
+                <h3 class="section-title section-title-sm">Movimientos de Caja</h3>
+                <p class="section-subtitle">Ingresos y cargos del período seleccionado, filtrados por tus profesionales asignados.</p>
+            </div>
+            ${state.user.roles.some(r => ['admin', 'superadmin'].includes(r)) ?
+            '<button class="btn btn-primary" id="btn-add-tx"><i class="fa-solid fa-plus"></i> Registrar Movimiento</button>' : ''}
+        </div>
+
+        <div class="caja-period-bar">
+            <span class="caja-period-label"><i class="fa-solid fa-calendar-days"></i> Período:</span>
+            <div class="caja-period-options">
+                ${cajaPeriodOptions.map(o => `
+                    <button class="caja-period-btn ${cajaPeriod === o.key ? 'is-active' : ''}" data-caja-period="${o.key}">${o.label}</button>
+                `).join('')}
+            </div>
+        </div>
+
+        <div class="metrics-grid mt-4 mb-6">
             <div class="card metric-card">
                 <div class="metric-icon metric-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
                 <div class="metric-info">
-                    <h3>${selectedAccount?.patient ? 'Recaudado Hoy del Paciente' : 'Total Recaudado Hoy'}</h3>
-                    <p>$${ingresos.toLocaleString()}</p>
+                    <h3>Recaudado</h3>
+                    <p>$${cajaIngresos.toLocaleString()}</p>
+                    <small class="text-xs text-gray-400">${cajaPeriodLabel}</small>
                 </div>
             </div>
             <div class="card metric-card">
                 <div class="metric-icon metric-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
                 <div class="metric-info">
-                    <h3>${selectedAccount?.patient ? 'Cargos de Hoy del Paciente' : 'Cargos Emitidos Hoy'}</h3>
-                    <p>$${deudas.toLocaleString()}</p>
+                    <h3>Cargos emitidos</h3>
+                    <p>$${cajaCargos.toLocaleString()}</p>
+                    <small class="text-xs text-gray-400">${cajaPeriodLabel}</small>
+                </div>
+            </div>
+            <div class="card metric-card">
+                <div class="metric-icon ${cajaBalance >= 0 ? 'metric-blue' : 'metric-red'}"><i class="fa-solid fa-scale-balanced"></i></div>
+                <div class="metric-info">
+                    <h3>Balance neto</h3>
+                    <p class="${cajaBalance >= 0 ? 'text-success' : 'text-warning'}">$${Math.abs(cajaBalance).toLocaleString()}</p>
+                    <small class="text-xs text-gray-400">${cajaPeriodLabel}</small>
                 </div>
             </div>
         </div>
-        
-        <div class="card mb-4 mt-6 section-hero-card section-hero-inline section-hero-compact">
-            <div class="section-hero-copy">
-                <span class="section-eyebrow">Movimientos</span>
-                <h3 class="section-title section-title-sm">${selectedAccount?.patient ? `Movimientos de ${selectedAccount.patient.name}` : 'Últimos Movimientos'}</h3>
-                <p class="section-subtitle">${selectedAccount?.patient ? 'Historial completo de cargos, pagos e ingresos del paciente, detallado por profesional.' : 'Movimientos del día y últimos registros de cuenta corriente cargados en el sistema.'}</p>
-            </div>
-            ${state.user.roles.some(r => ['admin', 'superadmin'].includes(r)) ? 
-            '<button class="btn btn-primary" id="btn-add-tx"><i class="fa-solid fa-plus"></i> Registrar Movimiento</button>' : ''}
+
+        <div class="input-group mb-3">
+            <input type="text" id="billing-text-search" placeholder="Buscar por paciente, DNI o descripción..." class="w-full" oninput="filterBillingTable(this.value)">
         </div>
-        
+
         <div class="table-container shadow-sm">
             <table class="w-full text-left">
-                <thead><tr><th>Fecha</th>${selectedAccount?.patient ? '' : '<th>Paciente</th>'}<th>Profesional</th><th>Tipo</th><th>Concepto</th><th>Detalle</th><th>Monto</th><th>Acción</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Paciente</th><th>Profesional</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th></th></tr></thead>
                 <tbody>
-                    ${filteredTxs.sort((a,b)=>b.id - a.id).map(t => {
+                    ${cajaTxs.sort((a,b) => coerceAppointmentDate(b.date).localeCompare(coerceAppointmentDate(a.date)) || b.id - a.id).map(t => {
                         const pName = patients.find(p=>p.id === t.patientId)?.name || 'Desconocido';
                         const professionalName = professionals.find(p=>p.id === t.professionalId)?.name || 'Sin profesional';
-                        const isPositiveMovement = ['income', 'payment'].includes(t.type);
-                        const typeLabel = t.type === 'debt'
-                            ? 'Cargo / Deuda'
-                            : t.type === 'payment'
-                                ? 'Pago'
-                                : 'Ingreso';
+                        const isPago = ['income', 'payment'].includes(t.type);
+                        const typeLabel = t.type === 'debt' ? 'Cargo' : t.type === 'payment' ? 'Pago' : 'Ingreso';
                         return `
                         <tr>
-                            <td class="text-sm text-gray-500">${t.date}</td>
-                            ${selectedAccount?.patient ? '' : `<td class="font-medium">${pName}</td>`}
+                            <td class="text-sm text-gray-500">${coerceAppointmentDate(t.date)}</td>
+                            <td class="font-medium">${pName}</td>
                             <td class="text-sm text-gray-600">${professionalName}</td>
-                            <td><span class="badge ${isPositiveMovement ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
+                            <td><span class="badge ${isPago ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
                             <td class="text-gray-700">${t.description || 'Sin descripción'}</td>
-                            <td class="text-sm text-gray-500">
-                                ${t.type === 'debt'
-                                    ? 'Cargo generado a la cuenta corriente'
-                                    : t.type === 'payment'
-                                        ? 'Pago imputado a la deuda del paciente'
-                                        : 'Ingreso acreditado a favor del profesional'}
-                            </td>
-                            <td class="font-bold ${isPositiveMovement ? 'text-success' : 'text-warning'}">$${t.amount.toLocaleString()}</td>
+                            <td class="font-bold ${isPago ? 'text-success' : 'text-warning'}">$${t.amount.toLocaleString()}</td>
                             <td>
-                                ${state.user.roles.some(r => ['superadmin', 'admin'].includes(r)) ? 
-                                `<button class="btn btn-ghost text-danger p-1 btn-delete-tx" data-id="${t.id}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                                ${state.user.roles.some(r => ['superadmin', 'admin'].includes(r)) ?
+                                `<button class="btn btn-icon btn-delete-tx" data-id="${t.id}" title="Eliminar" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}
                             </td>
-                        </tr>
-                        `;
+                        </tr>`;
                     }).join('')}
-                    ${filteredTxs.length===0?`<tr><td colspan="${selectedAccount?.patient ? '7' : '8'}" class="text-center py-6 text-gray-500">${selectedAccount?.patient ? 'Este paciente todavía no tiene movimientos registrados.' : 'No hay transacciones registradas'}</td></tr>`:''}
+                    ${cajaTxs.length === 0 ? `<tr><td colspan="7" class="text-center py-8 text-gray-400"><i class="fa-solid fa-inbox fa-2x mb-2 block opacity-30"></i>Sin movimientos en ${cajaPeriodLabel.toLowerCase()}.</td></tr>` : ''}
                 </tbody>
             </table>
         </div>
@@ -4299,11 +4725,6 @@ function renderBilling() {
                     <h3 class="section-title section-title-sm">Cuentas Corrientes por Paciente</h3>
                     <p class="section-subtitle">Cada paciente mantiene un saldo independiente con cada profesional.</p>
                 </div>
-                ${canManagePatientBillingUi() ? `
-                <div class="flex gap-2 flex-wrap">
-                    <button class="btn btn-secondary" id="btn-open-patient-billing"><i class="fa-solid fa-wallet"></i> Buscar paciente</button>
-                </div>
-                ` : ''}
             </div>
             <div class="billing-patient-search-card">
                 <div class="billing-patient-search-head">
@@ -4382,19 +4803,46 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
     const canManageStatus = canManageAppointmentStatusUi();
     const canUseWhatsapp = canSendAppointmentWhatsappUi();
 
+    const todayOverbooksCount = todaysApts.filter(a => a.isOverbook && isBlockingAppointmentStatus(a.status)).length;
+
+    const isToday = selectedDate === getTodayIsoLocal();
+
+    // Separar en pendientes y finalizados (solo si es hoy)
+    const pendingApts = isToday
+        ? selectedDateApts.filter(apt => {
+            const [h, m] = apt.time.split(':').map(Number);
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+            const duration = apt.isOverbook ? 15 : (apt.duration || 30);
+            return new Date(start.getTime() + duration * 60000) > now;
+        })
+        : selectedDateApts;
+
+    const finishedApts = isToday
+        ? selectedDateApts.filter(apt => {
+            const [h, m] = apt.time.split(':').map(Number);
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+            const duration = apt.isOverbook ? 15 : (apt.duration || 30);
+            return new Date(start.getTime() + duration * 60000) <= now;
+        })
+        : [];
+
+    const emptyStateText = (isToday && finishedApts.length > 0)
+        ? 'Todos los turnos de hoy ya finalizaron.'
+        : 'No hay turnos para la fecha seleccionada.';
+
     return `
         <div class="metrics-grid">
             <div class="card metric-card">
-                <div class="metric-icon metric-blue"><i class="fa-solid fa-users"></i></div>
-                <div class="metric-info"><h3>Pacientes de Hoy</h3><p>${patientsTodayCount}</p></div>
+                <div class="metric-icon metric-blue"><i class="fa-solid fa-calendar-day"></i></div>
+                <div class="metric-info"><h3>Turnos de Hoy</h3><p>${todaysOpenApts.length}</p></div>
             </div>
             <div class="card metric-card">
-                <div class="metric-icon metric-green"><i class="fa-solid fa-calendar-check"></i></div>
-                <div class="metric-info"><h3>Turnos Activos</h3><p>${activeTurnsCount}</p></div>
+                <div class="metric-icon metric-green"><i class="fa-solid fa-clock"></i></div>
+                <div class="metric-info"><h3>Turnos Activos</h3><p>${currentRunningApts.length}</p></div>
             </div>
             <div class="card metric-card">
-                <div class="metric-icon metric-purple"><i class="fa-solid fa-bolt" style="color:var(--purple)"></i></div>
-                <div class="metric-info"><h3>Sobreturnos</h3><p>${activeOverbooksCount}</p></div>
+                <div class="metric-icon metric-purple"><i class="fa-solid fa-bolt"></i></div>
+                <div class="metric-info"><h3>Sobreturnos</h3><p>${todayOverbooksCount}</p></div>
             </div>
         </div>
 
@@ -4411,36 +4859,65 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead><tr><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Confirmacion</th><th>Whatsapp</th></tr></thead>
+                    <thead><tr><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Sala</th><th>Confirmacion</th><th>Whatsapp</th></tr></thead>
                     <tbody>
-                        ${selectedDateApts.map(apt => {
+                        ${pendingApts.map(apt => {
                             const patient = getPatientByAppointment(apt);
                             const whatsappLink = getWhatsAppLink(patient, apt);
                             const statusMeta = getAppointmentStatusMeta(apt.status);
+                            const profColor = getProfColor(apt.professionalId);
+                            const isDark = document.body.classList.contains('theme-dark');
+                            const bgAlpha = isDark ? '28' : '12';
+                            const rowStyle = `border-left: 3px solid ${profColor.bg}; background: ${profColor.bg}${bgAlpha};`;
                             return `
-                                <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}">
+                                <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}" style="${rowStyle}">
                                     <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
                                     <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
-                                    <td>${getProfName(apt.professionalId)}</td>
-                                    <td>
-                                        ${canManageStatus ? `
-                                            <select class="dashboard-status-select ${statusMeta.badge}" onchange="updateAppointmentStatus(${apt.id}, this.value)">
-                                                <option value="not_sent" ${statusMeta.key === 'not_sent' ? 'selected' : ''}>Sin enviar</option>
-                                                <option value="sent" ${statusMeta.key === 'sent' ? 'selected' : ''}>Enviado</option>
-                                                <option value="confirmed" ${statusMeta.key === 'confirmed' ? 'selected' : ''}>Confirmado</option>
-                                                <option value="rescheduled" ${statusMeta.key === 'rescheduled' ? 'selected' : ''}>Reprogramado</option>
-                                                <option value="cancelled" ${statusMeta.key === 'cancelled' ? 'selected' : ''}>Cancelado</option>
-                                            </select>
-                                        ` : `<span class="badge ${statusMeta.badge}">${statusMeta.label}</span>`}
-                                    </td>
-                                    <td>${canUseWhatsapp ? (whatsappLink ? `<a class="btn btn-secondary btn-sm dashboard-wa-btn" href="${whatsappLink}" target="_blank" rel="noopener noreferrer" onclick="markAppointmentAsSent(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</a>` : '<span class="text-xs text-gray-400">Sin telefono</span>') : '<span class="text-xs text-gray-400">Sin acceso</span>'}</td>
+                                    <td><span class="dash-prof-chip" style="background:${profColor.bg}${isDark ? '33' : '22'}; color:${profColor.bg}; border:1px solid ${profColor.bg}${isDark ? '66' : '44'};">${getProfName(apt.professionalId)}</span></td>
+                                    <td>${renderPresenceBtnHtml(apt.id)}</td>
+                                    <td>${canManageStatus ? renderStatusDropdownHtml(apt.id, statusMeta) : `<span class="badge ${statusMeta.badge}">${statusMeta.label}</span>`}</td>
+                                    <td>${canUseWhatsapp ? (whatsappLink ? (() => {
+                                            const alreadySent = ['sent', 'confirmed', 'rescheduled', 'cancelled'].includes(statusMeta.key);
+                                            return alreadySent
+                                                ? `<span class="wa-sent-badge"><i class="fa-brands fa-whatsapp"></i> Enviado</span>`
+                                                : `<button type="button" class="btn btn-secondary btn-sm dashboard-wa-btn" onclick="sendWhatsAppMessage(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</button>`;
+                                        })() : '<span class="text-xs text-gray-400">Sin teléfono</span>') : '<span class="text-xs text-gray-400">Sin acceso</span>'}</td>
                                 </tr>
                             `;
                         }).join('')}
-                        ${selectedDateApts.length === 0 ? '<tr><td colspan="5" class="text-center py-6 text-gray-500">No hay turnos para la fecha seleccionada.</td></tr>' : ''}
+                        ${pendingApts.length === 0 ? `<tr><td colspan="6" class="text-center py-6 text-gray-500">${emptyStateText}</td></tr>` : ''}
                     </tbody>
                 </table>
             </div>
+            ${finishedApts.length > 0 ? `
+            <details class="finished-apts-details">
+                <summary class="finished-apts-summary">
+                    <span class="finished-apts-summary-inner">
+                        <i class="fa-solid fa-chevron-right finished-apts-chevron"></i>
+                        <span>Turnos finalizados</span>
+                        <span class="badge badge-gray finished-apts-count">${finishedApts.length}</span>
+                    </span>
+                </summary>
+                <div class="overflow-x-auto mt-2">
+                    <table class="w-full text-left opacity-60">
+                        <thead><tr><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Estado</th></tr></thead>
+                        <tbody>
+                            ${finishedApts.map(apt => {
+                                const statusMeta = getAppointmentStatusMeta(apt.status);
+                                return `
+                                    <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}">
+                                        <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-400">(${apt.duration}m)</span></td>
+                                        <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
+                                        <td>${getProfName(apt.professionalId)}</td>
+                                        <td><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            ` : ''}
         </div>
     `;
 }
@@ -4477,7 +4954,7 @@ function renderSettingsSubpages() {
                 <td>${u.type || '-'}</td>
                 <td>${roles}</td>
                 <td>${profNames}</td>
-                <td class="text-center">${isSuper ? `<button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash text-danger"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
+                <td class="text-center">${isSuper ? `<button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar usuario"><i class="fa-solid fa-pen"></i></button><button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar usuario" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
             </tr>`;
     }).join('');
 
@@ -4493,7 +4970,7 @@ function renderSettingsSubpages() {
                 <td>${p.phone || '-'}</td>
                 <td>${p.email || '-'}</td>
                 <td>${statusLabel}</td>
-                <td class="text-center"><button class="btn btn-secondary btn-sm" onclick="viewProfessionalCalendar(${p.id})">Ver Calendario</button></td>
+                <td class="text-center"><button class="btn btn-icon btn-edit-prof" data-id="${p.id}" title="Editar profesional"><i class="fa-solid fa-pen"></i></button><button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Ver calendario"><i class="fa-solid fa-calendar-days"></i></button><button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Configurar horarios"><i class="fa-solid fa-clock"></i></button></td>
             </tr>`;
     }).join('');
 
@@ -4551,61 +5028,80 @@ function renderSettingsSubpages() {
                 </form>
             </section>
         `,
-        'create-user': canManageSettings ? `
+        'create-user': canManageSettings ? (() => {
+            const editingUser = state.editingUserId ? users.find(u => u.id === state.editingUserId) : null;
+            const isEditing = !!editingUser;
+            const editingRoles = new Set(editingUser ? (editingUser.roles || (editingUser.role ? [editingUser.role] : [])) : []);
+            const editingProfs = new Set(((editingUser && editingUser.allowedProfessionals) || []).map(id => parseInt(id, 10)));
+            const isRoleChecked = (r) => editingRoles.has(r) || (r==='administrador'&&editingRoles.has('admin')) || (r==='secretario'&&editingRoles.has('secretary')) || (r==='profesional'&&editingRoles.has('professional'));
+            return `
             <section class="settings-card settings-panel-card">
                 <header>
                     <div>
-                        <h3>Crear Nuevo Usuario</h3>
-                        <p class="subtext">Campos obligatorios: Nombre completo, Email, Contraseña y Tipo de usuario.</p>
+                        <h3>${isEditing ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</h3>
+                        <p class="subtext">${isEditing ? 'La contraseña es opcional; completala solo si querés cambiarla.' : 'Campos obligatorios: Nombre completo, Email, Contraseña y Tipo de usuario.'}</p>
                     </div>
                 </header>
                 <form id="new-user-form" class="settings-form-row columns-1">
-                    <div class="input-group"><label>Nombre completo *</label><input type="text" id="u-name" required></div>
-                    <div class="input-group"><label>Email *</label><input type="email" id="u-email" required></div>
-                    <div class="input-group"><label>Contraseña *</label><input type="password" id="u-password" minlength="6" required></div>
-                    <div class="input-group"><label>Tipo de usuario *</label><select id="u-type" required><option value="">Seleccionar...</option><option value="administrador">Administrador</option><option value="secretario">Secretario</option><option value="profesional">Profesional</option></select></div>
-
+                    <input type="hidden" id="u-editing-id" value="${isEditing ? editingUser.id : ''}">
+                    <div class="input-group"><label>Nombre completo *</label><input type="text" id="u-name" value="${isEditing ? escapeHtml(editingUser.name||editingUser.fullName||'') : ''}" required></div>
+                    <div class="input-group"><label>Email *</label><input type="email" id="u-email" value="${isEditing ? escapeHtml(editingUser.email||'') : ''}" required></div>
+                    <div class="input-group"><label>Contraseña ${isEditing ? '(opcional)' : '*'}</label><input type="password" id="u-password" minlength="6" ${isEditing ? '' : 'required'}></div>
+                    <div class="input-group"><label>Tipo de usuario *</label><select id="u-type" required><option value="">Seleccionar...</option><option value="administrador" ${isEditing&&editingUser.type==='administrador'?'selected':''}>Administrador</option><option value="secretario" ${isEditing&&editingUser.type==='secretario'?'selected':''}>Secretario</option><option value="profesional" ${isEditing&&editingUser.type==='profesional'?'selected':''}>Profesional</option></select></div>
                     <div class="settings-subsection">
                         <h4>Roles de Permisos</h4>
                         <p class="subtext">Selecciona uno o varios roles.</p>
                         <div class="settings-list settings-list-static">
-                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="administrador"><label>Administrador</label></div>
-                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="secretario"><label>Secretario</label></div>
-                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="profesional"><label>Profesional</label></div>
-                            ${isSuper ? '<div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin"><label>Superadmin</label></div>' : ''}
+                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="administrador" ${isRoleChecked('administrador')?'checked':''}><label>Administrador</label></div>
+                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="secretario" ${isRoleChecked('secretario')?'checked':''}><label>Secretario</label></div>
+                            <div class="checkbox-group"><input type="checkbox" name="u-role" value="profesional" ${isRoleChecked('profesional')?'checked':''}><label>Profesional</label></div>
+                            ${isSuper ? `<div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin" ${isRoleChecked('superadmin')?'checked':''}><label>Superadmin</label></div>` : ''}
                         </div>
                     </div>
-
                     <div class="settings-subsection">
                         <h4>Asignar Profesionales (opcional)</h4>
-                        <p class="subtext">Se puede dejar vacÃƒÂ­o; acceso completo si no se selecciona ninguno.</p>
+                        <p class="subtext">Se puede dejar vacío; acceso completo si no se selecciona ninguno.</p>
                         <div class="settings-list settings-list-static">
-                            ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}"><label>${p.name}</label></div>`).join('')}
+                            ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}" ${editingProfs.has(p.id)?'checked':''}><label>${escapeHtml(p.name)}</label></div>`).join('')}
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">Guardar Usuario</button>
+                    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                        <button type="submit" class="btn btn-primary">${isEditing ? 'Actualizar Usuario' : 'Guardar Usuario'}</button>
+                        ${isEditing ? '<button type="button" class="btn btn-ghost" onclick="window._cancelEditUser()">Cancelar</button>' : ''}
+                    </div>
                 </form>
-            </section>
-        ` : '',
-        'create-professional': `
+            </section>`;
+        })() : '',
+        'create-professional': (() => {
+            const editingProf = state.editingProfId ? profs.find(p => p.id === state.editingProfId) : null;
+            const isEditing = !!editingProf;
+            const nameParts = String((editingProf && editingProf.name) || '').trim().split(/\s+/).filter(Boolean);
+            const firstName = isEditing ? (editingProf.firstName || nameParts.slice(0,-1).join(' ') || nameParts[0] || '') : '';
+            const lastName  = isEditing ? (editingProf.lastName  || (nameParts.length>1 ? nameParts[nameParts.length-1] : '')) : '';
+            const profStatus = isEditing ? (editingProf.status || (editingProf.active ? 'activo' : 'inactivo')) : 'activo';
+            return `
             <section class="settings-card settings-panel-card">
                 <header>
                     <div>
-                        <h3>Crear Profesional</h3>
+                        <h3>${isEditing ? 'Editar Profesional' : 'Crear Profesional'}</h3>
                         <p class="subtext">Campos obligatorios: Nombre, Apellido, Especialidad.</p>
                     </div>
                 </header>
                 <form id="new-prof-form" class="settings-form-row columns-1">
-                    <div class="input-group"><label>Nombre *</label><input type="text" id="p-name" required></div>
-                    <div class="input-group"><label>Apellido *</label><input type="text" id="p-lastname" required></div>
-                    <div class="input-group"><label>Especialidad *</label><input type="text" id="p-specialty" required></div>
-                    <div class="input-group"><label>TelÃƒÂ©fono</label><input type="text" id="p-phone"></div>
-                    <div class="input-group"><label>Email</label><input type="email" id="p-email"></div>
-                    <div class="input-group"><label>Estado</label><select id="p-status"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
-                    <button type="submit" class="btn btn-primary">Guardar Profesional</button>
+                    <input type="hidden" id="p-editing-id" value="${isEditing ? editingProf.id : ''}">
+                    <div class="input-group"><label>Nombre *</label><input type="text" id="p-name" value="${escapeHtml(firstName)}" required></div>
+                    <div class="input-group"><label>Apellido *</label><input type="text" id="p-lastname" value="${escapeHtml(lastName)}" required></div>
+                    <div class="input-group"><label>Especialidad *</label><input type="text" id="p-specialty" value="${isEditing ? escapeHtml(editingProf.specialty||'') : ''}" required></div>
+                    <div class="input-group"><label>Teléfono</label><input type="text" id="p-phone" value="${isEditing ? escapeHtml(editingProf.phone||'') : ''}"></div>
+                    <div class="input-group"><label>Email</label><input type="email" id="p-email" value="${isEditing ? escapeHtml(editingProf.email||'') : ''}"></div>
+                    <div class="input-group"><label>Estado</label><select id="p-status"><option value="activo" ${profStatus==='activo'?'selected':''}>Activo</option><option value="inactivo" ${profStatus==='inactivo'?'selected':''}>Inactivo</option></select></div>
+                    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                        <button type="submit" class="btn btn-primary">${isEditing ? 'Actualizar Profesional' : 'Guardar Profesional'}</button>
+                        ${isEditing ? '<button type="button" class="btn btn-ghost" onclick="window._cancelEditProf()">Cancelar</button>' : ''}
+                    </div>
                 </form>
-            </section>
-        `,
+            </section>`;
+        })(),
         'users-list': canManageSettings ? `
             <section class="settings-card settings-panel-card">
                 <header><h3>Usuarios Existentes</h3></header>
@@ -4707,7 +5203,7 @@ function renderSettings() {
                 <td>${u.type || '-'}</td>
                 <td>${roles}</td>
                 <td>${profNames}</td>
-                <td class="text-center">${isSuper ? `<button class="btn btn-ghost btn-sm" onclick="deleteUser(${u.id})"><i class="fa-solid fa-trash text-danger"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
+                <td class="text-center">${isSuper ? `<button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar usuario"><i class="fa-solid fa-pen"></i></button><button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar usuario" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
             </tr>`;
     }).join('');
 
@@ -4723,7 +5219,7 @@ function renderSettings() {
                 <td>${p.phone || '-'}</td>
                 <td>${p.email || '-'}</td>
                 <td>${statusLabel}</td>
-                <td class="text-center"><button class="btn btn-secondary btn-sm" onclick="viewProfessionalCalendar(${p.id})">Ver Calendario</button></td>
+                <td class="text-center"><button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Ver calendario"><i class="fa-solid fa-calendar-days"></i></button><button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Configurar horarios"><i class="fa-solid fa-clock"></i></button></td>
             </tr>`;
     }).join('');
 
@@ -5042,6 +5538,7 @@ function renderClinicalHistory(patientId) {
     const patient = getClinicalWorkingPatient(patientId);
     if(!patient) return '<p>Paciente no encontrado</p>';
     const clinicalImages = (patient.clinicalImages || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const latestClinicalImage = clinicalImages[0];
     const canEditClinical = canEditClinicalHistoryUi();
     const draft = getClinicalDraft(patientId);
 
@@ -5052,7 +5549,7 @@ function renderClinicalHistory(patientId) {
     }
 
     return `
-    <div class="clinical-history-card bg-white rounded-xl max-w-5xl mx-auto overflow-hidden" style="font-family: Arial, sans-serif;">
+    <div class="clinical-history-card rounded-xl max-w-5xl mx-auto overflow-hidden" style="font-family: Arial, sans-serif;">
         <!-- Cabecera estilo Recetario -->
         <div class="flex flex-col md:flex-row justify-between items-center p-6 border-b-2 border-primary-800 bg-primary-50">
             <div class="flex items-center gap-4 mb-4 md:mb-0">
@@ -5124,33 +5621,33 @@ function renderClinicalHistory(patientId) {
                 <div class="odontogram-toolbar print-hidden" id="odontogram-toolbar">
                     <div class="odonto-color-group">
                         <button class="odonto-color-btn odonto-rojo is-active" data-color="rojo" title="Rojo – Caries / Problema">
-                            <svg viewBox="0 0 32 32" width="22" height="22"><circle cx="16" cy="16" r="12" fill="#ef4444"/><circle cx="16" cy="16" r="7" fill="white" opacity=".4"/></svg>
+                            <svg viewBox="0 0 32 32" width="22" height="22"><circle cx="16" cy="16" r="12" fill="#ef4444"/></svg>
                         </button>
                         <button class="odonto-color-btn odonto-azul" data-color="azul" title="Azul – Restaurado / Tratado">
                             <svg viewBox="0 0 32 32" width="22" height="10"><rect x="2" y="10" width="28" height="12" rx="2" fill="#2563eb"/></svg>
                         </button>
                     </div>
                     <div class="odonto-treat-group">
-                        <button class="odonto-treat-btn is-active" data-treatment="" title="Libre – aplica a la cara tocada">
-                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.07)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.07)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.07)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.07)" stroke="#b0a0a0" stroke-width="1"/><circle cx="16" cy="16" r="8" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5"/></svg>
+                        <button class="odonto-treat-btn is-active" data-treatment="" title="Libre">
+                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 16c-4 2.5-5.5 7-4 12.5.8 3.2 2.3 6.2 3.1 9.1.7 2.7 2.2 4.4 4.3 4.4 2.9 0 2.7-6.2 5.6-6.2s2.7 6.2 5.6 6.2c2.1 0 3.6-1.7 4.3-4.4.8-2.9 2.3-5.9 3.1-9.1 1.5-5.5 0-10-4-12.5-3.1-1.9-5.8 1.1-9 1.1S18.1 14.1 15 16z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M31 7l6 5M29 10l5-5 6 6-5 5z" fill="#f5eeeb" stroke="#c08080" stroke-width="1.8" stroke-linejoin="round"/><path d="M17 14c5-4 10-4.8 15-2" fill="none" stroke="#d44" stroke-width="2.2" stroke-linecap="round"/><path d="M18 24c3 1.4 8.8 1.4 12 0" fill="none" stroke="#d44" stroke-width="1.8" stroke-linecap="round"/></svg>
                         </button>
                         <button class="odonto-treat-btn" data-treatment="ausente" title="Extracción / Ausente">
-                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><circle cx="16" cy="16" r="8" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1"/><line x1="6" y1="6" x2="26" y2="26" stroke="#dc2626" stroke-width="5" stroke-linecap="round"/><line x1="26" y1="6" x2="6" y2="26" stroke="#dc2626" stroke-width="5" stroke-linecap="round"/></svg>
+                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M17 17c-3.7 2.4-5 6.5-3.6 11.7.7 2.7 2 5.4 2.7 7.8.7 2.4 2 3.8 3.8 3.8 2.5 0 2.3-5.4 4.8-5.4s2.3 5.4 4.8 5.4c1.8 0 3.1-1.4 3.8-3.8.7-2.4 2-5.1 2.7-7.8 1.4-5.2.1-9.3-3.6-11.7-2.7-1.7-5.2.9-7.9.9S19.7 15.3 17 17z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M11 8c7 3.5 9.5 10 11.3 18M37 8c-7 3.5-9.5 10-11.3 18" fill="none" stroke="#c08080" stroke-width="2.4" stroke-linecap="round"/><path d="M19.8 25.8c1.2 2.4 7.2 2.4 8.4 0" fill="none" stroke="#d44" stroke-width="2.2" stroke-linecap="round"/><path d="M9 7c-1.6 5.7 1.1 11.2 6.7 13.2M39 7c1.6 5.7-1.1 11.2-6.7 13.2" fill="none" stroke="#d44" stroke-width="2.2" stroke-linecap="round"/></svg>
                         </button>
                         <button class="odonto-treat-btn" data-treatment="endodoncia" title="Endodoncia / Tratamiento de conducto">
-                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><circle cx="16" cy="16" r="8" fill="#f59e0b" stroke="#b0a0a0" stroke-width="1"/><line x1="16" y1="8" x2="16" y2="24" stroke="white" stroke-width="2"/><line x1="12" y1="12" x2="20" y2="12" stroke="white" stroke-width="1.5"/><line x1="11" y1="16" x2="21" y2="16" stroke="white" stroke-width="1.5"/><line x1="12" y1="20" x2="20" y2="20" stroke="white" stroke-width="1.5"/></svg>
+                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 16c-4 2.5-5.5 7-4 12.5.8 3.2 2.3 6.2 3.1 9.1.7 2.7 2.2 4.4 4.3 4.4 2.9 0 2.7-6.2 5.6-6.2s2.7 6.2 5.6 6.2c2.1 0 3.6-1.7 4.3-4.4.8-2.9 2.3-5.9 3.1-9.1 1.5-5.5 0-10-4-12.5-3.1-1.9-5.8 1.1-9 1.1S18.1 14.1 15 16z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M24 5v30" fill="none" stroke="#d44" stroke-width="2.1" stroke-linecap="round"/><path d="M21 8h6M21.5 12h5M22 16h4M22 20h4M22.5 24h3" fill="none" stroke="#d44" stroke-width="1.4" stroke-linecap="round"/><path d="M19 24c2.7 1.8 7.3 1.8 10 0" fill="none" stroke="#c08080" stroke-width="1.6" stroke-linecap="round"/></svg>
                         </button>
                         <button class="odonto-treat-btn" data-treatment="implante" title="Implante">
-                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><rect x="11" y="6" width="10" height="20" rx="5" fill="#1d4ed8" stroke="white" stroke-width="1.5"/><line x1="16" y1="9" x2="16" y2="23" stroke="white" stroke-width="1.5" stroke-dasharray="2,2"/></svg>
+                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M14 18c-3.2 2.7-4.2 7-2.9 11.8.8 3 2.2 5.8 2.9 8.4.6 2.2 1.8 3.7 3.5 3.7 2.4 0 2.3-5.8 6.5-5.8s4.1 5.8 6.5 5.8c1.7 0 2.9-1.5 3.5-3.7.7-2.6 2.1-5.4 2.9-8.4 1.3-4.8.3-9.1-2.9-11.8" fill="none" stroke="#c08080" stroke-width="1.8" stroke-linecap="round"/><path d="M19 9h10l3 4-3 4H19l-3-4z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M20 17h8l-1.2 21-2.8 4-2.8-4z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M20 22l8-3M20 27l7.5-3M20.5 32l7-3M21 37l5.5-2.2" fill="none" stroke="#d44" stroke-width="1.8" stroke-linecap="round"/></svg>
                         </button>
                         <button class="odonto-treat-btn" data-treatment="corona" title="Corona">
-                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><rect x="8" y="18" width="16" height="8" rx="2" fill="#7c3aed" stroke="white" stroke-width="1.2"/><polygon points="8,18 12,9 16,14 20,9 24,18" fill="#7c3aed" stroke="white" stroke-width="1.2"/></svg>
+                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 21c-3.3 2.5-4.4 6.3-3.1 11 .8 2.7 2 5.1 2.7 7.2.6 1.8 1.8 3 3.5 3 2.6 0 2.7-4.9 5.9-4.9s3.3 4.9 5.9 4.9c1.7 0 2.9-1.2 3.5-3 .7-2.1 1.9-4.5 2.7-7.2 1.3-4.7.2-8.5-3.1-11" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M13 24c2.8-10 6.1-14.5 11-14.5S32.2 14 35 24c-1.7 2.8-5.5 4.4-11 4.4S14.7 26.8 13 24z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M16 23c2.6-2 3.8-5.6 5-8 1.2 2.4 2.2 4 3 4s1.8-1.6 3-4c1.2 2.4 2.4 6 5 8" fill="none" stroke="#d44" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </button>
                         <button class="odonto-treat-btn" data-treatment="ortodoncia" title="Ortodoncia / Brackets">
-                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><rect x="10" y="13" width="12" height="6" rx="1.5" fill="#2563eb" stroke="white" stroke-width="1"/><line x1="1" y1="16" x2="31" y2="16" stroke="#2563eb" stroke-width="3"/></svg>
+                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 16c-4 2.5-5.5 7-4 12.5.8 3.2 2.3 6.2 3.1 9.1.7 2.7 2.2 4.4 4.3 4.4 2.9 0 2.7-6.2 5.6-6.2s2.7 6.2 5.6 6.2c2.1 0 3.6-1.7 4.3-4.4.8-2.9 2.3-5.9 3.1-9.1 1.5-5.5 0-10-4-12.5-3.1-1.9-5.8 1.1-9 1.1S18.1 14.1 15 16z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M10 27c8.8 2.6 19.2 2.6 28 0" fill="none" stroke="#d44" stroke-width="2.2" stroke-linecap="round"/><path d="M18 24h12v8H18z" fill="#f5eeeb" stroke="#d44" stroke-width="1.8" stroke-linejoin="round"/><path d="M24 24v8M18 28h12" fill="none" stroke="#d44" stroke-width="1.4" stroke-linecap="round"/></svg>
                         </button>
-                        <button class="odonto-treat-btn" data-treatment="sello" title="Sellante / Fluoruro">
-                            <svg viewBox="0 0 32 32" width="28" height="28"><rect x="1" y="1" width="30" height="30" fill="#f2e8e8" stroke="#b0a0a0" stroke-width="1.5" rx="1"/><polygon points="1,1 31,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,1 31,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="31,31 1,31 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><polygon points="1,31 1,1 16,16" fill="rgba(0,0,0,.05)" stroke="#b0a0a0" stroke-width="1"/><circle cx="16" cy="16" r="8" fill="#10b981" opacity=".85" stroke="white" stroke-width="1.5"/><circle cx="16" cy="16" r="4" fill="white" opacity=".5"/></svg>
+                        <button class="odonto-treat-btn" data-treatment="sello" title="Sellante / Restauración">
+                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 16c-4 2.5-5.5 7-4 12.5.8 3.2 2.3 6.2 3.1 9.1.7 2.7 2.2 4.4 4.3 4.4 2.9 0 2.7-6.2 5.6-6.2s2.7 6.2 5.6 6.2c2.1 0 3.6-1.7 4.3-4.4.8-2.9 2.3-5.9 3.1-9.1 1.5-5.5 0-10-4-12.5-3.1-1.9-5.8 1.1-9 1.1S18.1 14.1 15 16z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M18 25c1.1-3 3.1-4.7 6-4.7s4.9 1.7 6 4.7c-.8 3.3-2.8 5-6 5s-5.2-1.7-6-5z" fill="#f5eeeb" stroke="#d44" stroke-width="2" stroke-linejoin="round"/><path d="M21 25c1.8 1.3 4.2 1.3 6 0" fill="none" stroke="#d44" stroke-width="1.7" stroke-linecap="round"/></svg>
                         </button>
                     </div>
                     <div class="odonto-action-group">
@@ -5206,6 +5703,20 @@ function renderClinicalHistory(patientId) {
                     ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Agregar Imagen</button>' : ''}
                 </div>
                 <div class="clinical-images-shell">
+                    <div class="clinical-images-summary">
+                        <div>
+                            <span>Archivo visual</span>
+                            <strong>${clinicalImages.length} ${clinicalImages.length === 1 ? 'imagen' : 'imágenes'}</strong>
+                        </div>
+                        <div>
+                            <span>Última captura</span>
+                            <strong>${escapeHtml(formatClinicalImageDate(latestClinicalImage?.date))}</strong>
+                        </div>
+                        <div>
+                            <span>Vista</span>
+                            <strong>Secuencia clínica</strong>
+                        </div>
+                    </div>
                     <div class="clinical-images-grid">
                     ${clinicalImages.map((image, idx) => `
                         <article class="clinical-image-card">
@@ -5222,16 +5733,16 @@ function renderClinicalHistory(patientId) {
                                 ` : ''}
                             </div>
                             <button type="button" class="clinical-image-preview-button" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
-                                <img src="${image.dataUrl}" alt="${image.description || 'Imagen clinica'}" class="clinical-image-preview" onerror="this.style.display='none'; this.closest('.clinical-image-card')?.querySelector('.clinical-image-body')?.classList.add('clinical-image-body--error'); this.closest('.clinical-image-card')?.classList.add('clinical-image-card--broken');">
+                                <img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.description || 'Imagen clínica')}" class="clinical-image-preview" onerror="this.style.display='none'; this.closest('.clinical-image-card')?.querySelector('.clinical-image-body')?.classList.add('clinical-image-body--error'); this.closest('.clinical-image-card')?.classList.add('clinical-image-card--broken');">
                             </button>
                             <div class="clinical-image-body">
                                 <div class="clinical-image-meta">
-                                    <div class="clinical-image-date">${image.date ? image.date.split('-').reverse().join('/') : 'Sin fecha'}</div>
+                                    <div class="clinical-image-date">${escapeHtml(formatClinicalImageDate(image.date))}</div>
                                     <button type="button" class="clinical-image-inline-link" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})">
                                         Abrir
                                     </button>
                                 </div>
-                                <p class="clinical-image-description">${image.description || 'Sin descripcion'}</p>
+                                <p class="clinical-image-description">${escapeHtml(image.description || 'Sin descripción')}</p>
                                 <p class="clinical-image-error">La imagen guardada está incompleta. Vuelve a cargarla.</p>
                             </div>
                         </article>
@@ -5341,6 +5852,22 @@ function bindClinicalToothEvents(patientId) {
     });
 }
 
+function updateTreatBtnActiveStyle(btn) {
+    if (!btn) return;
+    if (!btn.classList.contains('is-active')) {
+        btn.style.borderColor = '';
+        btn.style.background  = '';
+        btn.style.boxShadow   = '';
+        return;
+    }
+    const activeStyle = odontogramTool.color === 'azul'
+        ? { borderColor: '#2563eb', background: '#2563eb18', boxShadow: '0 2px 8px #2563eb44' }
+        : { borderColor: '#dc2626', background: '#dc262618', boxShadow: '0 2px 8px #dc262644' };
+    btn.style.borderColor = activeStyle.borderColor;
+    btn.style.background  = activeStyle.background;
+    btn.style.boxShadow   = activeStyle.boxShadow;
+}
+
 function attachOdontogramToolbar(patientId) {
     const toolbar = document.getElementById('odontogram-toolbar');
     if (!toolbar) return;
@@ -5350,27 +5877,42 @@ function attachOdontogramToolbar(patientId) {
             toolbar.querySelectorAll('.odonto-color-btn').forEach(b => b.classList.remove('is-active'));
             btn.classList.add('is-active');
             odontogramTool.color = btn.dataset.color;
+            toolbar.querySelectorAll('.odonto-treat-btn').forEach(updateTreatBtnActiveStyle);
         });
     });
 
     toolbar.querySelectorAll('.odonto-treat-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const already = btn.classList.contains('is-active');
-            toolbar.querySelectorAll('.odonto-treat-btn').forEach(b => b.classList.remove('is-active'));
+            odontogramTool.clearing = false;
+            document.getElementById('btn-odonto-clear')?.classList.remove('is-clearing');
+            document.querySelector('.odontogram-wrapper')?.classList.remove('odontogram-erasing');
+
+            toolbar.querySelectorAll('.odonto-treat-btn').forEach(b => {
+                b.classList.remove('is-active');
+                updateTreatBtnActiveStyle(b);
+            });
             if (!already) {
                 btn.classList.add('is-active');
                 odontogramTool.treatment = btn.dataset.treatment;
+                updateTreatBtnActiveStyle(btn);
             } else {
                 odontogramTool.treatment = null;
             }
         });
     });
+
+    toolbar.querySelectorAll('.odonto-treat-btn').forEach(updateTreatBtnActiveStyle);
+    document.getElementById('btn-odonto-clear')?.classList.toggle('is-clearing', odontogramTool.clearing);
+    document.querySelector('.odontogram-wrapper')?.classList.toggle('odontogram-erasing', odontogramTool.clearing);
 }
 
 window.clearOdontogramTooth = function(patientId) {
     odontogramTool.clearing = !odontogramTool.clearing;
-    const btn = document.getElementById('btn-odonto-clear');
+    const btn     = document.getElementById('btn-odonto-clear');
+    const wrapper = document.querySelector('.odontogram-wrapper');
     btn?.classList.toggle('is-clearing', odontogramTool.clearing);
+    wrapper?.classList.toggle('odontogram-erasing', odontogramTool.clearing);
 };
 
 function attachClinicalHistoryEvents(patientId) {
@@ -5463,16 +6005,18 @@ window.saveClinicalHistory = async function(patientId) {
         return;
     }
 
-    const patient = DB.get('patients').find((item) => item.id === patientId);
     const draft = getClinicalDraft(patientId);
-    if (!patient || !draft) return;
+    if (!draft) return;
     if (!draft.isDirty) {
         showToast('No hay cambios pendientes para guardar.', { type: 'success' });
         return;
     }
 
+    // Usamos el paciente cacheado en localStorage (ya sincronizado con la API al cargar la vista)
+    // o si no está, el draft como base
+    const cachedPatient = DB.get('patients').find((item) => item.id === patientId) || {};
     const mergedValues = {
-        ...patient,
+        ...cachedPatient,
         ...draft.data,
         odontograma: deepClone(draft.data.odontograma || {})
     };
@@ -5729,15 +6273,31 @@ function openClinicalImageModal(patientId) {
         const selectedDescription = document.getElementById('clinical-image-description').value.trim();
 
         Promise.all(files.map(file => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve({
-                id: Date.now() + Math.floor(Math.random() * 1000),
-                date: selectedDate,
-                description: selectedDescription,
-                dataUrl: reader.result
-            });
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
+            const img = new Image();
+            const objectUrl = URL.createObjectURL(file);
+            img.onload = () => {
+                const MAX_SIDE = 1600;
+                const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+                const width  = Math.max(1, Math.round(img.width  * scale));
+                const height = Math.max(1, Math.round(img.height * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width  = width;
+                canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                URL.revokeObjectURL(objectUrl);
+                let dataUrl = canvas.toDataURL('image/webp', 0.80);
+                if (!dataUrl.startsWith('data:image/webp')) {
+                    dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+                }
+                resolve({
+                    id: Date.now() + Math.floor(Math.random() * 1000),
+                    date: selectedDate,
+                    description: selectedDescription,
+                    dataUrl
+                });
+            };
+            img.onerror = reject;
+            img.src = objectUrl;
         }))).then(async (newImages) => {
             const p = DB.get('patients').find(pt => pt.id === patientId);
 
