@@ -46,11 +46,16 @@
     padding: 0;
 }
 
+html {
+    overflow-x: hidden;
+}
+
 body {
     font-family: 'Instrument Sans', sans-serif;
     background-color: var(--gray-50);
     color: var(--gray-800);
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
 }
 
 /* --- Layout Utilities --- */
@@ -1035,7 +1040,12 @@ body.app-loading-active {
     .settings-form-row.columns-3 {
         grid-template-columns: 1fr;
     }
-    .btn {
+    /* Solo botones de acción de formulario/modal — no los inline de tabla */
+    .modal-footer .btn,
+    .settings-panel-card > form .btn,
+    .settings-card > form .btn,
+    #new-user-form .btn,
+    #new-prof-form .btn {
         width: 100%;
     }
 }
@@ -10531,3 +10541,205 @@ body.theme-dark p, body.theme-dark td, body.theme-dark label {
     color: #a1a1aa;
 }
 body.theme-dark .subtle, body.theme-dark .subtext { color: #71717a !important; }
+
+
+/* ================================================================
+   RESPONSIVE FIXES — comprehensive pass
+   ================================================================ */
+
+/* --- Calendar grid: remove forced min-width that causes h-scroll --- */
+.cal-grid {
+    min-width: 0;
+}
+@media screen and (max-width: 1024px) {
+    .cal-grid {
+        min-width: calc(60px + var(--day-cols, 7) * 100px);
+    }
+}
+@media screen and (max-width: 640px) {
+    .cal-grid {
+        min-width: calc(48px + var(--day-cols, 7) * 80px);
+    }
+}
+
+/* --- Calendar month board --- */
+@media screen and (max-width: 768px) {
+    .cal-month-board {
+        min-width: 560px !important;
+    }
+}
+@media screen and (max-width: 540px) {
+    .cal-month-board {
+        min-width: 480px !important;
+    }
+}
+
+/* --- Calendar day body height --- */
+.cal-day-body {
+    height: min(600px, calc(100dvh - 220px));
+}
+
+/* --- Appointment form: 2-col → 1-col on phones --- */
+@media screen and (max-width: 540px) {
+    .appointment-form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Patient form: 3-col → 2-col on tablet, 1-col on phone --- */
+@media screen and (max-width: 700px) {
+    .modal-content-patient #patient-form .modal-body > .patient-form-row-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media screen and (max-width: 540px) {
+    .modal-content-patient #patient-form .modal-body > .patient-form-row-3,
+    .modal-content-patient #patient-form .modal-body > .patient-form-row-2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Schedule modal: day row collapse on mobile --- */
+@media screen and (max-width: 480px) {
+    .schedule-day-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--gray-200);
+    }
+    .schedule-day-row + .schedule-day-row {
+        padding-top: 0.25rem;
+    }
+}
+
+/* --- Clinical images: smaller minmax on mobile --- */
+@media screen and (max-width: 540px) {
+    .clinical-images-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+    .clinical-images-summary {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Odontogram: scale down further on small screens --- */
+@media screen and (max-width: 640px) {
+    .odontogram-wrapper {
+        transform: scale(0.52);
+        margin-bottom: -8rem;
+    }
+}
+@media screen and (max-width: 480px) {
+    .odontogram-wrapper {
+        transform: scale(0.42);
+        margin-bottom: -12rem;
+    }
+}
+
+/* --- Calendar apt actions: always visible on touch (hover:none) --- */
+@media (hover: none) {
+    .cal-apt-actions {
+        display: flex;
+        opacity: 0.85;
+    }
+    .cal-apt-block {
+        padding-bottom: 1.6rem;
+    }
+}
+
+/* --- Touch targets: minimum 44px for key interactive elements --- */
+@media screen and (max-width: 1024px) {
+    .cal-prof-select-btn,
+    .cal-apt-btn,
+    .presence-btn,
+    .odonto-color-btn,
+    .odonto-clear-btn,
+    .odonto-apply-btn {
+        min-height: 44px;
+    }
+    .badge-state {
+        min-height: 44px;
+        padding: 0 0.75rem;
+    }
+}
+
+/* --- Modal padding: reduce on very small screens --- */
+@media screen and (max-width: 400px) {
+    .modal-body {
+        padding: 1rem;
+    }
+    .modal-footer {
+        padding: 0.75rem 1rem;
+    }
+    .feedback-dialog {
+        padding: 1.1rem 1rem 1rem;
+    }
+}
+
+/* --- Dashboard table: don't overflow on mobile header --- */
+@media screen and (max-width: 640px) {
+    .table-header h3 {
+        font-size: 0.95rem;
+    }
+    .dashboard-date-filter-wrap {
+        width: 100%;
+    }
+}
+
+/* --- Settings card: presence btn shouldn't be full width --- */
+.presence-btn {
+    flex-shrink: 0;
+    width: auto !important;
+}
+
+/* --- Status dropdown trigger: not full width --- */
+.status-dropdown,
+.status-dropdown-trigger {
+    width: auto !important;
+}
+
+/* --- Clinical compact grid: ensure 1 col on very small phones --- */
+@media screen and (max-width: 400px) {
+    .clinical-edit-grid,
+    .clinical-edit-grid-compact {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Sidebar: on very small phones leave a sliver visible --- */
+@media screen and (max-width: 360px) {
+    #app-view aside {
+        width: min(92vw, 300px) !important;
+        min-width: min(92vw, 300px) !important;
+    }
+}
+
+/* --- Metrics card grid: 2-col on small phones, 1-col on tiny --- */
+@media screen and (max-width: 480px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.65rem;
+    }
+}
+@media screen and (max-width: 340px) {
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Improve readability: bump tiny font sizes on mobile --- */
+@media screen and (max-width: 640px) {
+    .cal-day-name {
+        font-size: 0.7rem;
+    }
+    .badge-state,
+    .badge {
+        font-size: 0.72rem;
+    }
+    .clinical-section-title {
+        font-size: 0.75rem;
+    }
+    .subtext {
+        font-size: 0.78rem;
+    }
+}

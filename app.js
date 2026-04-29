@@ -4289,7 +4289,7 @@ function renderAppointments() {
                     <span class="cal-day-name">${dayName}</span>
                     <span class="cal-day-number ${isToday ? 'cal-today-badge' : ''}">${dayNum}</span>
                 </button>
-                <div class="cal-day-body" style="height:600px; padding:0.9rem 0.5rem 0.5rem; overflow-y:auto;">
+                <div class="cal-day-body" style="height:min(600px,calc(100dvh - 220px)); padding:0.9rem 0.5rem 0.5rem; overflow-y:auto;">
                     ${summaryCard}
                 </div>
             </div>`;
