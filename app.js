@@ -1780,6 +1780,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('logout-btn').addEventListener('click', logout);
     sidebarToggle?.addEventListener('click', () => setSidebarOpen(!state.sidebarOpen));
     sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
+    document.getElementById('sidebar-close-btn')?.addEventListener('click', () => setSidebarOpen(false));
     window.addEventListener('resize', syncSidebarLayout);
     setSidebarOpen(!isMobileLayout());
     

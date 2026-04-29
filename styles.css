@@ -10743,3 +10743,38 @@ body.theme-dark .subtle, body.theme-dark .subtext { color: #71717a !important; }
         font-size: 0.78rem;
     }
 }
+
+/* --- Botón cerrar sidebar (solo mobile) --- */
+.sidebar-close-btn {
+    display: none;
+    margin-left: auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--gray-500);
+    font-size: 1.15rem;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+.sidebar-close-btn:hover {
+    background: var(--gray-100);
+    color: var(--gray-800);
+}
+body.theme-dark .sidebar-close-btn {
+    color: #9ca3af;
+}
+body.theme-dark .sidebar-close-btn:hover {
+    background: rgba(255,255,255,0.08);
+    color: #f1f5f9;
+}
+
+@media screen and (max-width: 1024px) {
+    .sidebar-close-btn {
+        display: flex;
+    }
+}
