@@ -786,7 +786,7 @@ function getContrastingTextColor(hexColor) {
 
 function applyClinicBranding() {
     const clinicName = getClinicDisplayName();
-    document.querySelectorAll('.app-brand-copy h1, .mobile-header-brand span')
+    document.querySelectorAll('.app-brand-copy h1, .mobile-header-brand-text > span:first-child')
         .forEach((node) => {
             if (node) node.textContent = 'Odentara';
         });

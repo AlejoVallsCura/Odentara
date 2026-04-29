@@ -10778,3 +10778,29 @@ body.theme-dark .sidebar-close-btn:hover {
         display: flex;
     }
 }
+
+/* --- Nombre clínica en header mobile --- */
+.mobile-header-brand-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.2;
+}
+.mobile-header-brand-text > span:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mobile-header-clinic-name {
+    font-size: 0.65rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mobile-header-clinic-name:empty {
+    display: none;
+}
