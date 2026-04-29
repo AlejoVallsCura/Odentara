@@ -10804,3 +10804,38 @@ body.theme-dark .sidebar-close-btn:hover {
 .mobile-header-clinic-name:empty {
     display: none;
 }
+
+/* ── Column visibility helpers ── */
+@media screen and (max-width: 640px) {
+    .col-hide-sm { display: none !important; }
+}
+@media screen and (max-width: 480px) {
+    .col-hide-xs { display: none !important; }
+}
+
+/* ── Tables: prevent runaway text wrap, ensure scroll ── */
+.table-nowrap th,
+.table-nowrap td {
+    white-space: nowrap;
+}
+.table-container {
+    overflow-x: auto;
+}
+
+/* ── Settings subtext: no truncar ── */
+.settings-nav-card .subtext,
+.settings-panel-card .subtext,
+.settings-area .subtext {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+}
+
+/* ── Odontograma: ocultar en mobile ── */
+@media screen and (max-width: 768px) {
+    .odontogram-toolbar,
+    .odontogram-wrapper,
+    .odontogram-legend {
+        display: none !important;
+    }
+}

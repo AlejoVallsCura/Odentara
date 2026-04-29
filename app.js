@@ -4582,17 +4582,17 @@ function renderBilling() {
                         <p class="section-subtitle">Registro movimiento por movimiento con saldo acumulado por profesional.</p>
                     </div>
                 </div>
-                <div class="table-container shadow-sm border border-gray-100 mt-4">
-                    <table class="w-full text-left bg-white">
+                <div class="table-container shadow-sm border border-gray-100 mt-4 overflow-x-auto">
+                    <table class="w-full text-left bg-white table-nowrap">
                         <thead class="bg-gray-50 text-gray-600">
                             <tr>
                                 <th>Fecha</th>
-                                <th>Profesional</th>
+                                <th class="col-hide-xs">Profesional</th>
                                 <th>Tipo</th>
-                                <th>Concepto</th>
-                                <th>Cargo</th>
-                                <th>Pago / Ingreso</th>
-                                <th>Saldo profesional</th>
+                                <th class="col-hide-sm">Concepto</th>
+                                <th class="col-hide-sm">Cargo</th>
+                                <th>Monto</th>
+                                <th class="col-hide-sm">Saldo</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -4605,15 +4605,16 @@ function renderBilling() {
                                         ? 'Pago'
                                         : 'Ingreso';
                                 const movementDate = coerceAppointmentDate(movement.date);
+                                const montoDisplay = `$${movement.amount.toLocaleString()}`;
                                 return `
                                     <tr>
                                         <td class="text-sm text-gray-500">${movementDate}</td>
-                                        <td class="font-medium">${professionalName}</td>
+                                        <td class="font-medium col-hide-xs">${professionalName}</td>
                                         <td><span class="badge ${isPositiveMovement ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
-                                        <td class="text-gray-700">${movement.description || 'Sin descripción'}</td>
-                                        <td class="font-semibold text-warning">${movement.type === 'debt' ? `$${movement.amount.toLocaleString()}` : '-'}</td>
-                                        <td class="font-semibold text-success">${isPositiveMovement ? `$${movement.amount.toLocaleString()}` : '-'}</td>
-                                        <td>
+                                        <td class="text-gray-700 col-hide-sm">${movement.description || 'Sin descripción'}</td>
+                                        <td class="font-semibold text-warning col-hide-sm">${movement.type === 'debt' ? montoDisplay : '-'}</td>
+                                        <td class="font-semibold ${isPositiveMovement ? 'text-success' : 'text-warning'}">${montoDisplay}</td>
+                                        <td class="col-hide-sm">
                                             ${movement.runningBalance > 0
                                                 ? `<span class="badge badge-warning text-xs">Debe $${movement.runningBalance.toLocaleString()}</span>`
                                                 : movement.runningBalance < 0
@@ -4689,9 +4690,9 @@ function renderBilling() {
             <input type="text" id="billing-text-search" placeholder="Buscar por paciente, DNI o descripción..." class="w-full" oninput="filterBillingTable(this.value)">
         </div>
 
-        <div class="table-container shadow-sm">
-            <table class="w-full text-left">
-                <thead><tr><th>Fecha</th><th>Paciente</th><th>Profesional</th><th>Tipo</th><th>Concepto</th><th>Monto</th><th></th></tr></thead>
+        <div class="table-container shadow-sm overflow-x-auto">
+            <table class="w-full text-left table-nowrap">
+                <thead><tr><th>Fecha</th><th>Paciente</th><th class="col-hide-xs">Profesional</th><th>Tipo</th><th class="col-hide-sm">Concepto</th><th>Monto</th><th></th></tr></thead>
                 <tbody>
                     ${cajaTxs.sort((a,b) => coerceAppointmentDate(b.date).localeCompare(coerceAppointmentDate(a.date)) || b.id - a.id).map(t => {
                         const pName = patients.find(p=>p.id === t.patientId)?.name || 'Desconocido';
@@ -4702,9 +4703,9 @@ function renderBilling() {
                         <tr>
                             <td class="text-sm text-gray-500">${coerceAppointmentDate(t.date)}</td>
                             <td class="font-medium">${pName}</td>
-                            <td class="text-sm text-gray-600">${professionalName}</td>
+                            <td class="text-sm text-gray-600 col-hide-xs">${professionalName}</td>
                             <td><span class="badge ${isPago ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
-                            <td class="text-gray-700">${t.description || 'Sin descripción'}</td>
+                            <td class="text-gray-700 col-hide-sm">${t.description || 'Sin descripción'}</td>
                             <td class="font-bold ${isPago ? 'text-success' : 'text-warning'}">$${t.amount.toLocaleString()}</td>
                             <td>
                                 ${state.user.roles.some(r => ['superadmin', 'admin'].includes(r)) ?
@@ -4860,7 +4861,7 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead><tr><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Sala</th><th>Confirmacion</th><th>Whatsapp</th></tr></thead>
+                    <thead><tr><th>Hora</th><th>Paciente</th><th class="col-hide-xs">Profesional</th><th class="col-hide-sm">Sala</th><th>Confirmacion</th><th class="col-hide-sm">Whatsapp</th></tr></thead>
                     <tbody>
                         ${pendingApts.map(apt => {
                             const patient = getPatientByAppointment(apt);
@@ -4874,10 +4875,10 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                 <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}" style="${rowStyle}">
                                     <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
                                     <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
-                                    <td><span class="dash-prof-chip" style="background:${profColor.bg}${isDark ? '33' : '22'}; color:${profColor.bg}; border:1px solid ${profColor.bg}${isDark ? '66' : '44'};">${getProfName(apt.professionalId)}</span></td>
-                                    <td>${renderPresenceBtnHtml(apt.id)}</td>
+                                    <td class="col-hide-xs"><span class="dash-prof-chip" style="background:${profColor.bg}${isDark ? '33' : '22'}; color:${profColor.bg}; border:1px solid ${profColor.bg}${isDark ? '66' : '44'};">${getProfName(apt.professionalId)}</span></td>
+                                    <td class="col-hide-sm">${renderPresenceBtnHtml(apt.id)}</td>
                                     <td>${canManageStatus ? renderStatusDropdownHtml(apt.id, statusMeta) : `<span class="badge ${statusMeta.badge}">${statusMeta.label}</span>`}</td>
-                                    <td>${canUseWhatsapp ? (whatsappLink ? (() => {
+                                    <td class="col-hide-sm">${canUseWhatsapp ? (whatsappLink ? (() => {
                                             const alreadySent = ['sent', 'confirmed', 'rescheduled', 'cancelled'].includes(statusMeta.key);
                                             return alreadySent
                                                 ? `<span class="wa-sent-badge"><i class="fa-brands fa-whatsapp"></i> Enviado</span>`
@@ -4901,7 +4902,7 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                 </summary>
                 <div class="overflow-x-auto mt-2">
                     <table class="w-full text-left opacity-60">
-                        <thead><tr><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Estado</th></tr></thead>
+                        <thead><tr><th>Hora</th><th>Paciente</th><th class="col-hide-xs">Profesional</th><th>Estado</th></tr></thead>
                         <tbody>
                             ${finishedApts.map(apt => {
                                 const statusMeta = getAppointmentStatusMeta(apt.status);
@@ -4909,7 +4910,7 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                     <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}">
                                         <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-400">(${apt.duration}m)</span></td>
                                         <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
-                                        <td>${getProfName(apt.professionalId)}</td>
+                                        <td class="col-hide-xs">${getProfName(apt.professionalId)}</td>
                                         <td><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></td>
                                     </tr>
                                 `;
@@ -4953,8 +4954,8 @@ function renderSettingsSubpages() {
             <tr class="hover-row">
                 <td class="table-name"><strong>${u.name || 'Sin nombre'}</strong><br><span class="subtle">${u.email || '-'}</span></td>
                 <td>${u.type || '-'}</td>
-                <td>${roles}</td>
-                <td>${profNames}</td>
+                <td class="col-hide-sm">${roles}</td>
+                <td class="col-hide-sm">${profNames}</td>
                 <td class="text-center">${isSuper ? `<button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar usuario"><i class="fa-solid fa-pen"></i></button><button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar usuario" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
             </tr>`;
     }).join('');
@@ -4966,10 +4967,10 @@ function renderSettingsSubpages() {
         return `
             <tr class="hover-row">
                 <td class="table-name">${p.name}</td>
-                <td>${p.lastName || '-'}</td>
-                <td>${p.specialty || '-'}</td>
-                <td>${p.phone || '-'}</td>
-                <td>${p.email || '-'}</td>
+                <td class="col-hide-xs">${p.lastName || '-'}</td>
+                <td class="col-hide-xs">${p.specialty || '-'}</td>
+                <td class="col-hide-sm">${p.phone || '-'}</td>
+                <td class="col-hide-sm">${p.email || '-'}</td>
                 <td>${statusLabel}</td>
                 <td class="text-center"><button class="btn btn-icon btn-edit-prof" data-id="${p.id}" title="Editar profesional"><i class="fa-solid fa-pen"></i></button><button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Ver calendario"><i class="fa-solid fa-calendar-days"></i></button><button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Configurar horarios"><i class="fa-solid fa-clock"></i></button></td>
             </tr>`;
@@ -5112,9 +5113,9 @@ function renderSettingsSubpages() {
                             <tr>
                                 <th>Nombre / Email</th>
                                 <th>Tipo</th>
-                                <th>Roles</th>
-                                <th>Profesionales</th>
-                                <th>AcciÃƒÂ³n</th>
+                                <th class="col-hide-sm">Roles</th>
+                                <th class="col-hide-sm">Profesionales</th>
+                                <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody>${userRows || `<tr><td colspan="5" class="text-gray-500">No hay usuarios registrados</td></tr>`}</tbody>
@@ -5130,12 +5131,12 @@ function renderSettingsSubpages() {
                         <thead>
                             <tr>
                                 <th>Nombre</th>
-                                <th>Apellido</th>
-                                <th>Especialidad</th>
-                                <th>TelÃƒÂ©fono</th>
-                                <th>Email</th>
+                                <th class="col-hide-xs">Apellido</th>
+                                <th class="col-hide-xs">Especialidad</th>
+                                <th class="col-hide-sm">Teléfono</th>
+                                <th class="col-hide-sm">Email</th>
                                 <th>Estado</th>
-                                <th>AcciÃƒÂ³n</th>
+                                <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody>${profesionalRows || `<tr><td colspan="7" class="text-gray-500">No hay profesionales registrados</td></tr>`}</tbody>
