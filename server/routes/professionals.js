@@ -11,26 +11,10 @@ const {
   canManageProfessionalSchedules,
   canViewProfessionals,
 } = require("../lib/permissions");
+const { buildProfessionalAccessWhere } = require("../lib/access");
 const { checkProfessionalLimit } = require("../lib/plan-limits");
 
 const router = express.Router();
-
-function buildProfessionalAccessWhere(permissions, clinicId) {
-  if (canAccessWholeClinic(permissions)) {
-    return { deletedAt: null, clinicId };
-  }
-
-  const ids = getAccessibleProfessionalIds(permissions);
-  if (ids.length === 0) {
-    return { id: -1, clinicId };
-  }
-
-  return {
-    id: { in: ids },
-    clinicId,
-    deletedAt: null,
-  };
-}
 
 function serializeProfessional(professional) {
   return {

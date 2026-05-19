@@ -9,6 +9,7 @@ const {
   canManageAppointments,
   canEditAppointments,
 } = require("../lib/permissions");
+const { buildAppointmentAccessWhere } = require("../lib/access");
 
 const router = express.Router();
 
@@ -102,21 +103,6 @@ function scheduleAllowsAppointment(schedules = [], payload) {
   });
 }
 
-function buildAppointmentAccessWhere(permissions, clinicId) {
-  if (canAccessWholeClinic(permissions)) {
-    return { clinicId };
-  }
-
-  const ids = getAccessibleProfessionalIds(permissions);
-  if (ids.length === 0) {
-    return { id: -1, clinicId };
-  }
-
-  return {
-    clinicId,
-    professionalId: { in: ids },
-  };
-}
 
 function serializeAppointment(appointment) {
   return {

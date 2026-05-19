@@ -26,16 +26,30 @@ async function requireAuth(req, res, next) {
     }
 
     // Bloquear si la clínica fue desactivada (aunque el token siga válido)
+    // Y si hay subdominio, verificar que el token corresponde a esa clínica
     if (!user.isPlatformAdmin && user.clinicId) {
+      const clinicSlug = req.clinicSlug; // seteado por clinic-resolver.js
+
       const clinic = await prisma.clinic.findUnique({
         where: { id: user.clinicId },
-        select: { active: true },
+        select: { active: true, slug: true },
       });
+
       if (!clinic || !clinic.active) {
         return res.status(403).json({
           ok: false,
           error: "Tu clínica está desactivada. Contactá al administrador de la plataforma.",
           code: "CLINIC_INACTIVE",
+        });
+      }
+
+      // Si el request viene de un subdominio específico, verificar que el token
+      // pertenece a esa clínica. Evita usar el token de clínica-A en clínica-B.
+      if (clinicSlug && clinic.slug !== clinicSlug) {
+        return res.status(403).json({
+          ok: false,
+          error: "Token no válido para esta clínica.",
+          code: "CLINIC_MISMATCH",
         });
       }
     }
