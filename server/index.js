@@ -32,6 +32,7 @@ const userRoutes = require("./routes/users");
 const platformRoutes = require("./routes/platform");
 
 const app = express();
+app.set("trust proxy", 1); // necesario para rate-limit detrás de reverse proxy (Hostinger, nginx)
 const PORT = Number(process.env.PORT || 3001);
 const HOST = "0.0.0.0";
 const WEB_ROOT = path.resolve(__dirname, "..");
