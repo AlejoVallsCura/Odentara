@@ -3909,7 +3909,12 @@ function canViewClinicalHistoryUi() {
 
 function getCurrentOdontoProfessionalId() {
     if (isSuperadmin()) return state.clinicalOdontoProfessionalId || null;
-    return state.user?.assignedProfessionalId || null;
+    // Vínculo directo (Professional.userId = user.id)
+    if (state.user?.assignedProfessionalId) return state.user.assignedProfessionalId;
+    // Fallback: exactamente un profesional en el scope (mismo criterio que el backend)
+    const scoped = state.user?.allowedProfessionals || [];
+    if (scoped.length === 1) return scoped[0];
+    return null;
 }
 
 function isBlockingAppointmentStatus(status = '') {
