@@ -47,12 +47,20 @@ function serializeImage(image) {
   return {
     id:               image.id,
     patientId:        image.patientId,
+    professionalId:   image.professionalId ?? null,
     uploadedByUserId: image.uploadedByUserId,
     imageUrl,
     description:      image.description,
     takenAt:          image.takenAt,
     createdAt:        image.createdAt,
   };
+}
+
+function getProfessionalIdFilter(permissions, overrideId) {
+  if (permissions.isSuperadmin) {
+    return overrideId ? Number(overrideId) : null;
+  }
+  return permissions.assignedProfessionalId || null;
 }
 
 // ── GET /api/clinical-images/serve/:id ───────────────────────────────────────
@@ -90,11 +98,13 @@ router.get("/", requireAuth, async (req, res) => {
     }
 
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
+    const professionalId = getProfessionalIdFilter(req.permissions, req.query.professionalId);
     const images = await prisma.clinicalImage.findMany({
       where: {
         deletedAt: null,
         ...(patientId ? { patientId } : {}),
-        patient: buildPatientAccessWhere(req.permissions),
+        ...(professionalId ? { professionalId } : {}),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       orderBy: [{ createdAt: "desc" }],
     });
@@ -119,8 +129,9 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     const patientId = Number(req.body.patientId);
+    const professionalId = getProfessionalIdFilter(req.permissions, req.body.professionalId);
     const patient = await prisma.patient.findFirst({
-      where: { id: patientId, ...buildPatientAccessWhere(req.permissions) },
+      where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
       select: { id: true },
     });
 
@@ -153,6 +164,7 @@ router.post("/", requireAuth, async (req, res) => {
       const created = await prisma.clinicalImage.create({
         data: {
           patientId,
+          professionalId: professionalId || null,
           uploadedByUserId: req.user.id,
           imageUrl:    storedUrl,
           description: item.description ? String(item.description).trim() : null,
@@ -181,7 +193,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       where: {
         id: Number(req.params.id),
         deletedAt: null,
-        patient: buildPatientAccessWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
 
@@ -214,7 +226,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: {
         id: Number(req.params.id),
         deletedAt: null,
-        patient: buildPatientAccessWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
 

@@ -62,10 +62,20 @@ router.get("/", requireAuth, async (req, res) => {
     }
 
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
+
+    // Determinar filtro de profesional: superadmin puede pasar cualquier id, profesional usa el propio
+    let professionalIdFilter = null;
+    if (req.permissions.isSuperadmin) {
+      professionalIdFilter = req.query.professionalId ? Number(req.query.professionalId) : null;
+    } else {
+      professionalIdFilter = req.permissions.assignedProfessionalId || null;
+    }
+
     const treatments = await prisma.treatment.findMany({
       where: {
         deletedAt: null,
         ...(patientId ? { patientId } : {}),
+        ...(professionalIdFilter ? { professionalId: professionalIdFilter } : {}),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       orderBy: [{ performedAt: "desc" }, { id: "desc" }],

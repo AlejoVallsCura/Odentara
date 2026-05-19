@@ -180,6 +180,7 @@ model Professional {
   billingEntries      BillingEntry[]
   scopedUsers         UserProfessionalScope[]
   clinicalRecords     ClinicalRecord[]
+  clinicalImages      ClinicalImage[]
 
   @@index([clinicId])
   @@index([clinicId, active])
@@ -359,19 +360,22 @@ model Treatment {
 }
 
 model ClinicalImage {
-  id               Int       @id @default(autoincrement())
+  id               Int           @id @default(autoincrement())
   patientId        Int
+  professionalId   Int?
   uploadedByUserId Int?
-  imageUrl         String    @db.LongText
-  description      String?   @db.Text
+  imageUrl         String        @db.LongText
+  description      String?       @db.Text
   takenAt          DateTime?
   deletedAt        DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  uploadedByUser   User?     @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  patient          Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional     Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  uploadedByUser   User?         @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
 
   @@index([patientId, createdAt])
+  @@index([patientId, professionalId])
   @@index([deletedAt])
 }
 

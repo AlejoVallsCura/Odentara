@@ -1621,12 +1621,13 @@ async function syncPatientClinicalData(patientId, professionalId) {
         return DB.get('patients').find((item) => item.id === patientId) || null;
     }
 
-    const profParam = professionalId ? `?professionalId=${professionalId}` : '';
+    const profQ = professionalId ? `&professionalId=${professionalId}` : '';
+    const profQRecord = professionalId ? `?professionalId=${professionalId}` : '';
     const [patientRes, treatmentsRes, imagesRes, clinicalRecordRes] = await Promise.all([
         apiFetch(`/patients/${patientId}`),
-        apiFetch(`/treatments?patientId=${patientId}`),
-        apiFetch(`/clinical-images?patientId=${patientId}`),
-        apiFetch(`/clinical-records/${patientId}${profParam}`)
+        apiFetch(`/treatments?patientId=${patientId}${profQ}`),
+        apiFetch(`/clinical-images?patientId=${patientId}${profQ}`),
+        apiFetch(`/clinical-records/${patientId}${profQRecord}`)
     ]);
 
     const mappedPatient = mapApiPatientToLegacy(patientRes.patient || {});
@@ -6369,7 +6370,7 @@ function renderPatients() {
                                 ${p.name}
                             </td>
                             <td data-label="Contacto">
-                                <span class="block text-sm text-gray-600"><i class="fa-solid fa-phone mr-1"></i> ${p.phone}</span>
+                                <span class="block text-sm text-gray-600" style="margin-bottom:4px;"><i class="fa-solid fa-phone mr-1"></i> ${p.phone}</span>
                                 <span class="block text-xs text-gray-400"><i class="fa-solid fa-envelope mr-1"></i> ${p.email || 'Sin email'}</span>
                             </td>
                             <td class="text-sm font-semibold" data-label="DNI">${p.dni}</td>
@@ -8230,7 +8231,7 @@ function openTreatmentModal(patientId) {
                         method: 'POST',
                         body: JSON.stringify({
                             patientId,
-                            professionalId: state.user?.assignedProfessionalId || null,
+                            professionalId: getCurrentOdontoProfessionalId(),
                             tooth: treatment.diente,
                             face: treatment.cara,
                             sector: treatment.sector,
@@ -8350,6 +8351,7 @@ function openClinicalImageModal(patientId) {
                         method: 'POST',
                         body: JSON.stringify({
                             patientId,
+                            professionalId: getCurrentOdontoProfessionalId(),
                             images: newImages.map((image) => ({
                                 imageUrl: image.dataUrl,
                                 description: image.description,
