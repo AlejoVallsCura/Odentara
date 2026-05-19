@@ -96,49 +96,70 @@ router.put("/:patientId", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
     }
 
-    const odontogramEntries = Array.isArray(req.body.odontogramEntries) ? req.body.odontogramEntries : [];
+    const rawEntries = Array.isArray(req.body.odontogramEntries) ? req.body.odontogramEntries : [];
 
-    // Upsert: crear o actualizar el registro clínico del profesional para este paciente
-    const record = await prisma.clinicalRecord.upsert({
-      where: { patientId_professionalId: { patientId, professionalId } },
-      update: {
-        summaryNotes: req.body.summaryNotes ?? null,
-        allergies: req.body.allergies ?? null,
-        medicalNotes: req.body.medicalNotes ?? null,
-        odontogramEntries: {
-          deleteMany: {},
-          create: odontogramEntries
-            .filter((e) => e?.toothNumber && e?.status)
-            .map((e) => ({
-              toothNumber: String(e.toothNumber),
-              face: e.face || null,
-              status: e.status,
-            })),
+    // Deduplicar entradas por (toothNumber, face) para evitar violaciones de constraint único
+    const seen = new Set();
+    const odontogramEntries = rawEntries
+      .filter((e) => e?.toothNumber && e?.status)
+      .filter((e) => {
+        const key = `${e.toothNumber}|${e.face ?? "__null__"}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((e) => ({
+        toothNumber: String(e.toothNumber),
+        face: e.face || null,
+        status: e.status,
+      }));
+
+    // Usar transacción explícita en lugar de upsert para evitar problemas de
+    // compatibilidad con Prisma + MariaDB en operaciones anidadas deleteMany/create
+    const record = await prisma.$transaction(async (tx) => {
+      const existing = await tx.clinicalRecord.findUnique({
+        where: { patientId_professionalId: { patientId, professionalId } },
+        select: { id: true },
+      });
+
+      if (existing) {
+        // Actualizar notas + reemplazar odontograma completo
+        await tx.odontogramEntry.deleteMany({ where: { clinicalRecordId: existing.id } });
+
+        return tx.clinicalRecord.update({
+          where: { id: existing.id },
+          data: {
+            summaryNotes: req.body.summaryNotes ?? null,
+            allergies: req.body.allergies ?? null,
+            medicalNotes: req.body.medicalNotes ?? null,
+            odontogramEntries: {
+              create: odontogramEntries,
+            },
+          },
+          include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
+        });
+      }
+
+      // Crear nuevo registro clínico
+      return tx.clinicalRecord.create({
+        data: {
+          patientId,
+          professionalId,
+          summaryNotes: req.body.summaryNotes ?? null,
+          allergies: req.body.allergies ?? null,
+          medicalNotes: req.body.medicalNotes ?? null,
+          odontogramEntries: {
+            create: odontogramEntries,
+          },
         },
-      },
-      create: {
-        patientId,
-        professionalId,
-        summaryNotes: req.body.summaryNotes ?? null,
-        allergies: req.body.allergies ?? null,
-        medicalNotes: req.body.medicalNotes ?? null,
-        odontogramEntries: {
-          create: odontogramEntries
-            .filter((e) => e?.toothNumber && e?.status)
-            .map((e) => ({
-              toothNumber: String(e.toothNumber),
-              face: e.face || null,
-              status: e.status,
-            })),
-        },
-      },
-      include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
+        include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
+      });
     });
 
     return res.json({ ok: true, record: serializeRecord(record) });
   } catch (_error) {
-    console.error("[clinical-records PUT]", _error);
-    return res.status(500).json({ ok: false, error: "No se pudo actualizar la historia clínica." });
+    console.error("[clinical-records PUT] error:", _error?.message, "| code:", _error?.code, "| meta:", JSON.stringify(_error?.meta));
+    return res.status(500).json({ ok: false, error: "No se pudo actualizar la historia clínica.", debug: _error?.code || _error?.message });
   }
 });
 
