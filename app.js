@@ -3688,7 +3688,7 @@ function canManagePatientBillingUi() {
 }
 
 function canViewPatientBillingUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin', 'professional'].includes(role));
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
 }
 
 function canManageAppointmentsUi() {
@@ -3708,7 +3708,7 @@ function canCreatePatientUi() {
 }
 
 function canEditPatientUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary', 'professional'].includes(role));
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary'].includes(role));
 }
 
 function canManageProfessionalSchedulesUi() {
