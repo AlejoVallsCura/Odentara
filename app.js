@@ -6176,21 +6176,20 @@ function renderAppointments() {
             if (!profWorksDay && weekSelectedProf) {
                 summaryCard = `<div class="cal-day-no-work"><i class="fa-solid fa-moon"></i><span>No trabaja</span></div>`;
             } else if (dayApts.length) {
-                const schedBadge = profScheduleDay ? `<span class="cal-day-sched-badge">${profScheduleDay.start}–${profScheduleDay.end}</span>` : '';
                 summaryCard = `<button type="button" class="cal-day-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
                         <span class="cal-day-summary-label">${countLabel}</span>
-                        ${schedBadge}
                    </button>`;
             } else {
-                const schedBadge = profScheduleDay ? `<span class="cal-day-sched-badge">${profScheduleDay.start}–${profScheduleDay.end}</span>` : '';
-                summaryCard = `<div class="cal-day-summary-empty">Sin turnos${schedBadge ? `<br>${schedBadge}` : ''}</div>`;
+                summaryCard = `<div class="cal-day-summary-empty">Sin turnos</div>`;
             }
 
+            const schedLabel = profScheduleDay ? `<span class="cal-day-sched-badge">${profScheduleDay.start}–${profScheduleDay.end}</span>` : '';
             dayCols += `
             <div class="cal-day-col ${!profWorksDay && weekSelectedProf ? 'cal-day-col-no-work' : ''}" data-calendar-date="${iso}" style="cursor:pointer;">
                 <button type="button" class="cal-day-header ${isToday ? 'cal-today-header' : ''}" data-calendar-date="${iso}">
                     <span class="cal-day-name">${dayName}</span>
                     <span class="cal-day-number ${isToday ? 'cal-today-badge' : ''}">${dayNum}</span>
+                    ${schedLabel}
                 </button>
                 <div class="cal-day-body" style="height:min(600px,calc(100dvh - 220px)); padding:0.9rem 0.5rem 0.5rem; overflow-y:auto;">
                     ${summaryCard}
