@@ -12,8 +12,17 @@ function getProfessionalId(permissions, overrideId) {
   if (permissions.isSuperadmin) {
     return overrideId ? Number(overrideId) : null;
   }
-  // Professional solo puede acceder a su propio registro
-  return permissions.assignedProfessionalId || null;
+  // Vínculo directo: Professional.userId = user.id
+  if (permissions.assignedProfessionalId) {
+    return permissions.assignedProfessionalId;
+  }
+  // Fallback: usuario con rol professional que tiene exactamente un profesional
+  // asignado en su scope (Professional.userId no configurado aún)
+  const scoped = permissions.allowedProfessionalIds || [];
+  if (scoped.length === 1) {
+    return scoped[0];
+  }
+  return null;
 }
 
 function serializeRecord(record) {

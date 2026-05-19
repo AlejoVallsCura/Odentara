@@ -60,7 +60,12 @@ function getProfessionalIdFilter(permissions, overrideId) {
   if (permissions.isSuperadmin) {
     return overrideId ? Number(overrideId) : null;
   }
-  return permissions.assignedProfessionalId || null;
+  if (permissions.assignedProfessionalId) {
+    return permissions.assignedProfessionalId;
+  }
+  const scoped = permissions.allowedProfessionalIds || [];
+  if (scoped.length === 1) return scoped[0];
+  return null;
 }
 
 // ── GET /api/clinical-images/serve/:id ───────────────────────────────────────

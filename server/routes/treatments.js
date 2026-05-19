@@ -67,8 +67,12 @@ router.get("/", requireAuth, async (req, res) => {
     let professionalIdFilter = null;
     if (req.permissions.isSuperadmin) {
       professionalIdFilter = req.query.professionalId ? Number(req.query.professionalId) : null;
+    } else if (req.permissions.assignedProfessionalId) {
+      professionalIdFilter = req.permissions.assignedProfessionalId;
     } else {
-      professionalIdFilter = req.permissions.assignedProfessionalId || null;
+      // Fallback: usuario profesional con exactamente un scope asignado
+      const scoped = req.permissions.allowedProfessionalIds || [];
+      if (scoped.length === 1) professionalIdFilter = scoped[0];
     }
 
     const treatments = await prisma.treatment.findMany({
