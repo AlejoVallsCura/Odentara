@@ -25,6 +25,21 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ ok: false, error: "Usuario no disponible." });
     }
 
+    // Bloquear si la clínica fue desactivada (aunque el token siga válido)
+    if (!user.isPlatformAdmin && user.clinicId) {
+      const clinic = await prisma.clinic.findUnique({
+        where: { id: user.clinicId },
+        select: { active: true },
+      });
+      if (!clinic || !clinic.active) {
+        return res.status(403).json({
+          ok: false,
+          error: "Tu clínica está desactivada. Contactá al administrador de la plataforma.",
+          code: "CLINIC_INACTIVE",
+        });
+      }
+    }
+
     req.user = user;
     req.permissions = buildPermissionSummary(user);
     next();

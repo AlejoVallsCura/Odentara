@@ -10,6 +10,7 @@ const {
   canAccessWholeClinic,
   getAccessibleProfessionalIds,
 } = require("../lib/permissions");
+const { checkBillingFeature } = require("../lib/plan-limits");
 
 const router = express.Router();
 const VALID_TYPES = new Set(["income", "debt", "payment", "adjustment"]);
@@ -93,7 +94,7 @@ router.get("/", requireAuth, async (req, res) => {
       where: {
         deletedAt: null,
         ...(patientId ? { patientId } : {}),
-        patient: buildPatientAccessWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
         ...(canAccessWholeClinic(req.permissions)
           ? {}
           : { professionalId: { in: accessibleProfessionalIds.length ? accessibleProfessionalIds : [-1] } }),
@@ -117,9 +118,16 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes permisos para crear movimientos." });
     }
 
+    // ── Verificar feature de plan ─────────────────────────────────────────────
+    const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
+    const planCheck = checkBillingFeature(clinic?.plan);
+    if (!planCheck.allowed) {
+      return res.status(403).json({ ok: false, error: planCheck.error, code: 'PLAN_LIMIT' });
+    }
+
     const patientId = Number(req.body.patientId);
     const patient = await prisma.patient.findFirst({
-      where: { id: patientId, ...buildPatientAccessWhere(req.permissions) },
+      where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
       select: { id: true },
     });
 
@@ -182,7 +190,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       where: {
         id: Number(req.params.id),
         deletedAt: null,
-        patient: buildPatientAccessWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
 
@@ -249,7 +257,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: {
         id: Number(req.params.id),
         deletedAt: null,
-        patient: buildPatientAccessWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       select: { id: true },
     });

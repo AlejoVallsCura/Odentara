@@ -5,6 +5,7 @@ const prisma = require("../lib/prisma");
 const { logDeleteAudit } = require("../lib/audit");
 const { normalizeEmail, serializeUser, buildPermissionSummary } = require("../lib/auth");
 const { requireAuth, requireAnyRole } = require("../middleware/auth");
+const { checkAdminUserLimit } = require("../lib/plan-limits");
 
 const router = express.Router();
 
@@ -35,10 +36,10 @@ function normalizeRequestedRoles(rawRoles = []) {
   );
 }
 
-router.get("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (_req, res) => {
+router.get("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, clinicId: req.user.clinicId },
       orderBy: { id: "asc" },
       include: {
         roles: { include: { role: true } },
@@ -71,6 +72,7 @@ router.get("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (_re
 });
 
 router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (req, res) => {
+  // Aseguramos que el nuevo usuario pertenece a la misma clínica que quien lo crea
   try {
     const fullName = String(req.body?.fullName || req.body?.name || "").trim();
     const email = normalizeEmail(req.body?.email || "");
@@ -108,6 +110,17 @@ router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (re
         ok: false,
         error: "Solo un superadmin puede crear usuarios con rol superadmin.",
       });
+    }
+
+    // ── Verificar límite de plan para usuarios admin/secretary ────────────────
+    const ADMIN_ROLES = ["admin", "secretary"];
+    const isCreatingAdminUser = requestedRoles.some((r) => ADMIN_ROLES.includes(r));
+    if (isCreatingAdminUser) {
+      const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
+      const planCheck = checkAdminUserLimit(clinic?.plan);
+      if (!planCheck.allowed) {
+        return res.status(403).json({ ok: false, error: planCheck.error, code: 'PLAN_LIMIT' });
+      }
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -158,6 +171,7 @@ router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (re
         fullName,
         email,
         passwordHash,
+        clinicId: req.user.clinicId,
         roles: {
           create: roles.map((role) => ({
             roleId: role.id,
@@ -214,7 +228,7 @@ router.put("/:id", requireAuth, requireAnyRole(["superadmin", "admin"]), async (
     }
 
     const existingUser = await prisma.user.findFirst({
-      where: { id: userId, deletedAt: null },
+      where: { id: userId, deletedAt: null, clinicId: req.user.clinicId },
       include: { roles: true, professionalScopes: true },
     });
 
@@ -323,6 +337,7 @@ router.delete("/:id", requireAuth, requireAnyRole(["superadmin"]), async (req, r
       where: {
         id: userId,
         deletedAt: null,
+        clinicId: req.user.clinicId,
       },
       include: {
         roles: { include: { role: true } },

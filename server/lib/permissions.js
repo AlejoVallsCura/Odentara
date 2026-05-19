@@ -19,7 +19,6 @@ function getAccessibleProfessionalIds(permissions) {
 function canManagePatients(permissions) {
   return (
     hasRole(permissions, "superadmin") ||
-    hasRole(permissions, "admin") ||
     hasRole(permissions, "secretary")
   );
 }
@@ -29,7 +28,7 @@ function canManageProfessionals(permissions) {
 }
 
 function canManageProfessionalSchedules(permissions) {
-  return canManageProfessionals(permissions) || hasRole(permissions, "secretary");
+  return hasRole(permissions, "superadmin") || hasRole(permissions, "secretary");
 }
 
 function canViewProfessionals(permissions) {
@@ -43,7 +42,6 @@ function canViewProfessionals(permissions) {
 function canManageAppointments(permissions) {
   return (
     hasRole(permissions, "superadmin") ||
-    hasRole(permissions, "admin") ||
     hasRole(permissions, "secretary")
   );
 }
@@ -56,7 +54,6 @@ function canViewBilling(permissions) {
   return (
     hasRole(permissions, "superadmin") ||
     hasRole(permissions, "admin") ||
-    hasRole(permissions, "secretary") ||
     hasRole(permissions, "professional")
   );
 }
@@ -64,8 +61,7 @@ function canViewBilling(permissions) {
 function canManageBilling(permissions) {
   return (
     hasRole(permissions, "superadmin") ||
-    hasRole(permissions, "admin") ||
-    hasRole(permissions, "secretary")
+    hasRole(permissions, "admin")
   );
 }
 

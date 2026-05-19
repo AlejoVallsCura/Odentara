@@ -36,6 +36,8 @@ function serializeUser(user) {
     email: user.email,
     fullName: user.fullName,
     active: user.active,
+    isPlatformAdmin: user.isPlatformAdmin || false,
+    clinicId: user.clinicId || null,
     roles: roleCodes,
     allowedProfessionalIds: getAllowedProfessionalIds(user),
     assignedProfessionalId: user.assignedProfessional?.id || null,
@@ -52,12 +54,15 @@ function buildPermissionSummary(user) {
   const isAdmin = roles.includes("admin");
   const isSecretary = roles.includes("secretary");
   const isProfessional = roles.includes("professional");
+  const isPlatformAdmin = user.isPlatformAdmin || false;
 
   return {
     roles,
     allowedProfessionalIds,
     assignedProfessionalId: user.assignedProfessional?.id || null,
     assignedProfessionalName: user.assignedProfessional?.fullName || null,
+    clinicId: user.clinicId || null,
+    isPlatformAdmin,
     canAccessWholeClinic:
       isSuperadmin ||
       ((isAdmin || isSecretary) && allowedProfessionalIds.length === 0),

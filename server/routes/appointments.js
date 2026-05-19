@@ -102,17 +102,18 @@ function scheduleAllowsAppointment(schedules = [], payload) {
   });
 }
 
-function buildAppointmentAccessWhere(permissions) {
+function buildAppointmentAccessWhere(permissions, clinicId) {
   if (canAccessWholeClinic(permissions)) {
-    return {};
+    return { clinicId };
   }
 
   const ids = getAccessibleProfessionalIds(permissions);
   if (ids.length === 0) {
-    return { id: -1 };
+    return { id: -1, clinicId };
   }
 
   return {
+    clinicId,
     professionalId: { in: ids },
   };
 }
@@ -172,6 +173,7 @@ async function ensureAccessibleProfessional(permissions, professionalId) {
 async function validateAppointmentPayload(
   payload,
   permissions,
+  clinicId,
   currentAppointmentId = null,
   existingAppointment = null
 ) {
@@ -183,8 +185,8 @@ async function validateAppointmentPayload(
     return "No tenes acceso al profesional seleccionado.";
   }
 
-  const patient = await prisma.patient.findUnique({
-    where: { id: payload.patientId },
+  const patient = await prisma.patient.findFirst({
+    where: { id: payload.patientId, clinicId },
     select: { id: true, deletedAt: true },
   });
 
@@ -192,8 +194,8 @@ async function validateAppointmentPayload(
     return "El paciente seleccionado no existe.";
   }
 
-  const professional = await prisma.professional.findUnique({
-    where: { id: payload.professionalId },
+  const professional = await prisma.professional.findFirst({
+    where: { id: payload.professionalId, clinicId },
     select: { id: true, active: true, deletedAt: true, schedules: true },
   });
 
@@ -306,7 +308,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     const appointments = await prisma.appointment.findMany({
       where: {
-        AND: [buildAppointmentAccessWhere(req.permissions), ...filters],
+        AND: [buildAppointmentAccessWhere(req.permissions, req.user.clinicId), ...filters],
       },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
       include: {
@@ -336,7 +338,7 @@ router.get("/:id", requireAuth, async (req, res) => {
     const appointment = await prisma.appointment.findFirst({
       where: {
         id: Number(req.params.id),
-        ...buildAppointmentAccessWhere(req.permissions),
+        ...buildAppointmentAccessWhere(req.permissions, req.user.clinicId),
       },
       include: {
         patient: {
@@ -389,13 +391,14 @@ router.post("/", requireAuth, async (req, res) => {
       notes: req.body.notes ? String(req.body.notes).trim() : null,
     };
 
-    const validationError = await validateAppointmentPayload(payload, req.permissions);
+    const validationError = await validateAppointmentPayload(payload, req.permissions, req.user.clinicId);
     if (validationError) {
       return res.status(400).json({ ok: false, error: validationError });
     }
 
     const appointment = await prisma.appointment.create({
       data: {
+        clinicId: req.user.clinicId,
         patientId: payload.patientId,
         professionalId: payload.professionalId,
         createdByUserId: req.user.id,
@@ -443,7 +446,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     const existing = await prisma.appointment.findFirst({
       where: {
         id: appointmentId,
-        ...buildAppointmentAccessWhere(req.permissions),
+        ...buildAppointmentAccessWhere(req.permissions, req.user.clinicId),
       },
     });
 
@@ -489,6 +492,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     const validationError = await validateAppointmentPayload(
       payload,
       req.permissions,
+      req.user.clinicId,
       appointmentId,
       existing
     );
@@ -544,7 +548,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     const appointment = await prisma.appointment.findFirst({
       where: {
         id: Number(req.params.id),
-        ...buildAppointmentAccessWhere(req.permissions),
+        ...buildAppointmentAccessWhere(req.permissions, req.user.clinicId),
       },
       select: { id: true },
     });

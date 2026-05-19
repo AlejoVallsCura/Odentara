@@ -25,18 +25,76 @@
                     <img src="favicon.svg" alt="Odentara" class="brand-logo-img logo-icon">
                     <h2>Odentara.app</h2>
                 </div>
-                <p class="login-subtitle">Ingresa a tu cuenta</p>
-                <form id="login-form">
-                    <div class="input-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" required placeholder="tu@email.com">
+                <!-- Panel: Login -->
+                <div id="login-panel">
+                    <p class="login-subtitle">Ingresa a tu cuenta</p>
+                    <form id="login-form">
+                        <div class="input-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" required placeholder="tu@email.com">
+                        </div>
+                        <div class="input-group">
+                            <label for="password">Contraseña</label>
+                            <input type="password" id="password" placeholder="tu contraseña">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-full">Ingresar</button>
+                        <div style="text-align:center;margin-top:14px;">
+                            <button type="button" id="forgot-password-link" class="login-link-btn">¿Olvidaste tu contraseña?</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Panel: Forgot password -->
+                <div id="forgot-panel" class="hidden">
+                    <p class="login-subtitle">Recuperar contraseña</p>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:20px;line-height:1.5;">Ingresá tu email y te enviamos un enlace para crear una nueva contraseña.</p>
+                    <form id="forgot-form">
+                        <div class="input-group">
+                            <label for="forgot-email">Email</label>
+                            <input type="email" id="forgot-email" required placeholder="tu@email.com">
+                        </div>
+                        <button type="submit" id="forgot-submit-btn" class="btn btn-primary w-full">Enviar enlace</button>
+                        <div style="text-align:center;margin-top:14px;">
+                            <button type="button" id="back-to-login-link" class="login-link-btn">← Volver al login</button>
+                        </div>
+                    </form>
+                    <div id="forgot-success" class="hidden" style="text-align:center;padding:12px 0;">
+                        <div style="font-size:32px;margin-bottom:12px;">📧</div>
+                        <p style="font-weight:600;color:var(--gray-800);margin-bottom:6px;">¡Listo! Revisá tu email</p>
+                        <p style="font-size:13px;color:var(--gray-500);line-height:1.5;">Si el email existe en el sistema, vas a recibir un enlace para restablecer tu contraseña en los próximos minutos.</p>
+                        <button type="button" id="forgot-back-btn" class="btn btn-ghost w-full" style="margin-top:18px;">Volver al login</button>
                     </div>
-                    <div class="input-group">
-                        <label for="password">Contraseña</label>
-                        <input type="password" id="password" placeholder="cualquier contraseña">
+                </div>
+
+                <!-- Panel: Reset password (cuando llegan desde el link del email) -->
+                <div id="reset-panel" class="hidden">
+                    <p class="login-subtitle">Nueva contraseña</p>
+                    <form id="reset-form">
+                        <div class="input-group" style="position:relative;">
+                            <label for="reset-password">Nueva contraseña</label>
+                            <input type="password" id="reset-password" required placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:40px;">
+                            <button type="button" class="login-pwd-toggle" tabindex="-1"
+                                onclick="const i=document.getElementById('reset-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="input-group" style="position:relative;">
+                            <label for="reset-password2">Confirmar contraseña</label>
+                            <input type="password" id="reset-password2" required placeholder="Repetí la contraseña" style="padding-right:40px;">
+                            <button type="button" class="login-pwd-toggle" tabindex="-1"
+                                onclick="const i=document.getElementById('reset-password2');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <button type="submit" id="reset-submit-btn" class="btn btn-primary w-full">Guardar contraseña</button>
+                    </form>
+                    <div id="reset-success" class="hidden" style="text-align:center;padding:12px 0;">
+                        <div style="font-size:32px;margin-bottom:12px;">✅</div>
+                        <p style="font-weight:600;color:var(--gray-800);margin-bottom:6px;">¡Contraseña actualizada!</p>
+                        <p style="font-size:13px;color:var(--gray-500);line-height:1.5;">Ya podés ingresar con tu nueva contraseña.</p>
+                        <button type="button" id="reset-goto-login-btn" class="btn btn-primary w-full" style="margin-top:18px;">Ir al login</button>
                     </div>
-                    <button type="submit" class="btn btn-primary w-full">Ingresar</button>
-                </form>
+                </div>
             </div>
             <div class="login-decoration">
                 <div class="blob shape-1"></div>
@@ -107,6 +165,7 @@
 
     <div id="modals-container"></div>
 
+    <script src="/xlsx.full.min.js"></script>
     <script src="app.js"></script>
 </body>
 

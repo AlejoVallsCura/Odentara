@@ -66,7 +66,7 @@ router.get("/", requireAuth, async (req, res) => {
       where: {
         deletedAt: null,
         ...(patientId ? { patientId } : {}),
-        patient: buildPatientAccessWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       orderBy: [{ performedAt: "desc" }, { id: "desc" }],
       include: {
@@ -89,7 +89,7 @@ router.post("/", requireAuth, async (req, res) => {
 
     const patientId = Number(req.body.patientId);
     const patient = await prisma.patient.findFirst({
-      where: { id: patientId, ...buildPatientAccessWhere(req.permissions) },
+      where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
       select: { id: true },
     });
 
@@ -145,7 +145,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       where: {
         id: Number(req.params.id),
         deletedAt: null,
-        patient: buildPatientAccessWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
 
@@ -211,7 +211,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: {
         id: Number(req.params.id),
         deletedAt: null,
-        patient: buildPatientAccessWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       select: { id: true },
     });

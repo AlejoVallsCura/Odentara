@@ -45,6 +45,12 @@ enum OdontogramStatus {
   caries
   restored
   absent
+  implant
+  crown
+  crown_implant
+  endodontics
+  orthodontics
+  sealant
 }
 
 enum ToothFace {
@@ -65,15 +71,59 @@ enum AuditAction {
   logout
 }
 
+model Clinic {
+  id            Int      @id @default(autoincrement())
+  name          String
+  slug          String   @unique
+  address       String?
+  phone         String?
+  email         String?
+  logoUrl       String?
+  active        Boolean  @default(true)
+  plan          String?
+  notes         String?  @db.Text
+  dbType        String   @default("shared")   // "shared" | "dedicated"
+  databaseUrl   String?  @db.Text             // solo si dbType = "dedicated"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users                User[]
+  professionals        Professional[]
+  patients             Patient[]
+  appointments         Appointment[]
+  subscriptionPayments SubscriptionPayment[]
+
+  @@index([active])
+}
+
+model SubscriptionPayment {
+  id            Int      @id @default(autoincrement())
+  clinicId      Int
+  period        String   @db.VarChar(7)   // "2026-05"
+  amount        Decimal  @db.Decimal(10, 2)
+  paymentMethod String   @db.VarChar(50)  // efectivo | transferencia | tarjeta | otro
+  paidAt        DateTime
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, period])
+  @@index([clinicId])
+  @@index([period])
+}
+
 model User {
   id                       Int                     @id @default(autoincrement())
   email                    String                  @unique
-  passwordHash             String?
+  passwordHash             String?                 @db.VarChar(255)
   fullName                 String
   active                   Boolean                 @default(true)
+  isPlatformAdmin          Boolean                 @default(false)
+  clinicId                 Int?
   deletedAt                DateTime?
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
+  clinic                   Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   roles                    UserRole[]
   createdAppointments      Appointment[]           @relation("AppointmentCreatedBy")
   assignedProfessional     Professional?           @relation("ProfessionalUser")
@@ -82,6 +132,11 @@ model User {
   createdTreatments        Treatment[]
   createdBillingEntries    BillingEntry[]
   auditLogs                AuditLog[]
+  passwordResetTokens      PasswordResetToken[]
+
+  @@index([clinicId])
+  @@index([deletedAt])
+  @@index([active, deletedAt])
 }
 
 model Role {
@@ -105,9 +160,10 @@ model UserRole {
 
 model Professional {
   id                  Int                            @id @default(autoincrement())
+  clinicId            Int
   fullName            String
   specialty           String?
-  email               String?                        @unique
+  email               String?
   phone               String?
   color               String?
   active              Boolean                        @default(true)
@@ -115,6 +171,7 @@ model Professional {
   userId              Int?                           @unique
   createdAt           DateTime                       @default(now())
   updatedAt           DateTime                       @updatedAt
+  clinic              Clinic                         @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   user                User?                          @relation("ProfessionalUser", fields: [userId], references: [id], onDelete: SetNull)
   appointments        Appointment[]
   schedules           ProfessionalAvailability[]
@@ -122,7 +179,10 @@ model Professional {
   patientTreatments   Treatment[]
   billingEntries      BillingEntry[]
   scopedUsers         UserProfessionalScope[]
+  clinicalRecords     ClinicalRecord[]
 
+  @@index([clinicId])
+  @@index([clinicId, active])
   @@index([fullName])
   @@index([active])
   @@index([deletedAt])
@@ -140,58 +200,69 @@ model UserProfessionalScope {
 }
 
 model Patient {
-  id              Int              @id @default(autoincrement())
-  fullName        String
-  normalizedName  String
-  dni             String           @unique
-  birthDate       DateTime?
-  phone           String?
-  email           String?
-  address         String?
-  insuranceName   String?
-  insurancePlan   String?
+  id               Int              @id @default(autoincrement())
+  clinicId         Int
+  fullName         String
+  normalizedName   String
+  dni              String
+  birthDate        DateTime?
+  phone            String?
+  email            String?
+  address          String?          @db.Text
+  insuranceName    String?
+  insurancePlan    String?
   credentialNumber String?
-  chartNumber     String?          @unique
-  active          Boolean          @default(true)
-  deletedAt       DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  appointments    Appointment[]
-  clinicalRecord  ClinicalRecord?
-  treatments      Treatment[]
-  clinicalImages  ClinicalImage[]
-  billingEntries  BillingEntry[]
+  chartNumber      String?
+  active           Boolean          @default(true)
+  deletedAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  clinic           Clinic           @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  appointments     Appointment[]
+  clinicalRecords  ClinicalRecord[]
+  treatments       Treatment[]
+  clinicalImages   ClinicalImage[]
+  billingEntries   BillingEntry[]
 
+  @@unique([clinicId, dni])
+  @@unique([clinicId, chartNumber])
+  @@index([clinicId])
+  @@index([clinicId, active, deletedAt])
   @@index([fullName])
   @@index([normalizedName])
   @@index([phone])
+  @@index([email])
   @@index([deletedAt])
+  @@index([active, deletedAt])
 }
 
 model Appointment {
-  id                    Int                  @id @default(autoincrement())
-  patientId             Int
-  professionalId        Int
-  createdByUserId       Int?
-  date                  DateTime
-  startTime             DateTime
-  durationMinutes       Int
-  status                AppointmentStatus    @default(not_sent)
-  isOverbook            Boolean              @default(false)
-  confirmationChannel   ConfirmationChannel?
-  confirmationSentAt    DateTime?
+  id                     Int                  @id @default(autoincrement())
+  clinicId               Int
+  patientId              Int
+  professionalId         Int
+  createdByUserId        Int?
+  date                   DateTime
+  startTime              DateTime
+  durationMinutes        Int
+  status                 AppointmentStatus    @default(not_sent)
+  isOverbook             Boolean              @default(false)
+  confirmationChannel    ConfirmationChannel?
+  confirmationSentAt     DateTime?
   confirmationResponseAt DateTime?
-  cancellationReason    String?
-  notes                 String?
-  deletedAt             DateTime?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  patient               Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  professional          Professional         @relation(fields: [professionalId], references: [id], onDelete: Restrict)
-  createdByUser         User?                @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  treatments            Treatment[]
-  billingEntries        BillingEntry[]
+  cancellationReason     String?              @db.Text
+  notes                  String?              @db.Text
+  deletedAt              DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  clinic                 Clinic               @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient                Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  professional           Professional         @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  createdByUser          User?                @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  treatments             Treatment[]
+  billingEntries         BillingEntry[]
 
+  @@index([clinicId, date])
   @@index([patientId, date])
   @@index([professionalId, date])
   @@index([status, date])
@@ -221,7 +292,7 @@ model ProfessionalScheduleException {
   type           ScheduleExceptionType
   startTime      String?
   endTime        String?
-  reason         String?
+  reason         String?               @db.Text
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
   professional   Professional          @relation(fields: [professionalId], references: [id], onDelete: Cascade)
@@ -230,51 +301,56 @@ model ProfessionalScheduleException {
 }
 
 model ClinicalRecord {
-  id               Int          @id @default(autoincrement())
-  patientId        Int          @unique
-  summaryNotes     String?
-  allergies        String?
-  medicalNotes     String?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  patient          Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id                Int               @id @default(autoincrement())
+  patientId         Int
+  professionalId    Int?
+  summaryNotes      String?           @db.Text
+  allergies         String?           @db.Text
+  medicalNotes      String?           @db.Text
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  patient           Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional      Professional?     @relation(fields: [professionalId], references: [id], onDelete: SetNull)
   odontogramEntries OdontogramEntry[]
+
+  @@unique([patientId, professionalId])
+  @@index([professionalId])
 }
 
 model OdontogramEntry {
-  id               Int             @id @default(autoincrement())
+  id               Int              @id @default(autoincrement())
   clinicalRecordId Int
   toothNumber      String
   face             ToothFace?
   status           OdontogramStatus
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  clinicalRecord   ClinicalRecord  @relation(fields: [clinicalRecordId], references: [id], onDelete: Cascade)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  clinicalRecord   ClinicalRecord   @relation(fields: [clinicalRecordId], references: [id], onDelete: Cascade)
 
   @@index([clinicalRecordId, toothNumber])
   @@unique([clinicalRecordId, toothNumber, face])
 }
 
 model Treatment {
-  id                   Int           @id @default(autoincrement())
-  patientId            Int
-  professionalId       Int?
-  appointmentId        Int?
-  createdByUserId      Int?
-  tooth                String?
-  face                 String?
-  sector               String?
-  authorizationNumber  String?
-  insuranceCode        String?
-  observations         String?
-  performedAt          DateTime      @default(now())
-  deletedAt            DateTime?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  patient              Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  professional         Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
-  appointment          Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  createdByUser        User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  id                  Int           @id @default(autoincrement())
+  patientId           Int
+  professionalId      Int?
+  appointmentId       Int?
+  createdByUserId     Int?
+  tooth               String?
+  face                String?
+  sector              String?
+  authorizationNumber String?
+  insuranceCode       String?
+  observations        String?       @db.Text
+  performedAt         DateTime      @default(now())
+  deletedAt           DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  patient             Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional        Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  appointment         Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdByUser       User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([patientId, performedAt])
   @@index([professionalId, performedAt])
@@ -287,7 +363,7 @@ model ClinicalImage {
   patientId        Int
   uploadedByUserId Int?
   imageUrl         String    @db.LongText
-  description      String?
+  description      String?   @db.Text
   takenAt          DateTime?
   deletedAt        DateTime?
   createdAt        DateTime  @default(now())
@@ -307,8 +383,8 @@ model BillingEntry {
   createdByUserId  Int?
   type             BillingEntryType
   amount           Decimal          @db.Decimal(12, 2)
-  currency         String           @default("ARS")
-  description      String?
+  currency         String           @default("ARS") @db.VarChar(3)
+  description      String?          @db.Text
   date             DateTime
   deletedAt        DateTime?
   createdAt        DateTime         @default(now())
@@ -322,6 +398,18 @@ model BillingEntry {
   @@index([professionalId, date])
   @@index([type, date])
   @@index([deletedAt])
+}
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  token     String    @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AuditLog {

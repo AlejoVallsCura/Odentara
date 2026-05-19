@@ -4,27 +4,30 @@ const prisma = require("../lib/prisma");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
+  hasRole,
   canAccessWholeClinic,
   getAccessibleProfessionalIds,
   canManageProfessionals,
   canManageProfessionalSchedules,
   canViewProfessionals,
 } = require("../lib/permissions");
+const { checkProfessionalLimit } = require("../lib/plan-limits");
 
 const router = express.Router();
 
-function buildProfessionalAccessWhere(permissions) {
+function buildProfessionalAccessWhere(permissions, clinicId) {
   if (canAccessWholeClinic(permissions)) {
-    return { deletedAt: null };
+    return { deletedAt: null, clinicId };
   }
 
   const ids = getAccessibleProfessionalIds(permissions);
   if (ids.length === 0) {
-    return { id: -1 };
+    return { id: -1, clinicId };
   }
 
   return {
     id: { in: ids },
+    clinicId,
     deletedAt: null,
   };
 }
@@ -103,7 +106,7 @@ router.get("/", requireAuth, async (req, res) => {
     const professionals = await prisma.professional.findMany({
       where: {
         AND: [
-          buildProfessionalAccessWhere(req.permissions),
+          buildProfessionalAccessWhere(req.permissions, req.user.clinicId),
           search
             ? {
                 OR: [
@@ -154,7 +157,7 @@ router.get("/:id", requireAuth, async (req, res) => {
     const professional = await prisma.professional.findFirst({
       where: {
         id: professionalId,
-        ...buildProfessionalAccessWhere(req.permissions),
+        ...buildProfessionalAccessWhere(req.permissions, req.user.clinicId),
       },
       include: {
         user: {
@@ -207,8 +210,18 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: "El nombre del profesional es obligatorio." });
     }
 
+    // ── Verificar límite de plan ──────────────────────────────────────────────
+    const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
+    const currentCount = await prisma.professional.count({ where: { clinicId: req.user.clinicId, deletedAt: null } });
+    const planCheck = checkProfessionalLimit(clinic?.plan, currentCount);
+    if (!planCheck.allowed) {
+      return res.status(403).json({ ok: false, error: planCheck.error, code: 'PLAN_LIMIT' });
+    }
+
     if (email) {
-      const existingByEmail = await prisma.professional.findUnique({ where: { email } });
+      const existingByEmail = await prisma.professional.findFirst({
+        where: { email, clinicId: req.user.clinicId, deletedAt: null },
+      });
       if (existingByEmail) {
         return res.status(409).json({ ok: false, error: "Ya existe un profesional con ese email." });
       }
@@ -216,6 +229,7 @@ router.post("/", requireAuth, async (req, res) => {
 
     const professional = await prisma.professional.create({
       data: {
+        clinicId: req.user.clinicId,
         fullName,
         specialty,
         email,
@@ -256,13 +270,18 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
-    if (!canManageProfessionalSchedules(req.permissions)) {
+    const professionalId = Number(req.params.id);
+
+    // Professionals can edit their own schedule only
+    const isProfessionalEditingOwn =
+      hasRole(req.permissions, "professional") &&
+      req.permissions?.assignedProfessionalId === professionalId;
+
+    if (!canManageProfessionalSchedules(req.permissions) && !isProfessionalEditingOwn) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para editar profesionales." });
     }
-
-    const professionalId = Number(req.params.id);
     const existing = await prisma.professional.findFirst({
-      where: { id: professionalId, deletedAt: null },
+      where: { id: professionalId, clinicId: req.user.clinicId, deletedAt: null },
       include: {
         schedules: true,
         scheduleExceptions: true,
@@ -299,7 +318,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 
     if (canEditCoreData && email) {
       const existingByEmail = await prisma.professional.findFirst({
-        where: { email, id: { not: professionalId } },
+        where: { email, clinicId: req.user.clinicId, id: { not: professionalId } },
       });
       if (existingByEmail) {
         return res.status(409).json({ ok: false, error: "Ya existe un profesional con ese email." });
@@ -359,7 +378,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
     const professionalId = Number(req.params.id);
     const existing = await prisma.professional.findFirst({
-      where: { id: professionalId, deletedAt: null },
+      where: { id: professionalId, clinicId: req.user.clinicId, deletedAt: null },
       include: {
         schedules: true,
         scheduleExceptions: true,

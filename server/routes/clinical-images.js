@@ -5,20 +5,83 @@ const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
 const { canEditClinicalData, canViewClinicalData } = require("../lib/permissions");
+const { checkClinicalImagesFeature } = require("../lib/plan-limits");
+const { uploadImage, getImageStream, deleteImage, isR2Key, isStorageConfigured } = require("../lib/storage");
+const crypto = require("crypto");
 
 const router = express.Router();
 
+/** Genera un token HMAC de 1 hora para servir una imagen sin necesitar el header de auth */
+function signServeToken(imageId) {
+  const exp = Math.floor(Date.now() / 1000) + 3600; // 1 hora
+  const sig = crypto
+    .createHmac("sha256", process.env.JWT_SECRET || "fallback")
+    .update(`serve:${imageId}:${exp}`)
+    .digest("hex")
+    .slice(0, 32);
+  return `${exp}.${sig}`;
+}
+
+function verifyServeToken(imageId, token) {
+  if (!token) return false;
+  const [exp, sig] = token.split(".");
+  if (!exp || !sig || Date.now() / 1000 > Number(exp)) return false;
+  const expected = crypto
+    .createHmac("sha256", process.env.JWT_SECRET || "fallback")
+    .update(`serve:${imageId}:${exp}`)
+    .digest("hex")
+    .slice(0, 32);
+  return sig === expected;
+}
+
+/**
+ * Serializa una imagen.
+ * - Si es key de R2 → devuelve URL proxy con token HMAC firmado
+ * - Si es base64 legacy → la devuelve tal cual
+ */
 function serializeImage(image) {
+  const imageUrl = isR2Key(image.imageUrl)
+    ? `/api/clinical-images/serve/${image.id}?t=${signServeToken(image.id)}`
+    : image.imageUrl;
+
   return {
-    id: image.id,
-    patientId: image.patientId,
+    id:               image.id,
+    patientId:        image.patientId,
     uploadedByUserId: image.uploadedByUserId,
-    imageUrl: image.imageUrl,
-    description: image.description,
-    takenAt: image.takenAt,
-    createdAt: image.createdAt,
+    imageUrl,
+    description:      image.description,
+    takenAt:          image.takenAt,
+    createdAt:        image.createdAt,
   };
 }
+
+// ── GET /api/clinical-images/serve/:id ───────────────────────────────────────
+// Proxy seguro: verifica token HMAC (no necesita header JWT — es una petición de <img src>).
+router.get("/serve/:id", async (req, res) => {
+  try {
+    const imageId = Number(req.params.id);
+    if (!verifyServeToken(imageId, req.query.t)) {
+      return res.status(401).send("Token inválido o expirado.");
+    }
+
+    const image = await prisma.clinicalImage.findFirst({
+      where: { id: imageId, deletedAt: null },
+    });
+
+    if (!image || !isR2Key(image.imageUrl)) {
+      return res.status(404).send("Imagen no encontrada.");
+    }
+
+    const { body, contentType } = await getImageStream(image.imageUrl);
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    return res.send(body);
+  } catch (e) {
+    console.error("[clinical-images serve]", e.message);
+    return res.status(500).send("Error al obtener la imagen.");
+  }
+});
 
 router.get("/", requireAuth, async (req, res) => {
   try {
@@ -48,6 +111,13 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes permisos para cargar imágenes clínicas." });
     }
 
+    // ── Verificar feature de plan ─────────────────────────────────────────────
+    const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
+    const planCheck = checkClinicalImagesFeature(clinic?.plan);
+    if (!planCheck.allowed) {
+      return res.status(403).json({ ok: false, error: planCheck.error, code: "PLAN_LIMIT" });
+    }
+
     const patientId = Number(req.body.patientId);
     const patient = await prisma.patient.findFirst({
       where: { id: patientId, ...buildPatientAccessWhere(req.permissions) },
@@ -64,14 +134,30 @@ router.post("/", requireAuth, async (req, res) => {
     for (const item of items) {
       if (!item?.imageUrl) continue;
 
+      let storedUrl = String(item.imageUrl).trim();
+
+      // Si R2 está configurado y la imagen llega como base64, subirla a R2
+      if (isStorageConfigured() && storedUrl.startsWith("data:")) {
+        try {
+          storedUrl = await uploadImage({
+            base64:    storedUrl,
+            clinicId:  req.user.clinicId,
+            patientId,
+          });
+        } catch (uploadErr) {
+          console.error("[clinical-images] Error subiendo a R2:", uploadErr.message);
+          // Si falla el upload, guardar base64 como fallback
+        }
+      }
+
       const created = await prisma.clinicalImage.create({
         data: {
           patientId,
           uploadedByUserId: req.user.id,
-          imageUrl: String(item.imageUrl).trim(),
+          imageUrl:    storedUrl,
           description: item.description ? String(item.description).trim() : null,
-          takenAt: item.takenAt ? new Date(item.takenAt) : null,
-          deletedAt: null,
+          takenAt:     item.takenAt ? new Date(item.takenAt) : null,
+          deletedAt:   null,
         },
       });
 
@@ -79,7 +165,8 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     return res.status(201).json({ ok: true, images: createdItems });
-  } catch (_error) {
+  } catch (error) {
+    console.error("[clinical-images POST]", error);
     return res.status(500).json({ ok: false, error: "No se pudieron guardar las imágenes clínicas." });
   }
 });
@@ -105,10 +192,9 @@ router.put("/:id", requireAuth, async (req, res) => {
     const updated = await prisma.clinicalImage.update({
       where: { id: existing.id },
       data: {
-        imageUrl: req.body.imageUrl ? String(req.body.imageUrl).trim() : existing.imageUrl,
         description: req.body.description !== undefined ? (req.body.description ? String(req.body.description).trim() : null) : existing.description,
-        takenAt: req.body.takenAt !== undefined ? (req.body.takenAt ? new Date(req.body.takenAt) : null) : existing.takenAt,
-        deletedAt: null,
+        takenAt:     req.body.takenAt !== undefined ? (req.body.takenAt ? new Date(req.body.takenAt) : null) : existing.takenAt,
+        deletedAt:   null,
       },
     });
 
@@ -130,25 +216,26 @@ router.delete("/:id", requireAuth, async (req, res) => {
         deletedAt: null,
         patient: buildPatientAccessWhere(req.permissions),
       },
-      select: { id: true },
     });
 
     if (!existing) {
       return res.status(404).json({ ok: false, error: "Imagen clínica no encontrada o sin acceso." });
     }
 
-    const beforeData = await prisma.clinicalImage.findUnique({
-      where: { id: existing.id },
-    });
+    // Eliminar de R2 si es una key
+    if (isR2Key(existing.imageUrl)) {
+      await deleteImage(existing.imageUrl).catch((err) =>
+        console.error("[clinical-images] Error eliminando de R2:", err.message)
+      );
+    }
 
     await prisma.clinicalImage.update({
       where: { id: existing.id },
       data: { deletedAt: new Date() },
     });
 
-    await logDeleteAudit(prisma, req.user.id, "ClinicalImage", existing.id, {
-      image: beforeData,
-    });
+    await logDeleteAudit(prisma, req.user.id, "ClinicalImage", existing.id, { image: existing });
+
     return res.json({ ok: true, message: "Imagen clínica eliminada correctamente." });
   } catch (_error) {
     return res.status(400).json({ ok: false, error: "No se pudo eliminar la imagen clínica." });

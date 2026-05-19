@@ -13,7 +13,8 @@ const state = {
     dashboardDate: null,
     clinicalDraft: null,
     loadingCount: 0,
-    clinicalImageViewer: null
+    clinicalImageViewer: null,
+    clinicalOdontoProfessionalId: null
 };
 
 function getApiBaseUrl() {
@@ -107,7 +108,7 @@ const MOJIBAKE_REPAIRS = [
     ['DÃ­a', 'Día'],
     ['DÃƒÂ­a', 'Día'],
     ['D�a', 'Día'],
-    ['TransacciÃ³n', 'Transacción'],
+    ['Transacción', 'Transacción'],
     ['TransacciÃƒÂ³n', 'Transacción'],
     ['DescripciÃ³n', 'Descripción'],
     ['DescripciÃƒÂ³n', 'Descripción'],
@@ -182,7 +183,7 @@ const MOJIBAKE_REPAIRS = [
     ['Especialidad', 'Especialidad'],
     ['DuraciÃ³n', 'Duración'],
     ['DuraciÃƒÂ³n', 'Duración'],
-    ['Observaciones M�dicas / Alergias', 'Observaciones Médicas / Alergias'],
+    ['Observaciones Médicas / Alergias', 'Observaciones Médicas / Alergias'],
     ['Historia ClÃ­nica', 'Historia Clínica'],
     ['Historia ClÃƒÂ­nica', 'Historia Clínica'],
     ['ConstrucciÃ³n', 'Construcción'],
@@ -443,7 +444,7 @@ function showDialog(message, options = {}) {
             </div>
             <div class="feedback-dialog-copy">
                 <p class="feedback-dialog-eyebrow">${repairMojibakeString(title)}</p>
-                <p class="feedback-dialog-message">${repairMojibakeString(String(message ?? ''))}</p>
+                <p class="feedback-dialog-message">${options.html ? (message ?? '') : repairMojibakeString(String(message ?? ''))}</p>
             </div>
             <div class="feedback-dialog-actions">
                 ${cancelText ? `<button type="button" class="btn btn-ghost feedback-dialog-cancel">${repairMojibakeString(cancelText)}</button>` : ''}
@@ -512,7 +513,8 @@ function showAlert(message, options = {}) {
         title: options.title || 'Odentara',
         variant: options.variant || 'info',
         confirmText: options.confirmText || 'Aceptar',
-        dismissible: true
+        dismissible: true,
+        html: options.html || false,
     });
 }
 
@@ -612,7 +614,22 @@ const defaultData = {
         { id: 9, name: 'Vanesa Ruiz', dni: '01234567', fechaNacimiento: '1993-11-09', obraSocial: 'Galeno', credencial: '66677889', domicilio: 'Calle Mar 89', fichaNumero: '009', email: 'vanesa@example.com', phone: '261-303-4040', lastVisit: '2026-03-19', notes: '', odontograma: {}, treatments: [] },
         { id: 10, name: 'Martina GÃ³mez', dni: '11223344', fechaNacimiento: '2000-06-12', obraSocial: 'Sancor 4000', credencial: '77788990', domicilio: 'Calle Estrella 25', fichaNumero: '010', email: 'martina@example.com', phone: '261-505-6060', lastVisit: '2026-03-24', notes: '', odontograma: {}, treatments: [] },
         { id: 11, name: 'Bruno Ãlvarez', dni: '22334455', fechaNacimiento: '1975-09-27', obraSocial: 'OSDE', credencial: '88899001', domicilio: 'Av. CÃ³rdoba 101', fichaNumero: '011', email: 'bruno@example.com', phone: '261-707-8080', lastVisit: '2026-03-05', notes: '', odontograma: {}, treatments: [] },
-        { id: 12, name: 'LucÃ­a FernÃ¡ndez', dni: '33445566', fechaNacimiento: '1998-01-14', obraSocial: 'MedifÃ©', credencial: '99900112', domicilio: 'Calle Internal 42', fichaNumero: '012', email: 'lucia@example.com', phone: '261-909-0101', lastVisit: '2026-03-28', notes: 'EstrÃ©s dental', odontograma: {}, treatments: [] }
+        { id: 12, name: 'LucÃ­a FernÃ¡ndez', dni: '33445566', fechaNacimiento: '1998-01-14', obraSocial: 'MedifÃ©', credencial: '99900112', domicilio: 'Calle Internal 42', fichaNumero: '012', email: 'lucia@example.com', phone: '261-909-0101', lastVisit: '2026-03-28', notes: 'EstrÃ©s dental', odontograma: {}, treatments: [] },
+        { id: 13, name: 'Agustín Herrera', dni: '44556677', fechaNacimiento: '1991-03-08', obraSocial: 'OSDE 210', credencial: '10203040', domicilio: 'Boulogne Sur Mer 450', fichaNumero: '013', email: 'agustin@example.com', phone: '261-112-2334', lastVisit: '2026-04-05', notes: '', odontograma: {}, treatments: [] },
+        { id: 14, name: 'Camila Moreno', dni: '55667788', fechaNacimiento: '1997-07-22', obraSocial: 'Sancor 4000', credencial: '20304050', domicilio: 'Av. San Martín 890', fichaNumero: '014', email: 'camila@example.com', phone: '261-223-3445', lastVisit: '2026-04-08', notes: 'Embarazada - segundo trimestre', odontograma: {}, treatments: [] },
+        { id: 15, name: 'Rodrigo Castillo', dni: '66778899', fechaNacimiento: '1983-11-15', obraSocial: 'Swiss Medical', credencial: '30405060', domicilio: 'Las Heras 234', fichaNumero: '015', email: 'rodrigo@example.com', phone: '261-334-4556', lastVisit: '2026-03-30', notes: 'Hipertenso', odontograma: {}, treatments: [] },
+        { id: 16, name: 'Valentina Aguirre', dni: '77889900', fechaNacimiento: '2001-02-28', obraSocial: 'Galeno', credencial: '40506070', domicilio: 'España 1120', fichaNumero: '016', email: 'valentina@example.com', phone: '261-445-5667', lastVisit: '2026-04-10', notes: '', odontograma: {}, treatments: [] },
+        { id: 17, name: 'Nicolás Romero', dni: '88990011', fechaNacimiento: '1978-06-03', obraSocial: 'OSDE 310', credencial: '50607080', domicilio: 'Mitre 678', fichaNumero: '017', email: 'nicolas@example.com', phone: '261-556-6778', lastVisit: '2026-02-25', notes: 'Bruxismo severo', odontograma: {}, treatments: [] },
+        { id: 18, name: 'Florencia Acosta', dni: '99001122', fechaNacimiento: '1996-09-17', obraSocial: 'Medifé', credencial: '60708090', domicilio: 'Godoy Cruz 345', fichaNumero: '018', email: 'florencia@example.com', phone: '261-667-7889', lastVisit: '2026-04-12', notes: '', odontograma: {}, treatments: [] },
+        { id: 19, name: 'Matías Vargas', dni: '10112233', fechaNacimiento: '1989-04-11', obraSocial: 'OSDE', credencial: '70809001', domicilio: 'Sarmiento 567', fichaNumero: '019', email: 'matias@example.com', phone: '261-778-8990', lastVisit: '2026-03-15', notes: 'Alérgico al látex', odontograma: {}, treatments: [] },
+        { id: 20, name: 'Julieta Benítez', dni: '20223344', fechaNacimiento: '1993-12-25', obraSocial: 'Swiss Medical', credencial: '80901012', domicilio: 'Belgrano 902', fichaNumero: '020', email: 'julieta@example.com', phone: '261-889-9001', lastVisit: '2026-04-02', notes: '', odontograma: {}, treatments: [] },
+        { id: 21, name: 'Tomás Gutiérrez', dni: '30334455', fechaNacimiento: '1986-08-19', obraSocial: 'Sancor 4000', credencial: '90012023', domicilio: 'Rivadavia 1450', fichaNumero: '021', email: 'tomas@example.com', phone: '261-990-0112', lastVisit: '2026-01-20', notes: 'Implante pieza 36', odontograma: {}, treatments: [] },
+        { id: 22, name: 'Natalia Medina', dni: '40445566', fechaNacimiento: '1999-05-06', obraSocial: 'Galeno', credencial: '01123034', domicilio: 'Colón 789', fichaNumero: '022', email: 'natalia@example.com', phone: '261-001-1223', lastVisit: '2026-04-14', notes: '', odontograma: {}, treatments: [] },
+        { id: 23, name: 'Emilio Sosa', dni: '50556677', fechaNacimiento: '1974-01-30', obraSocial: 'OSDE 210', credencial: '12034045', domicilio: 'Necochea 321', fichaNumero: '023', email: 'emilio@example.com', phone: '261-112-3345', lastVisit: '2026-03-08', notes: 'Prótesis parcial inferior', odontograma: {}, treatments: [] },
+        { id: 24, name: 'Carolina Ibáñez', dni: '60667788', fechaNacimiento: '2003-10-13', obraSocial: 'Medifé', credencial: '23045056', domicilio: 'Lavalle 210', fichaNumero: '024', email: 'carolina@example.com', phone: '261-223-4456', lastVisit: '2026-04-16', notes: 'Paciente joven, ortodoncia', odontograma: {}, treatments: [] },
+        { id: 25, name: 'Sebastián Luna', dni: '70778899', fechaNacimiento: '1981-07-07', obraSocial: 'Swiss Medical', credencial: '34056067', domicilio: 'Moreno 654', fichaNumero: '025', email: 'sebastian@example.com', phone: '261-334-5567', lastVisit: '2026-02-14', notes: '', odontograma: {}, treatments: [] },
+        { id: 26, name: 'Daniela Pereyra', dni: '80889900', fechaNacimiento: '1992-03-21', obraSocial: 'OSDE 310', credencial: '45067078', domicilio: 'Alem 1100', fichaNumero: '026', email: 'daniela@example.com', phone: '261-445-6678', lastVisit: '2026-04-18', notes: '', odontograma: {}, treatments: [] },
+        { id: 27, name: 'Ezequiel Rojas', dni: '90990011', fechaNacimiento: '1977-12-02', obraSocial: 'Galeno', credencial: '56078089', domicilio: 'Tres de Febrero 88', fichaNumero: '027', email: 'ezequiel@example.com', phone: '261-556-7789', lastVisit: '2026-03-25', notes: 'Coagulopatía leve', odontograma: {}, treatments: [] }
     ],
     billing: [
         { id: 1, patientId: 2, professionalId: 2, type: 'income', amount: 12500, date: '2026-03-24', description: 'Consulta Dra. MartÃ­nez' },
@@ -808,10 +825,10 @@ const roleConfig = {
         navItems: [
             { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
             { id: 'appointments', icon: 'fa-calendar-check', label: 'Turnos' },
-            { id: 'professionals', icon: 'fa-user-md', label: 'Horarios MÃ©dicos' },
+            { id: 'professionals', icon: 'fa-user-md', label: 'Horarios Médicos' },
             { id: 'patients', icon: 'fa-users', label: 'Pacientes & Historia' },
-            { id: 'billing', icon: 'fa-file-invoice-dollar', label: 'FacturaciÃ³n' },
-            { id: 'settings', icon: 'fa-cog', label: 'ConfiguraciÃ³n' }
+            { id: 'billing', icon: 'fa-file-invoice-dollar', label: 'Facturación' },
+            { id: 'settings', icon: 'fa-cog', label: 'Configuración' }
         ]
     },
     admin: {
@@ -820,7 +837,7 @@ const roleConfig = {
             { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
             { id: 'patients', icon: 'fa-users', label: 'Directorio Pacientes' },
             { id: 'billing', icon: 'fa-file-invoice-dollar', label: 'Cuentas Corrientes' },
-            { id: 'settings', icon: 'fa-cog', label: 'ConfiguraciÃ³n' }
+            { id: 'settings', icon: 'fa-cog', label: 'Configuración' }
         ]
     },
     professional: {
@@ -829,16 +846,16 @@ const roleConfig = {
             { id: 'dashboard', icon: 'fa-chart-pie', label: 'Mi Panel' },
             { id: 'appointments', icon: 'fa-calendar-check', label: 'Mis Turnos' },
             { id: 'professionals', icon: 'fa-clock', label: 'Mis Horarios' },
-            { id: 'patients', icon: 'fa-notes-medical', label: 'Historias ClÃ­nicas' }
+            { id: 'patients', icon: 'fa-notes-medical', label: 'Historias Clínicas' }
         ]
     },
     secretary: {
-        name: 'SecretarÃ­a',
+        name: 'Secretaría',
         navItems: [
-            { id: 'dashboard', icon: 'fa-chart-pie', label: 'RecepciÃ³n' },
-            { id: 'appointments', icon: 'fa-calendar-check', label: 'GestiÃ³n de Turnos' },
-            { id: 'professionals', icon: 'fa-user-md', label: 'Agendas MÃ©dicas' },
-            { id: 'patients', icon: 'fa-users', label: 'Registro de Pacientes' }
+            { id: 'dashboard', icon: 'fa-chart-pie', label: 'Recepción' },
+            { id: 'appointments', icon: 'fa-calendar-check', label: 'Gestión de Turnos' },
+            { id: 'professionals', icon: 'fa-user-md', label: 'Agendas Médicas' },
+            { id: 'patients', icon: 'fa-users', label: 'Registro de Pacientes' },
         ]
     }
 };
@@ -917,8 +934,14 @@ function mapApiUserToLegacyUser(apiUser = {}) {
         allowedProfessionals: Array.isArray(apiUser.allowedProfessionalIds) ? apiUser.allowedProfessionalIds : [],
         assignedProfessionalId: apiUser.assignedProfessionalId || null,
         assignedProfessionalName: apiUser.assignedProfessionalName || null,
-        active: apiUser.active !== false
+        active: apiUser.active !== false,
+        isPlatformAdmin: apiUser.isPlatformAdmin || false,
+        clinicId: apiUser.clinicId || null,
     };
+}
+
+function isSelfPlatformAdmin() {
+    return !!state.user?.isPlatformAdmin;
 }
 
 function saveAuthSession(token, apiUser) {
@@ -964,6 +987,21 @@ async function apiFetch(path, options = {}) {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+        // Clínica desactivada: cerrar sesión y mostrar mensaje claro
+        if (response.status === 403 && data.code === 'CLINIC_INACTIVE') {
+            clearAuthSession();
+            views.app?.classList.add('hidden');
+            views.login?.classList.remove('hidden');
+            showLoginPanel?.('login-panel');
+            setTimeout(() => alert(data.error || 'Tu clínica está desactivada.'), 100);
+            const error = new Error(data.error);
+            error.status = 403;
+            throw error;
+        }
+        // Sesión expirada o token inválido: logout silencioso
+        if (response.status === 401) {
+            clearAuthSession();
+        }
         const error = new Error(data.error || 'Error de servidor');
         error.status = response.status;
         error.payload = data;
@@ -1209,22 +1247,33 @@ function stopDashboardAutoRefresh() {
 function applyAuthenticatedUiState() {
     if (!state.user) return;
     state.dashboardDate = getTodayIsoLocal();
-    const roleLabel = state.user.roles.map(r => roleConfig[r]?.name || r).join(' + ');
     const sourceName = state.user.name || state.user.fullName || state.user.email || 'Usuario';
     const initials = sourceName.substring(0, 2).toUpperCase();
     setElementText('user-name', sourceName);
-    setElementText('user-role-display', roleLabel);
     setElementText('user-initials', initials);
-    applyClinicBranding();
+
+    if (isSelfPlatformAdmin()) {
+        setElementText('user-role-display', 'Platform Admin');
+    } else {
+        const roleLabel = state.user.roles.map(r => roleConfig[r]?.name || r).join(' + ');
+        setElementText('user-role-display', roleLabel);
+        applyClinicBranding();
+    }
+
     renderSidebar();
     setSidebarOpen(!isMobileLayout());
     views.login.classList.remove('active');
     views.login.classList.add('hidden');
     views.app.classList.remove('hidden');
     views.app.classList.add('active');
-    // skipSync: true porque tryRestoreSession/login ya hizo syncBackendSnapshotToLocalDb justo antes
-    loadView('dashboard', 'Dashboard', { skipSync: true });
-    startDashboardAutoRefresh();
+
+    if (isSelfPlatformAdmin()) {
+        loadView('platform-clinics', 'Panel de Plataforma', { skipSync: true });
+    } else {
+        // skipSync: true porque tryRestoreSession/login ya hizo syncBackendSnapshotToLocalDb justo antes
+        loadView('dashboard', 'Dashboard', { skipSync: true });
+        startDashboardAutoRefresh();
+    }
 }
 
 function mapApiProfessionalToLegacy(professional = {}) {
@@ -1263,9 +1312,9 @@ function mapApiPatientToLegacy(patient = {}) {
         email: patient.email || '',
         phone: patient.phone || '',
         lastVisit: '',
-        notes: patient.clinicalRecord?.summaryNotes || patient.clinicalRecord?.medicalNotes || '',
-        allergies: patient.clinicalRecord?.allergies || '',
-        medicalNotes: patient.clinicalRecord?.medicalNotes || '',
+        notes: '',
+        allergies: '',
+        medicalNotes: '',
         odontograma: {},
         treatments: [],
         clinicalImages: []
@@ -1275,6 +1324,7 @@ function mapApiPatientToLegacy(patient = {}) {
 function mapApiTreatmentToLegacy(treatment = {}) {
     return {
         id: treatment.id,
+        professionalId: treatment.professionalId || null,
         diente: treatment.tooth || '',
         cara: treatment.face || '',
         sector: treatment.sector || '',
@@ -1328,25 +1378,51 @@ function clinicalRecordEntriesToLegacyOdontogram(entries = []) {
         M: 'left',
         O: 'center',
         I: 'center',
-        L: 'center'
     };
     const statusMap = {
-        healthy: 'sano',
-        caries: 'caries',
-        restored: 'restaurado',
-        absent: 'ausente'
+        healthy:          'sano',
+        caries:           'caries',
+        restored:         'restaurado',
+        absent:           'ausente',
+        implant:          'implante',
+        crown:            'corona',
+        crown_implant:    'corona-implante',
+        endodontics:      'endodoncia',
+        orthodontics:     'ortodoncia',
+        sealant:          'sello'
     };
+    // Estados que representan el diente completo (no una cara)
+    const toothStateStatuses = new Set(['ausente', 'implante', 'corona', 'corona-implante', 'endodoncia', 'ortodoncia', 'sello']);
 
+    // Primer paso: procesar estados de diente completo
+    entries.forEach((entry) => {
+        const toothNumber = String(entry.toothNumber || '');
+        if (!toothNumber || entry.face === 'L') return;
+        if (!odontograma[toothNumber]) odontograma[toothNumber] = {};
+        const status = statusMap[entry.status] || 'sano';
+        if (toothStateStatuses.has(status)) {
+            odontograma[toothNumber].estado = status;
+        }
+    });
+
+    // Segundo paso: procesar caras y marcador de color (face='L' = azul)
     entries.forEach((entry) => {
         const toothNumber = String(entry.toothNumber || '');
         if (!toothNumber) return;
         if (!odontograma[toothNumber]) odontograma[toothNumber] = {};
 
         const status = statusMap[entry.status] || 'sano';
-        if (status === 'ausente') {
-            odontograma[toothNumber] = { estado: 'ausente' };
+
+        // 'L' es el marcador de color azul para estados de diente completo
+        if (entry.face === 'L') {
+            if (odontograma[toothNumber].estado && status === 'restaurado') {
+                odontograma[toothNumber].color = 'azul';
+            }
             return;
         }
+
+        // Ignorar entradas de estado de diente completo (ya procesadas)
+        if (toothStateStatuses.has(status)) return;
 
         const faceKey = faceMap[entry.face] || 'center';
         if (status === 'sano') {
@@ -1369,21 +1445,49 @@ function legacyOdontogramToEntries(odontograma = {}) {
         center: 'O'
     };
     const statusMap = {
-        sano: 'healthy',
-        caries: 'caries',
-        restaurado: 'restored',
-        ausente: 'absent'
+        sano:             'healthy',
+        caries:           'caries',
+        restaurado:       'restored',
+        ausente:          'absent',
+        implante:         'implant',
+        corona:           'crown',
+        'corona-implante':'crown_implant',
+        endodoncia:       'endodontics',
+        ortodoncia:       'orthodontics',
+        sello:            'sealant'
     };
+    // Estados que se guardan como entrada de diente completo (face = null)
+    const toothStateEstados = new Set(['ausente', 'implante', 'corona', 'corona-implante', 'endodoncia', 'ortodoncia', 'sello']);
 
     Object.entries(odontograma || {}).forEach(([toothNumber, toothData]) => {
         if (!toothData || typeof toothData !== 'object') return;
 
-        if (toothData.estado === 'ausente') {
+        if (toothStateEstados.has(toothData.estado)) {
             entries.push({
                 toothNumber: String(toothNumber),
                 face: null,
-                status: statusMap.ausente
+                status: statusMap[toothData.estado]
             });
+            // Marcador de color azul: face='L', status='restored'
+            if (toothData.color === 'azul') {
+                entries.push({
+                    toothNumber: String(toothNumber),
+                    face: 'L',
+                    status: 'restored'
+                });
+            }
+            // Para implante, corona-implante y sello también guardar las caras si las hay
+            if (toothData.estado === 'implante' || toothData.estado === 'corona-implante' || toothData.estado === 'sello') {
+                ['top', 'right', 'bottom', 'left', 'center'].forEach((faceKey) => {
+                    const faceStatus = toothData[faceKey];
+                    if (!faceStatus || faceStatus === 'sano') return;
+                    entries.push({
+                        toothNumber: String(toothNumber),
+                        face: faceMap[faceKey],
+                        status: statusMap[faceStatus] || 'healthy'
+                    });
+                });
+            }
             return;
         }
 
@@ -1465,6 +1569,8 @@ function updateClinicalDraft(patientId, updater) {
 
 function clearClinicalDraft() {
     state.clinicalDraft = null;
+    // Resetear el profesional seleccionado para que al abrir otro paciente quede en blanco
+    if (isSuperadmin()) state.clinicalOdontoProfessionalId = null;
 }
 
 function hasUnsavedClinicalDraft() {
@@ -1510,20 +1616,21 @@ function syncClinicalHistorySaveState() {
     }
 }
 
-async function syncPatientClinicalData(patientId) {
+async function syncPatientClinicalData(patientId, professionalId) {
     if (!state.authToken) {
         return DB.get('patients').find((item) => item.id === patientId) || null;
     }
 
+    const profParam = professionalId ? `?professionalId=${professionalId}` : '';
     const [patientRes, treatmentsRes, imagesRes, clinicalRecordRes] = await Promise.all([
         apiFetch(`/patients/${patientId}`),
         apiFetch(`/treatments?patientId=${patientId}`),
         apiFetch(`/clinical-images?patientId=${patientId}`),
-        apiFetch(`/clinical-records/${patientId}`)
+        apiFetch(`/clinical-records/${patientId}${profParam}`)
     ]);
 
     const mappedPatient = mapApiPatientToLegacy(patientRes.patient || {});
-    const record = clinicalRecordRes.record || patientRes.patient?.clinicalRecord || null;
+    const record = clinicalRecordRes.record || null;
     const mergedPatient = {
         ...mappedPatient,
         odontograma: clinicalRecordEntriesToLegacyOdontogram(record?.odontogramEntries || []),
@@ -1777,6 +1884,122 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ── Forgot / Reset password ──────────────────────────────────────────────────
+    function showLoginPanel(panelId) {
+        ['login-panel', 'forgot-panel', 'reset-panel'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('hidden', id !== panelId);
+        });
+    }
+
+    // Si la URL tiene ?resetToken=xxx, mostrar el formulario de reset
+    const urlParams = new URLSearchParams(window.location.search);
+    const resetToken = urlParams.get('resetToken');
+    if (resetToken) {
+        showLoginPanel('reset-panel');
+        // Limpiar el token de la URL sin recargar la página
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+    }
+
+    // Link "¿Olvidaste tu contraseña?"
+    document.getElementById('forgot-password-link')?.addEventListener('click', () => {
+        showLoginPanel('forgot-panel');
+        document.getElementById('forgot-email')?.focus();
+    });
+
+    // Link "← Volver al login" desde forgot panel
+    document.getElementById('back-to-login-link')?.addEventListener('click', () => {
+        showLoginPanel('login-panel');
+    });
+
+    // Botón "Volver al login" desde el mensaje de éxito del forgot
+    document.getElementById('forgot-back-btn')?.addEventListener('click', () => {
+        document.getElementById('forgot-form')?.classList.remove('hidden');
+        document.getElementById('forgot-success')?.classList.add('hidden');
+        showLoginPanel('login-panel');
+    });
+
+    // Botón "Ir al login" desde el mensaje de éxito del reset
+    document.getElementById('reset-goto-login-btn')?.addEventListener('click', () => {
+        document.getElementById('reset-form')?.classList.remove('hidden');
+        document.getElementById('reset-success')?.classList.add('hidden');
+        showLoginPanel('login-panel');
+    });
+
+    // Formulario de forgot password
+    document.getElementById('forgot-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('forgot-email')?.value?.trim();
+        const btn = document.getElementById('forgot-submit-btn');
+        if (!email || !btn) return;
+        btn.disabled = true;
+        btn.textContent = 'Enviando...';
+        try {
+            await apiFetch('/auth/forgot-password', {
+                method: 'POST',
+                body: JSON.stringify({ email }),
+            });
+            // Siempre mostramos éxito (el servidor no revela si existe el email)
+            document.getElementById('forgot-form')?.classList.add('hidden');
+            document.getElementById('forgot-success')?.classList.remove('hidden');
+        } catch (_) {
+            // Error de red — igual mostramos mensaje genérico
+            document.getElementById('forgot-form')?.classList.add('hidden');
+            document.getElementById('forgot-success')?.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Enviar enlace';
+        }
+    });
+
+    // Formulario de reset password
+    document.getElementById('reset-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password  = document.getElementById('reset-password')?.value;
+        const password2 = document.getElementById('reset-password2')?.value;
+        const btn = document.getElementById('reset-submit-btn');
+        if (!password || !password2 || !btn) return;
+
+        if (password !== password2) {
+            alert('Las contraseñas no coinciden.');
+            return;
+        }
+        if (password.length < 8) {
+            alert('La contraseña debe tener al menos 8 caracteres.');
+            return;
+        }
+
+        // Recuperamos el token que guardamos en una variable de closure
+        const token = (window.__resetToken__ || '');
+        if (!token) {
+            alert('Token inválido. Solicitá un nuevo enlace de recuperación.');
+            showLoginPanel('login-panel');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Guardando...';
+        try {
+            const res = await apiFetch('/auth/reset-password', {
+                method: 'POST',
+                body: JSON.stringify({ token, password }),
+            });
+            if (!res.ok) throw new Error(res.error || 'Error');
+            window.__resetToken__ = null;
+            document.getElementById('reset-form')?.classList.add('hidden');
+            document.getElementById('reset-success')?.classList.remove('hidden');
+        } catch (err) {
+            alert(err.message || 'No se pudo restablecer la contraseña.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Guardar contraseña';
+        }
+    });
+
+    // Guardamos el token en una variable global de módulo para el submit del reset
+    if (resetToken) window.__resetToken__ = resetToken;
+
     document.getElementById('logout-btn').addEventListener('click', logout);
     sidebarToggle?.addEventListener('click', () => setSidebarOpen(!state.sidebarOpen));
     sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
@@ -1825,6 +2048,7 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshCurrentView();
         }
         if (e.target.closest('#btn-add-patient')) openPatientModal();
+        if (e.target.closest('#btn-import-patients')) openPatientImportModal();
         if (e.target.closest('.btn-edit-patient')) openPatientModal(parseInt(e.target.closest('.btn-edit-patient').dataset.id));
         if (e.target.closest('.btn-delete-patient')) {
             const patientId = parseInt(e.target.closest('.btn-delete-patient').dataset.id);
@@ -1864,9 +2088,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        if (!e.target.closest('.stp-wrap')) {
+            document.querySelectorAll('.stp-dropdown').forEach(d => { d.hidden = true; });
+        }
         if (e.target.closest('#btn-add-tx')) openBillingModal();
         if (e.target.closest('#btn-open-patient-billing')) openPatientBillingPicker();
         if (e.target.closest('#btn-clear-patient-billing')) clearPatientBillingFilter();
+        const addMovBtn = e.target.closest('#btn-add-movement-from-account');
+        if (addMovBtn) openBillingModal(parseInt(addMovBtn.dataset.patientId));
         if (e.target.closest('.btn-delete-tx')) {
             const txId = parseInt(e.target.closest('.btn-delete-tx').dataset.id);
             // Buscar en local DB (ya sincronizado al cargar la vista)
@@ -1981,6 +2210,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('input', (e) => {
+        // Auto-generar slug desde nombre en el form de clínica
+        if (e.target.id === 'pcf-name') {
+            const slugEl = document.getElementById('pcf-slug');
+            if (slugEl && !slugEl.disabled) {
+                slugEl.value = e.target.value.trim().toLowerCase()
+                    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            }
+        }
+        // Actualizar preview de URL al tipear nombre o slug
+        if (e.target.id === 'pcf-name' || e.target.id === 'pcf-slug') {
+            const slugEl = document.getElementById('pcf-slug');
+            const preview = document.getElementById('pcf-url-preview');
+            if (slugEl && preview) {
+                preview.textContent = `${slugEl.value || '______'}.odentara.com`;
+            }
+        }
+
         if (e.target.id === 'search-patient') {
             const term = e.target.value.toLowerCase();
             const rows = document.querySelectorAll('#patients-table tbody tr');
@@ -2163,7 +2410,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function login(email, password) {
     const normalizedEmail = normalizeIdentityEmail(email);
     if (!normalizedEmail || !password) {
-        alert('Completa email y contraseÃ±a.');
+        alert('Completa email y contraseña.');
         return;
     }
 
@@ -2176,6 +2423,9 @@ async function login(email, password) {
             })
         });
 
+        // Limpiar cualquier backup de plataforma previo para evitar que se muestre
+        // el banner "Modo vista clínica" cuando el usuario inicia sesión directamente
+        localStorage.removeItem('odentara_platform_auth_backup');
         saveAuthSession(result.token, result.user);
         await syncBackendSnapshotToLocalDb();
         applyAuthenticatedUiState();
@@ -2203,6 +2453,40 @@ function logout() {
 function renderSidebar() {
     const sidebarNav = document.getElementById('sidebar-nav');
     sidebarNav.innerHTML = '';
+
+    // ── Banner "Volver a plataforma" cuando se está impersonando ─────────────
+    const platformBackup = localStorage.getItem('odentara_platform_auth_backup');
+    if (platformBackup && !isSelfPlatformAdmin()) {
+        const banner = document.createElement('div');
+        banner.className = 'pa-impersonate-banner';
+        banner.innerHTML = `
+            <span><i class="fa-solid fa-eye" style="margin-right:5px;font-size:10px"></i>Modo vista clínica</span>
+            <button onclick="window.returnToPlatform()" title="Volver al panel de plataforma">
+                <i class="fa-solid fa-arrow-left"></i> Plataforma
+            </button>`;
+        sidebarNav.appendChild(banner);
+    }
+
+    // ── Platform Admin: menú propio ──────────────────────────────────────────
+    if (isSelfPlatformAdmin()) {
+        const PLATFORM_NAV = [
+            { id: 'platform-clinics', icon: 'fa-hospital',   label: 'Clínicas' },
+            { id: 'platform-stats',   icon: 'fa-chart-bar',  label: 'Estadísticas' },
+        ];
+        PLATFORM_NAV.forEach(item => {
+            const link = document.createElement('a');
+            link.className = `nav-item ${item.id === state.currentView ? 'active' : ''}`;
+            link.dataset.view = item.id;
+            link.innerHTML = `<i class="fa-solid ${item.icon} w-5 text-center"></i> <span>${item.label}</span>`;
+            link.addEventListener('click', async (e) => {
+                e.preventDefault();
+                await loadView(item.id, item.label);
+                if (isMobileLayout()) setSidebarOpen(false);
+            });
+            sidebarNav.appendChild(link);
+        });
+        return;
+    }
 
     const SETTINGS_SUB_ITEMS = [
         { id: 'clinic-settings',      icon: 'fa-hospital',     label: 'Clínica' },
@@ -2247,6 +2531,7 @@ function renderSidebar() {
                 subLink.className = `nav-sub-item ${sub.id === state.settingsSubView ? 'active' : ''}`;
                 subLink.dataset.settingsView = sub.id;
                 subLink.innerHTML = `<i class="fa-solid ${sub.icon}"></i><span>${sub.label}</span>`;
+                if (isMobileLayout()) subLink.addEventListener('click', () => setSidebarOpen(false));
                 sidebarNav.appendChild(subLink);
             });
         }
@@ -2257,6 +2542,7 @@ function renderSidebar() {
                 subLink.className = `nav-sub-item ${sub.id === state.billingSubView ? 'active' : ''}`;
                 subLink.dataset.billingView = sub.id;
                 subLink.innerHTML = `<i class="fa-solid ${sub.icon}"></i><span>${sub.label}</span>`;
+                if (isMobileLayout()) subLink.addEventListener('click', () => setSidebarOpen(false));
                 sidebarNav.appendChild(subLink);
             });
         }
@@ -2268,14 +2554,23 @@ function refreshCurrentView() {
     loadView(state.currentView, getPageTitle(), { skipUnsavedCheck: true, skipSync: true });
 }
 
+// Normalizes locale date strings to consistent sentence case.
+// On Windows, toLocaleDateString('es-AR') returns title-cased strings
+// like "Jueves, 14 De Mayo De 2026". This converts to "Jueves, 14 de mayo de 2026".
+function normalizeDateLabel(str) {
+    if (!str) return str;
+    const s = str.toLowerCase();
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function formatDashboardDateLabel(dateStr) {
     if (!dateStr) return '';
     const date = parseLocalIsoDate(dateStr);
-    return date.toLocaleDateString('es-AR', {
+    return normalizeDateLabel(date.toLocaleDateString('es-AR', {
         weekday: 'long',
         day: 'numeric',
         month: 'long'
-    });
+    }));
 }
 
 async function loadView(viewId, title = 'Dashboard', options = {}) {
@@ -2284,8 +2579,24 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
         return false;
     }
 
+    // Guard: bloquear vistas no permitidas para el rol actual
+    const viewGuards = {
+        appointments: () => canViewAppointmentsUi(),
+        professionals: () => state.user && state.user.roles.some(r => ['superadmin', 'secretary', 'professional'].includes(r)),
+        billing: () => canViewBillingUi() || canViewPatientBillingUi(),
+        settings: () => canAccessSettingsUi(),
+        'patient-history': () => canViewClinicalHistoryUi()
+    };
+    if (viewGuards[viewId] && !viewGuards[viewId]()) {
+        showAlert('No tenés permisos para acceder a esta sección.', { title: 'Acceso denegado', variant: 'error' });
+        viewId = 'dashboard';
+        title = 'Dashboard';
+    }
+
     state.currentView = viewId;
     setPageTitle(title);
+    // Cerrar cualquier menú de estado abierto antes de limpiar el DOM
+    _closeStatusMenu();
     mainContent.innerHTML = '';
     syncSidebarLayout();
 
@@ -2301,6 +2612,28 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
 
     const content = document.createElement('div');
     content.className = 'animate-fade-in';
+
+    if (viewId === 'platform-clinics') {
+        applyPlatformTheme(true);
+        content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
+        mainContent.appendChild(content);
+        renderPlatformClinics(content);
+        return true;
+    } else if (viewId === 'platform-subscriptions') {
+        applyPlatformTheme(true);
+        content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
+        mainContent.appendChild(content);
+        renderPlatformSubscriptions(content);
+        return true;
+    } else if (viewId === 'platform-stats') {
+        applyPlatformTheme(true);
+        content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
+        mainContent.appendChild(content);
+        renderPlatformStats(content);
+        return true;
+    } else {
+        applyPlatformTheme(false);
+    }
 
     if (viewId === 'dashboard') content.innerHTML = renderDashboard();
     else if (viewId === 'appointments') {
@@ -2319,8 +2652,1015 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     return true;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ULTRA-ADMIN (PLATFORM) VIEWS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Inyecta los estilos propios del ultra-admin (dark theme, completamente distinto al SPA clínico)
+function injectPlatformStyles() {
+    if (document.getElementById('platform-admin-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'platform-admin-styles';
+    style.textContent = `
+        /* ── Anula los !important del SPA cuando el modo plataforma está activo ── */
+        body.pa-mode #main-content,
+        body.pa-mode #app-view main { background: #0f1117 !important; padding: 0 !important; }
+        /* ── Layout ultra-admin ── */
+        .pa-root { display:flex; flex-direction:column; min-height:100vh; background:#0f1117; color:#e2e8f0; font-family:'Inter',system-ui,sans-serif; }
+        .pa-topbar { display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:52px; background:#161b27; border-bottom:1px solid #1e2535; flex-shrink:0; }
+        .pa-topbar-brand { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#94a3b8; }
+        .pa-topbar-brand .pa-diamond { width:22px; height:22px; background:linear-gradient(135deg,#6366f1,#8b5cf6); border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:900; }
+        .pa-topbar-right { display:flex; align-items:center; gap:16px; font-size:12px; color:#64748b; }
+        .pa-topbar-right span { color:#94a3b8; }
+        .pa-topbar-logout { background:none; border:1px solid #1e2535; border-radius:6px; padding:5px 12px; font-size:11px; color:#64748b; cursor:pointer; transition:all .15s; }
+        .pa-topbar-logout:hover { border-color:#334155; color:#94a3b8; }
+
+        /* ── Body split ── */
+        .pa-body { display:flex; flex:1; min-height:0; }
+        .pa-sidebar { width:200px; flex-shrink:0; background:#0d1119; border-right:1px solid #1e2535; padding:20px 0; display:flex; flex-direction:column; gap:2px; }
+        .pa-nav-item { display:flex; align-items:center; gap:10px; padding:9px 20px; font-size:12px; color:#475569; cursor:pointer; border-left:2px solid transparent; transition:all .12s; letter-spacing:.02em; }
+        .pa-nav-item:hover { color:#94a3b8; background:#161b27; }
+        .pa-nav-item.active { color:#a5b4fc; border-left-color:#6366f1; background:#1a1f2e; }
+        .pa-nav-item i { width:14px; text-align:center; font-size:11px; }
+        .pa-nav-section { font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#1e2535; padding:16px 20px 6px; }
+
+        /* ── Main content ── */
+        .pa-main { flex:1; overflow-y:auto; padding:28px 32px; }
+        .pa-page-header { margin-bottom:24px; border-bottom:1px solid #1e2535; padding-bottom:20px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+        .pa-page-title { font-size:16px; font-weight:700; color:#f1f5f9; letter-spacing:-.01em; }
+        .pa-page-sub { font-size:12px; color:#475569; margin-top:3px; font-family:'JetBrains Mono','Fira Mono',monospace; }
+
+        /* ── Botones ── */
+        .pa-btn { display:inline-flex; align-items:center; gap:7px; padding:8px 16px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; border:none; transition:all .15s; letter-spacing:.01em; }
+        .pa-btn-primary { background:#6366f1; color:#fff; }
+        .pa-btn-primary:hover { background:#4f46e5; }
+        .pa-btn-ghost { background:transparent; border:1px solid #1e2535; color:#64748b; }
+        .pa-btn-ghost:hover { border-color:#334155; color:#94a3b8; }
+        .pa-btn-danger { background:#7f1d1d; color:#fca5a5; }
+        .pa-btn-danger:hover { background:#991b1b; }
+        .pa-btn-sm { padding:5px 10px; font-size:11px; }
+        .pa-btn-icon { padding:6px 9px; }
+
+        /* ── Tabla de clínicas ── */
+        .pa-table-wrap { background:#0d1119; border:1px solid #1e2535; border-radius:10px; overflow:hidden; }
+        .pa-table { width:100%; border-collapse:collapse; font-size:12px; }
+        .pa-table thead tr { background:#111520; border-bottom:1px solid #1e2535; }
+        .pa-table thead th { padding:10px 16px; text-align:left; font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#334155; }
+        .pa-table tbody tr { border-bottom:1px solid #111520; transition:background .1s; }
+        .pa-table tbody tr:last-child { border-bottom:none; }
+        .pa-table tbody tr:hover { background:#111824; }
+        .pa-table td { padding:14px 16px; vertical-align:middle; }
+        .pa-table .td-name { font-weight:600; color:#e2e8f0; }
+        .pa-table .td-url { font-family:'JetBrains Mono','Fira Mono',monospace; font-size:11px; color:#6366f1; }
+        .pa-table .td-meta { font-size:11px; color:#475569; }
+        .pa-table .td-actions { display:flex; gap:6px; justify-content:flex-end; }
+
+        /* ── Badges ── */
+        .pa-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:20px; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+        .pa-badge-active   { background:#052e16; color:#4ade80; border:1px solid #14532d; }
+        .pa-badge-inactive { background:#1c1917; color:#78716c; border:1px solid #292524; }
+        .pa-badge-shared   { background:#0c1a2e; color:#93c5fd; border:1px solid #1e3a5f; }
+        .pa-badge-dedicated{ background:#1a0a2e; color:#c084fc; border:1px solid #3b1a5f; }
+        .pa-badge-plan-inicial { background:#0a1f2e; color:#38bdf8; border:1px solid #0c4a6e; }
+        .pa-badge-plan-clinica { background:#0f2d1a; color:#4ade80; border:1px solid #14532d; }
+        .pa-badge-plan-pro     { background:#1e1a0a; color:#fbbf24; border:1px solid #78350f; }
+        .pa-dot { width:6px; height:6px; border-radius:50%; display:inline-block; }
+        .pa-dot-green { background:#22c55e; box-shadow:0 0 6px #22c55e66; }
+        .pa-dot-gray { background:#44403c; }
+        .pa-status-light { width:10px; height:10px; border-radius:50%; display:inline-block; flex-shrink:0; }
+        .pa-status-light-on  { background:#22c55e; box-shadow:0 0 8px #22c55e99; }
+        .pa-status-light-off { background:#ef4444; box-shadow:0 0 6px #ef444466; }
+
+        /* ── Stats cards ── */
+        .pa-stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:24px; }
+        .pa-stat-card { background:#0d1119; border:1px solid #1e2535; border-radius:10px; padding:18px 20px; }
+        .pa-stat-label { font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#334155; margin-bottom:8px; }
+        .pa-stat-value { font-size:28px; font-weight:800; color:#f1f5f9; letter-spacing:-.02em; }
+        .pa-stat-sub { font-size:11px; color:#475569; margin-top:3px; }
+
+        /* ── Modal ultra-admin ── */
+        .pa-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); backdrop-filter:blur(4px); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
+        .pa-modal-overlay.hidden { display:none; }
+        .pa-modal { background:#111520; border:1px solid #1e2535; border-radius:12px; width:100%; max-width:520px; overflow:hidden; display:flex; flex-direction:column; max-height:calc(100vh - 40px); margin:auto; }
+        .pa-modal-header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid #1e2535; flex-shrink:0; }
+        .pa-modal-title { font-size:14px; font-weight:700; color:#f1f5f9; }
+        .pa-modal-close { background:none; border:none; color:#475569; cursor:pointer; padding:4px; font-size:14px; border-radius:4px; }
+        .pa-modal-close:hover { color:#94a3b8; background:#1e2535; }
+        .pa-modal-body { padding:22px; overflow-y:auto; flex:1; }
+        .pa-modal-footer { display:flex; justify-content:flex-end; gap:8px; padding:16px 22px; border-top:1px solid #1e2535; background:#0d1119; flex-shrink:0; }
+
+        /* ── Form ultra-admin ── */
+        .pa-form-group { margin-bottom:16px; }
+        .pa-form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .pa-label { display:block; font-size:11px; font-weight:600; color:#475569; margin-bottom:5px; letter-spacing:.04em; text-transform:uppercase; }
+        .pa-label .req { color:#6366f1; margin-left:2px; }
+        .pa-input { width:100%; background:#0d1119; border:1px solid #1e2535; border-radius:7px; padding:9px 12px; font-size:12px; color:#e2e8f0; outline:none; transition:border .15s; box-sizing:border-box; }
+        .pa-input:focus { border-color:#4f46e5; box-shadow:0 0 0 3px rgba(99,102,241,.15); }
+        .pa-input::placeholder { color:#334155; }
+        .pa-input.mono { font-family:'JetBrains Mono','Fira Mono',monospace; font-size:11px; }
+        .pa-select { width:100%; background:#0d1119; border:1px solid #1e2535; border-radius:7px; padding:9px 12px; font-size:12px; color:#e2e8f0; outline:none; cursor:pointer; box-sizing:border-box; }
+        .pa-select:focus { border-color:#4f46e5; }
+        .pa-hint { font-size:10px; color:#334155; margin-top:4px; line-height:1.5; }
+        .pa-db-section { background:#0a0d14; border:1px solid #1a2030; border-radius:8px; padding:14px; margin-top:4px; }
+        .pa-db-section-title { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#475569; margin-bottom:10px; }
+
+        /* ── Empty state ── */
+        .pa-empty { text-align:center; padding:60px 20px; color:#334155; }
+        .pa-empty i { font-size:36px; margin-bottom:12px; display:block; }
+        .pa-empty p { font-size:13px; }
+
+        /* ── Users list ── */
+        .pa-users-list { max-height:320px; overflow-y:auto; }
+        .pa-user-row { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid #1e2535; }
+        .pa-user-row:last-child { border-bottom:none; }
+        .pa-user-name { font-size:12px; font-weight:600; color:#e2e8f0; }
+        .pa-user-email { font-size:11px; color:#475569; font-family:monospace; }
+
+        /* ── URL preview ── */
+        .pa-url-preview { display:flex; align-items:center; gap:8px; background:#060910; border:1px solid #1e2535; border-radius:6px; padding:8px 12px; margin-top:6px; font-family:'JetBrains Mono','Fira Mono',monospace; font-size:12px; color:#6366f1; }
+        .pa-url-preview i { color:#334155; font-size:10px; }
+    `;
+    document.head.appendChild(style);
+
+    // ESC cierra cualquier modal de plataforma abierto
+    document.addEventListener('keydown', function onPlatformEsc(e) {
+        if (e.key !== 'Escape') return;
+        const clinicModal = document.getElementById('platform-clinic-modal');
+        const adminModal  = document.getElementById('platform-admin-modal');
+        const usersModal  = document.getElementById('platform-users-modal');
+        if (clinicModal && !clinicModal.classList.contains('hidden')) {
+            window.platformCloseClinicModal?.(); return;
+        }
+        if (adminModal && !adminModal.classList.contains('hidden')) {
+            window.platformCloseAdminModal?.(); return;
+        }
+        if (usersModal) {
+            usersModal.remove(); return;
+        }
+    });
+}
+
+// Aplica el fondo oscuro al app container mientras el platform admin está activo
+function applyPlatformTheme(on) {
+    injectPlatformStyles(); // asegura que el <style> esté antes de aplicar la clase
+    const sidebar     = document.getElementById('app-sidebar');
+    const topbar      = document.querySelector('header');
+    const mainContent = document.getElementById('main-content');
+    if (on) {
+        document.body.classList.add('pa-mode');
+        if (sidebar)     sidebar.style.display = 'none';
+        if (topbar)      topbar.style.display  = 'none';
+        if (mainContent) { mainContent.style.padding = ''; mainContent.style.background = ''; }
+    } else {
+        document.body.classList.remove('pa-mode');
+        if (sidebar)     sidebar.style.display = '';
+        if (topbar)      topbar.style.display  = '';
+        if (mainContent) { mainContent.style.padding = ''; mainContent.style.background = ''; }
+    }
+}
+
+async function renderPlatformClinics(container) {
+    injectPlatformStyles();
+
+    let clinics = [];
+    try {
+        const res = await apiFetch('/platform/clinics');
+        if (!res.ok) throw new Error(res.error || 'Error');
+        clinics = res.clinics || [];
+        state._platformClinics = clinics;
+    } catch(e) {
+        container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${e.message}</p></div>`;
+        return;
+    }
+
+    const rows = clinics.length === 0
+        ? `<tr><td colspan="8"><div class="pa-empty"><i class="fa-solid fa-hospital"></i><p>No hay clínicas registradas.</p></div></td></tr>`
+        : clinics.map(c => {
+            const url = `${c.slug}.odentara.com`;
+            const dbBadge = c.dbType === 'dedicated'
+                ? `<span class="pa-badge pa-badge-dedicated"><i class="fa-solid fa-database" style="font-size:8px"></i>Dedicada</span>`
+                : `<span class="pa-badge pa-badge-shared"><i class="fa-solid fa-share-nodes" style="font-size:8px"></i>Compartida</span>`;
+            const planBadge = c.plan
+                ? `<span class="pa-badge pa-badge-plan-${c.plan}">${c.plan.toUpperCase()}</span>`
+                : `<span style="color:#334155;font-size:11px">—</span>`;
+            return `
+            <tr>
+                <td class="td-name">
+                    <div>
+                        <div style="font-size:13px;font-weight:600;color:#e2e8f0">${c.name}</div>
+                        <div style="font-family:'JetBrains Mono','Fira Mono',monospace;font-size:11px;color:#6366f1">${url}</div>
+                    </div>
+                </td>
+                <td style="font-size:12px;color:#94a3b8;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${c.notes ? c.notes.replace(/"/g,'&quot;') : ''}">${c.notes || '<span style="color:#334155">—</span>'}</td>
+                <td>${dbBadge}</td>
+                <td>${planBadge}</td>
+                <td style="font-size:11px;color:#475569">
+                    <span title="Usuarios"><i class="fa-solid fa-users" style="width:12px"></i> ${c.stats.users}</span> &nbsp;
+                    <span title="Profesionales"><i class="fa-solid fa-user-doctor" style="width:12px"></i> ${c.stats.professionals}</span> &nbsp;
+                    <span title="Pacientes"><i class="fa-solid fa-person" style="width:12px"></i> ${c.stats.patients}</span>
+                </td>
+                <td style="font-size:11px;color:#475569">${new Date(c.createdAt).toLocaleDateString('es-AR')}</td>
+                <td>
+                    <div style="display:flex;gap:6px;justify-content:flex-end">
+                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Ver usuarios" onclick="window.platformViewUsers(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="fa-solid fa-users"></i></button>
+                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Crear admin" onclick="window.platformOpenAdminModal(${c.id})"><i class="fa-solid fa-user-plus"></i></button>
+                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Ingresar como clínica" onclick="window.platformLoginAsClinic(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="fa-solid fa-right-to-bracket"></i></button>
+                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Editar" onclick="window.platformEditClinic(${c.id})"><i class="fa-solid fa-pen"></i></button>
+                        <button class="pa-btn ${c.active ? 'pa-btn-danger' : 'pa-btn-ghost'} pa-btn-sm pa-btn-icon" title="${c.active ? 'Desactivar' : 'Activar'}" onclick="window.platformToggleClinic(${c.id})">
+                            <i class="fa-solid ${c.active ? 'fa-ban' : 'fa-circle-check'}"></i>
+                        </button>
+                    </div>
+                </td>
+                <td style="text-align:center;width:32px" title="${c.active ? 'Activa' : 'Inactiva'}">
+                    <span class="pa-status-light ${c.active ? 'pa-status-light-on' : 'pa-status-light-off'}"></span>
+                </td>
+            </tr>`;
+        }).join('');
+
+    container.innerHTML = `
+    <div class="pa-root">
+        ${renderPlatformShell('platform-clinics', `
+            <div class="pa-page-header">
+                <div>
+                    <div class="pa-page-title">Clínicas</div>
+                    <div class="pa-page-sub">${clinics.length} instancia${clinics.length !== 1 ? 's' : ''} registrada${clinics.length !== 1 ? 's' : ''}</div>
+                </div>
+                <button class="pa-btn pa-btn-primary" onclick="window.platformOpenNewClinicModal()">
+                    <i class="fa-solid fa-plus"></i> Nueva clínica
+                </button>
+            </div>
+
+            <div class="pa-table-wrap">
+                <table class="pa-table">
+                    <thead>
+                        <tr>
+                            <th>Clínica / URL</th>
+                            <th>Notas</th>
+                            <th>Base de datos</th>
+                            <th>Plan</th>
+                            <th>Recursos</th>
+                            <th>Creada</th>
+                            <th style="text-align:right">Acciones</th>
+                            <th style="width:32px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `)}
+    </div>
+
+    ${renderPlatformClinicModal()}
+    ${renderPlatformAdminModal()}
+    `;
+}
+
+async function renderPlatformStats(container) {
+    injectPlatformStyles();
+    let s = {};
+    try {
+        const res = await apiFetch('/platform/stats');
+        if (!res.ok) throw new Error(res.error);
+        s = res.stats;
+    } catch(e) {
+        container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${e.message}</p></div>`;
+        return;
+    }
+
+    container.innerHTML = `
+    <div class="pa-root">
+        ${renderPlatformShell('platform-stats', `
+            <div class="pa-page-header">
+                <div>
+                    <div class="pa-page-title">Estadísticas</div>
+                    <div class="pa-page-sub">Resumen global de la plataforma</div>
+                </div>
+            </div>
+
+            <div class="pa-stats-grid">
+                ${[
+                    { label:'Clínicas totales',    value: s.totalClinics,           sub:'instancias',            icon:'fa-hospital',       color:'#6366f1' },
+                    { label:'Clínicas activas',    value: s.activeClinics,          sub:'en línea',              icon:'fa-circle-check',   color:'#22c55e' },
+                    { label:'Usuarios',            value: s.totalUsers,             sub:'en toda la plataforma', icon:'fa-users',          color:'#60a5fa' },
+                    { label:'Pacientes',           value: s.totalPatients,          sub:'registrados',           icon:'fa-person',         color:'#c084fc' },
+                    { label:'Profesionales',       value: s.totalProfessionals,     sub:'activos',               icon:'fa-user-doctor',    color:'#fb923c' },
+                    { label:'Turnos este mes',     value: s.appointmentsThisMonth,  sub:'en el mes actual',      icon:'fa-calendar-check', color:'#2dd4bf' },
+                ].map(m => `
+                    <div class="pa-stat-card">
+                        <div class="pa-stat-label"><i class="fa-solid ${m.icon}" style="color:${m.color};margin-right:6px"></i>${m.label}</div>
+                        <div class="pa-stat-value">${(m.value||0).toLocaleString('es-AR')}</div>
+                        <div class="pa-stat-sub">${m.sub}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `)}
+    </div>`;
+}
+
+// ── Cobros de suscripción ─────────────────────────────────────────────────────
+async function renderPlatformSubscriptions(container) {
+    injectPlatformStyles();
+
+    let data = { clinics: [], payments: [] };
+    try {
+        const res = await apiFetch('/platform/subscriptions');
+        if (res.ok) { data = res; window._platformSubClinics = data.clinics; }
+    } catch(e) { console.error(e); }
+
+    const PLAN_AMOUNTS = { inicial: 29, clinica: 49, pro: 89 };
+    const PERIOD_LABELS = { '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre' };
+    function periodLabel(p) { const [y,m] = p.split('-'); return `${PERIOD_LABELS[m]} ${y}`; }
+    function now() { return new Date(); }
+    const currentPeriod = `${now().getFullYear()}-${String(now().getMonth()+1).padStart(2,'0')}`;
+
+    const rows = data.clinics.filter(c => c.active).map(c => {
+        const suggested = PLAN_AMOUNTS[c.plan] || '—';
+        let statusBadge, statusSort;
+        if (c.currentPaid) {
+            statusBadge = `<span class="pa-badge pa-badge-active">✓ Pagado</span>`;
+            statusSort = 0;
+        } else if (c.isOverdue) {
+            statusBadge = `<span class="pa-badge" style="background:#7f1d1d;color:#fca5a5">⚠ Vencido</span>`;
+            statusSort = 2;
+        } else {
+            statusBadge = `<span class="pa-badge" style="background:#78350f;color:#fde68a">Pendiente</span>`;
+            statusSort = 1;
+        }
+        const owed = c.owedPeriods.length;
+        const owedBadge = owed > 0
+            ? `<span style="color:#f87171;font-size:11px;font-weight:600">${owed} mes${owed!==1?'es':''} adeudado${owed!==1?'s':''}</span>`
+            : `<span style="color:#34d399;font-size:11px">Al día</span>`;
+        const lastPay = c.lastPayment
+            ? `<span style="font-size:11px;color:#94a3b8">USD ${Number(c.lastPayment.amount).toLocaleString()} · ${periodLabel(c.lastPayment.period)}</span>`
+            : `<span style="font-size:11px;color:#475569">Sin pagos</span>`;
+        return { statusSort, html: `
+            <tr>
+                <td style="font-size:13px;font-weight:600;color:#e2e8f0">${c.name}</td>
+                <td>${c.plan ? `<span class="pa-badge pa-badge-plan-${c.plan}">${c.plan.toUpperCase()}</span>` : '<span style="color:#475569;font-size:11px">Sin plan</span>'}</td>
+                <td style="color:#94a3b8;font-size:12px">${suggested !== '—' ? `USD ${suggested}` : '—'}</td>
+                <td>${statusBadge}</td>
+                <td>${owedBadge}</td>
+                <td>${lastPay}</td>
+                <td style="text-align:right">
+                    <button class="pa-btn pa-btn-primary pa-btn-sm" onclick="window.platformOpenPaymentModal(${c.id},'${c.name.replace(/'/g,"\\'")}','${c.plan||''}')">
+                        <i class="fa-solid fa-plus"></i> Registrar pago
+                    </button>
+                </td>
+            </tr>` };
+    }).sort((a,b) => b.statusSort - a.statusSort);
+
+    // Historial de pagos
+    const historialRows = data.payments.slice(0,50).map(p => {
+        const clinic = data.clinics.find(c => c.id === p.clinicId);
+        return `<tr>
+            <td style="font-size:12px;color:#e2e8f0">${clinic?.name || '—'}</td>
+            <td style="font-size:12px;color:#94a3b8">${periodLabel(p.period)}</td>
+            <td style="font-size:12px;font-weight:600;color:#34d399">USD ${Number(p.amount).toLocaleString()}</td>
+            <td style="font-size:11px;color:#94a3b8">${p.paymentMethod}</td>
+            <td style="font-size:11px;color:#475569">${new Date(p.paidAt).toLocaleDateString('es-AR')}</td>
+            <td style="font-size:11px;color:#475569">${p.notes || '—'}</td>
+            <td style="text-align:right">
+                <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Eliminar" style="color:#f87171" onclick="window.platformDeletePayment(${p.id})"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const overdueCount = data.clinics.filter(c => c.active && c.isOverdue).length;
+    const pendingCount = data.clinics.filter(c => c.active && !c.currentPaid && !c.isOverdue).length;
+    const paidCount    = data.clinics.filter(c => c.active && c.currentPaid).length;
+
+    container.innerHTML = `
+    <div class="pa-root">
+        ${renderPlatformShell('platform-subscriptions', `
+            <div class="pa-page-header">
+                <div>
+                    <div class="pa-page-title">Cobros</div>
+                    <div class="pa-page-sub">${periodLabel(currentPeriod)} · ${paidCount} pagado${paidCount!==1?'s':''} · ${pendingCount} pendiente${pendingCount!==1?'s':''} · ${overdueCount} vencido${overdueCount!==1?'s':''}</div>
+                </div>
+                <button class="pa-btn pa-btn-primary" onclick="window.platformOpenPaymentModal()">
+                    <i class="fa-solid fa-plus"></i> Registrar pago
+                </button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px">
+                <div style="background:#0f2a1a;border:1px solid #166534;border-radius:10px;padding:16px">
+                    <div style="font-size:11px;color:#6ee7b7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Pagaron este mes</div>
+                    <div style="font-size:28px;font-weight:700;color:#34d399">${paidCount}</div>
+                </div>
+                <div style="background:#2a1f0a;border:1px solid #92400e;border-radius:10px;padding:16px">
+                    <div style="font-size:11px;color:#fde68a;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Pendientes (en plazo)</div>
+                    <div style="font-size:28px;font-weight:700;color:#fbbf24">${pendingCount}</div>
+                </div>
+                <div style="background:#2a0f0f;border:1px solid #7f1d1d;border-radius:10px;padding:16px">
+                    <div style="font-size:11px;color:#fca5a5;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Vencidos (>10 del mes)</div>
+                    <div style="font-size:28px;font-weight:700;color:#f87171">${overdueCount}</div>
+                </div>
+            </div>
+
+            <div class="pa-table-wrap" style="margin-bottom:32px">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569;padding:0 0 8px">Estado del mes actual</div>
+                <table class="pa-table">
+                    <thead><tr>
+                        <th>Clínica</th><th>Plan</th><th>Monto sugerido</th><th>Estado mes actual</th><th>Deuda acumulada</th><th>Último pago</th><th style="text-align:right">Acción</th>
+                    </tr></thead>
+                    <tbody>${rows.map(r=>r.html).join('') || '<tr><td colspan="7" style="text-align:center;color:#475569;padding:24px">Sin clínicas activas</td></tr>'}</tbody>
+                </table>
+            </div>
+
+            <div class="pa-table-wrap">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569;padding:0 0 8px">Historial de pagos</div>
+                <table class="pa-table">
+                    <thead><tr><th>Clínica</th><th>Período</th><th>Monto</th><th>Método</th><th>Fecha</th><th>Notas</th><th></th></tr></thead>
+                    <tbody>${historialRows || '<tr><td colspan="7" style="text-align:center;color:#475569;padding:24px">Sin pagos registrados aún</td></tr>'}</tbody>
+                </table>
+            </div>
+        `)}
+    </div>
+
+    <!-- Modal registrar pago -->
+    <div id="pa-payment-modal" class="pa-modal-overlay hidden" onclick="if(event.target===this)document.getElementById('pa-payment-modal').classList.add('hidden')">
+        <div class="pa-modal" style="max-width:460px">
+            <div class="pa-modal-header">
+                <span class="pa-modal-title">Registrar pago</span>
+                <button class="pa-modal-close" onclick="document.getElementById('pa-payment-modal').classList.add('hidden')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pa-modal-body">
+                <form id="pa-payment-form" onsubmit="window.platformSavePayment(event)">
+                    <div class="pa-form-group">
+                        <label class="pa-label">Clínica <span class="req">*</span></label>
+                        <select id="ppf-clinic" class="pa-select" required>
+                            <option value="">Seleccioná una clínica...</option>
+                        </select>
+                    </div>
+                    <div class="pa-form-row">
+                        <div class="pa-form-group">
+                            <label class="pa-label">Período <span class="req">*</span></label>
+                            <input id="ppf-period" class="pa-input" type="month" required value="${currentPeriod}">
+                        </div>
+                        <div class="pa-form-group">
+                            <label class="pa-label">Fecha de pago <span class="req">*</span></label>
+                            <input id="ppf-paidat" class="pa-input" type="date" required value="${new Date().toISOString().slice(0,10)}">
+                        </div>
+                    </div>
+                    <div class="pa-form-row">
+                        <div class="pa-form-group">
+                            <label class="pa-label">Monto (USD) <span class="req">*</span></label>
+                            <input id="ppf-amount" class="pa-input" type="number" min="1" step="0.01" placeholder="49" required>
+                        </div>
+                        <div class="pa-form-group">
+                            <label class="pa-label">Forma de pago <span class="req">*</span></label>
+                            <select id="ppf-method" class="pa-select" required>
+                                <option value="">Seleccioná...</option>
+                                <option value="transferencia">Transferencia</option>
+                                <option value="efectivo">Efectivo</option>
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="crypto">Crypto</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pa-form-group">
+                        <label class="pa-label">Notas</label>
+                        <input id="ppf-notes" class="pa-input" placeholder="Opcional">
+                    </div>
+                </form>
+            </div>
+            <div class="pa-modal-footer">
+                <button class="pa-btn pa-btn-ghost" onclick="document.getElementById('pa-payment-modal').classList.add('hidden')">Cancelar</button>
+                <button class="pa-btn pa-btn-primary" onclick="document.getElementById('pa-payment-form').requestSubmit()">
+                    <i class="fa-solid fa-check"></i> Guardar pago
+                </button>
+            </div>
+        </div>
+    </div>`;
+}
+
+window.platformOpenPaymentModal = function(clinicId, clinicName, plan) {
+    const modal = document.getElementById('pa-payment-modal');
+    if (!modal) return;
+
+    // Poblar el select con las clínicas activas (siempre fresco)
+    const sel = document.getElementById('ppf-clinic');
+    if (sel) {
+        const clinics = (window._platformSubClinics || []).filter(c => c.active);
+        sel.innerHTML = '<option value="">Seleccioná una clínica...</option>' +
+            clinics.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        if (clinicId) sel.value = clinicId;
+    }
+
+    const PLAN_AMOUNTS = { inicial: 29, clinica: 49, pro: 89 };
+    const amountInput = document.getElementById('ppf-amount');
+    if (amountInput && plan && PLAN_AMOUNTS[plan]) amountInput.value = PLAN_AMOUNTS[plan];
+    else if (amountInput && clinicId) {
+        const c = (window._platformSubClinics || []).find(x => x.id === Number(clinicId));
+        if (c?.plan && PLAN_AMOUNTS[c.plan]) amountInput.value = PLAN_AMOUNTS[c.plan];
+    }
+
+    modal.classList.remove('hidden');
+    sel?.focus();
+};
+
+window.platformSavePayment = async function(e) {
+    e.preventDefault();
+    const btn = e.target.closest('.pa-modal')?.querySelector('.pa-btn-primary') || document.querySelector('#pa-payment-modal .pa-btn-primary');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+    try {
+        const res = await apiFetch('/platform/subscriptions', {
+            method: 'POST',
+            body: JSON.stringify({
+                clinicId:      Number(document.getElementById('ppf-clinic').value),
+                period:        document.getElementById('ppf-period').value,
+                amount:        parseFloat(document.getElementById('ppf-amount').value),
+                paymentMethod: document.getElementById('ppf-method').value,
+                paidAt:        document.getElementById('ppf-paidat').value,
+                notes:         document.getElementById('ppf-notes').value,
+            }),
+        });
+        if (!res.ok) throw new Error(res.error || 'Error');
+        document.getElementById('pa-payment-modal').classList.add('hidden');
+        const content = document.querySelector('.pa-root')?.parentElement;
+        if (content) renderPlatformSubscriptions(content);
+        else loadView('platform-subscriptions', 'Cobros', { skipSync: true });
+    } catch(err) {
+        showPlatformAlert(err.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Guardar pago'; }
+    }
+};
+
+window.platformDeletePayment = async function(id) {
+    if (!await showConfirm('¿Eliminar este registro de pago?', { title: 'Eliminar pago', variant: 'danger', confirmText: 'Eliminar' })) return;
+    try {
+        const res = await apiFetch(`/platform/subscriptions/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(res.error);
+        loadView('platform-subscriptions', 'Cobros', { skipSync: true });
+    } catch(err) {
+        showPlatformAlert(err.message, 'error');
+    }
+};
+
+// Shell HTML compartido (topbar + sidebar + main) del ultra-admin
+function renderPlatformShell(activeView, mainHtml) {
+    const NAV = [
+        { id:'platform-clinics',       icon:'fa-hospital',        label:'Clínicas'      },
+        { id:'platform-subscriptions', icon:'fa-dollar-sign',     label:'Cobros'        },
+        { id:'platform-stats',         icon:'fa-chart-bar',       label:'Estadísticas'  },
+    ];
+    const navHtml = NAV.map(n => `
+        <div class="pa-nav-item ${n.id === activeView ? 'active' : ''}" onclick="loadView('${n.id}','${n.label}',{skipSync:true})">
+            <i class="fa-solid ${n.icon}"></i> ${n.label}
+        </div>
+    `).join('');
+
+    const user = state.user || {};
+    return `
+        <div class="pa-topbar">
+            <div class="pa-topbar-brand">
+                <div class="pa-diamond">◆</div>
+                ODENTARA PLATFORM
+            </div>
+            <div class="pa-topbar-right">
+                <span>${user.email || user.name || 'Platform Admin'}</span>
+                <button class="pa-topbar-logout" onclick="window.logout()"><i class="fa-solid fa-right-from-bracket" style="font-size:10px;margin-right:4px"></i>Salir</button>
+            </div>
+        </div>
+        <div class="pa-body">
+            <div class="pa-sidebar">
+                <div class="pa-nav-section">Gestión</div>
+                ${navHtml}
+            </div>
+            <div class="pa-main">${mainHtml}</div>
+        </div>
+    `;
+}
+
+function renderPlatformClinicModal() {
+    return `
+    <div id="platform-clinic-modal" class="pa-modal-overlay hidden" onclick="if(event.target===this)window.platformCloseClinicModal()">
+        <div class="pa-modal">
+            <div class="pa-modal-header">
+                <span class="pa-modal-title" id="platform-clinic-modal-title">Nueva clínica</span>
+                <button class="pa-modal-close" onclick="window.platformCloseClinicModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pa-modal-body">
+                <form id="platform-clinic-form" onsubmit="window.platformSaveClinic(event)">
+                    <input type="hidden" id="platform-clinic-id">
+
+                    <div class="pa-form-row">
+                        <div class="pa-form-group" style="grid-column:1/-1">
+                            <label class="pa-label">Nombre de la clínica <span class="req">*</span></label>
+                            <input id="pcf-name" class="pa-input" placeholder="Clínica San Martín" required>
+                        </div>
+                        <div class="pa-form-group" style="grid-column:1/-1">
+                            <label class="pa-label">Notas internas</label>
+                            <input id="pcf-notes" class="pa-input" placeholder="Ej: nombre real del dueño, datos de contacto interno...">
+                        </div>
+                        <div class="pa-form-group" style="grid-column:1/-1">
+                            <label class="pa-label">Slug / Subdominio <span class="req">*</span></label>
+                            <input id="pcf-slug" class="pa-input mono" placeholder="clinicasanmartin" required>
+                            <div class="pa-url-preview"><i class="fa-solid fa-globe"></i><span id="pcf-url-preview">______.odentara.com</span></div>
+                            <div class="pa-hint">Solo minúsculas y guiones. No se puede cambiar después de creado.</div>
+                        </div>
+                    </div>
+
+                    <div class="pa-form-row">
+                        <div class="pa-form-group">
+                            <label class="pa-label">Teléfono</label>
+                            <input id="pcf-phone" class="pa-input" placeholder="+54 261 ...">
+                        </div>
+                        <div class="pa-form-group">
+                            <label class="pa-label">Email</label>
+                            <input id="pcf-email" class="pa-input" type="email" placeholder="info@clinica.com">
+                        </div>
+                        <div class="pa-form-group" style="grid-column:1/-1">
+                            <label class="pa-label">Dirección</label>
+                            <input id="pcf-address" class="pa-input" placeholder="Av. San Martín 1234, Mendoza">
+                        </div>
+                        <div class="pa-form-group" style="grid-column:1/-1">
+                            <label class="pa-label">Plan</label>
+                            <select id="pcf-plan" class="pa-select">
+                                <option value="">Sin plan</option>
+                                <option value="inicial">Inicial — USD 29/mes (1 profesional)</option>
+                                <option value="clinica">Clínica — USD 49/mes (3 profesionales)</option>
+                                <option value="pro">Pro — USD 89/mes (ilimitados)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Base de datos -->
+                    <div class="pa-form-group">
+                        <label class="pa-label">Base de datos</label>
+                        <select id="pcf-dbtype" class="pa-select" onchange="window.platformToggleDbUrl()">
+                            <option value="shared">Compartida — misma instancia de Odentara</option>
+                            <option value="dedicated">Dedicada — URL de conexión personalizada</option>
+                        </select>
+                        <div class="pa-hint">
+                            <b>Compartida:</b> más simple, los datos se aislan por clínica dentro de la misma base. <br>
+                            <b>Dedicada:</b> base de datos propia, máximo aislamiento, ideal para clínicas grandes.
+                        </div>
+                    </div>
+                    <div id="pcf-db-url-section" class="pa-db-section" style="display:none">
+                        <div class="pa-db-section-title"><i class="fa-solid fa-database" style="margin-right:6px"></i>Conexión dedicada</div>
+                        <div class="pa-form-group" style="margin-bottom:0">
+                            <label class="pa-label">DATABASE_URL <span class="req">*</span></label>
+                            <input id="pcf-dburl" class="pa-input mono" placeholder="mysql://user:pass@host:3306/dbname">
+                            <div class="pa-hint">La clínica usará esta conexión de forma exclusiva. Asegurate de que la base exista y esté accesible desde el servidor.</div>
+                        </div>
+                    </div>
+
+                    <!-- Superadmin inicial (solo al crear) -->
+                    <div id="pcf-admin-section" class="pa-db-section" style="margin-top:16px">
+                        <div class="pa-db-section-title"><i class="fa-solid fa-user-shield" style="margin-right:6px"></i>Superadmin inicial</div>
+                        <div class="pa-hint" style="margin-bottom:12px">Se creará automáticamente con acceso total a esta clínica.</div>
+                        <div class="pa-form-row">
+                            <div class="pa-form-group" style="grid-column:1/-1">
+                                <label class="pa-label">Nombre completo <span class="req">*</span></label>
+                                <input id="pcf-admin-name" class="pa-input" placeholder="Dr. Juan García" required>
+                            </div>
+                            <div class="pa-form-group">
+                                <label class="pa-label">Email <span class="req">*</span></label>
+                                <input id="pcf-admin-email" class="pa-input" type="email" placeholder="admin@clinica.com" required>
+                            </div>
+                            <div class="pa-form-group">
+                                <label class="pa-label">Contraseña inicial <span class="req">*</span></label>
+                                <div style="position:relative">
+                                    <input id="pcf-admin-pass" class="pa-input" type="password" value="odentara123" required style="padding-right:38px">
+                                    <button type="button" onclick="const i=document.getElementById('pcf-admin-pass');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:2px"><i class="fa-solid fa-eye"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="pa-modal-footer">
+                <button class="pa-btn pa-btn-ghost" onclick="window.platformCloseClinicModal()">Cancelar</button>
+                <button id="pcf-submit-btn" class="pa-btn pa-btn-primary" onclick="document.getElementById('platform-clinic-form').requestSubmit()">
+                    <i class="fa-solid fa-check"></i> Crear clínica
+                </button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderPlatformAdminModal() {
+    return `
+    <div id="platform-admin-modal" class="pa-modal-overlay hidden" onclick="if(event.target===this)window.platformCloseAdminModal()">
+        <div class="pa-modal" style="max-width:420px">
+            <div class="pa-modal-header">
+                <span class="pa-modal-title">Crear administrador</span>
+                <button class="pa-modal-close" onclick="window.platformCloseAdminModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pa-modal-body">
+                <div style="background:#0a1525;border:1px solid #1e3a5f;border-radius:6px;padding:10px 12px;margin-bottom:16px;font-size:11px;color:#60a5fa;">
+                    <i class="fa-solid fa-info-circle" style="margin-right:6px"></i>
+                    El administrador recibirá acceso completo a la clínica como superadmin.
+                </div>
+                <form id="platform-admin-form" onsubmit="window.platformSaveAdmin(event)">
+                    <input type="hidden" id="paf-clinic-id">
+                    <div class="pa-form-group">
+                        <label class="pa-label">Nombre completo <span class="req">*</span></label>
+                        <input id="paf-name" class="pa-input" placeholder="Dr. Juan Pérez" required>
+                    </div>
+                    <div class="pa-form-group">
+                        <label class="pa-label">Email <span class="req">*</span></label>
+                        <input id="paf-email" class="pa-input" type="email" placeholder="admin@clinica.com" required>
+                    </div>
+                    <div class="pa-form-group">
+                        <label class="pa-label">Contraseña inicial <span class="req">*</span></label>
+                        <div style="position:relative">
+                            <input id="paf-pass" class="pa-input mono" type="password" value="odentara123" required style="padding-right:38px">
+                            <button type="button" onclick="const i=document.getElementById('paf-pass');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:2px"><i class="fa-solid fa-eye"></i></button>
+                        </div>
+                        <div class="pa-hint">El usuario deberá cambiarla en su primer ingreso.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="pa-modal-footer">
+                <button class="pa-btn pa-btn-ghost" onclick="window.platformCloseAdminModal()">Cancelar</button>
+                <button class="pa-btn pa-btn-primary" onclick="document.getElementById('platform-admin-form').requestSubmit()">
+                    <i class="fa-solid fa-user-plus"></i> Crear admin
+                </button>
+            </div>
+        </div>
+    </div>`;
+}
+
+// ── Handlers ─────────────────────────────────────────────────────────────────
+
+window.platformToggleDbUrl = function() {
+    const type = document.getElementById('pcf-dbtype')?.value;
+    const section = document.getElementById('pcf-db-url-section');
+    if (section) section.style.display = type === 'dedicated' ? 'block' : 'none';
+};
+
+window.platformOpenNewClinicModal = function() {
+    document.getElementById('platform-clinic-id').value = '';
+    document.getElementById('platform-clinic-modal-title').textContent = 'Nueva clínica';
+    const sb = document.getElementById('pcf-submit-btn');
+    if (sb) sb.innerHTML = '<i class="fa-solid fa-check"></i> Crear clínica';
+    document.getElementById('pcf-name').value    = '';
+    document.getElementById('pcf-slug').value    = '';
+    document.getElementById('pcf-phone').value   = '';
+    document.getElementById('pcf-email').value   = '';
+    document.getElementById('pcf-address').value = '';
+    document.getElementById('pcf-plan').value    = '';
+    document.getElementById('pcf-notes').value   = '';
+    document.getElementById('pcf-dbtype').value  = 'shared';
+    const dburlEl = document.getElementById('pcf-dburl');
+    if (dburlEl) dburlEl.value = '';
+    document.getElementById('pcf-slug').disabled = false;
+    document.getElementById('pcf-db-url-section').style.display = 'none';
+    document.getElementById('pcf-url-preview').textContent = '______.odentara.com';
+    // Campos del superadmin inicial
+    document.getElementById('pcf-admin-name').value  = '';
+    document.getElementById('pcf-admin-email').value = '';
+    document.getElementById('pcf-admin-pass').value  = 'odentara123';
+    document.getElementById('pcf-admin-section').style.display = 'block';
+    const adminInputs = document.querySelectorAll('#pcf-admin-name, #pcf-admin-email, #pcf-admin-pass');
+    adminInputs.forEach(el => el.required = true);
+    document.getElementById('platform-clinic-modal').classList.remove('hidden');
+};
+
+window.platformEditClinic = function(id) {
+    const c = (state._platformClinics || []).find(x => x.id === id);
+    if (!c) return;
+    document.getElementById('platform-clinic-id').value = id;
+    document.getElementById('platform-clinic-modal-title').textContent = 'Editar clínica';
+    const sb = document.getElementById('pcf-submit-btn');
+    if (sb) sb.innerHTML = '<i class="fa-solid fa-save"></i> Guardar cambios';
+    document.getElementById('pcf-name').value    = c.name    || '';
+    document.getElementById('pcf-slug').value    = c.slug    || '';
+    document.getElementById('pcf-phone').value   = c.phone   || '';
+    document.getElementById('pcf-email').value   = c.email   || '';
+    document.getElementById('pcf-address').value = c.address || '';
+    document.getElementById('pcf-plan').value    = c.plan    || '';
+    document.getElementById('pcf-notes').value   = c.notes   || '';
+    document.getElementById('pcf-dbtype').value  = c.dbType  || 'shared';
+    const dburlEl = document.getElementById('pcf-dburl');
+    if (dburlEl) dburlEl.value = c.databaseUrl || '';
+    document.getElementById('pcf-slug').disabled = true;
+    document.getElementById('pcf-db-url-section').style.display = c.dbType === 'dedicated' ? 'block' : 'none';
+    document.getElementById('pcf-url-preview').textContent = `${c.slug}.odentara.com`;
+    // Al editar no se crea superadmin
+    document.getElementById('pcf-admin-section').style.display = 'none';
+    const adminInputs = document.querySelectorAll('#pcf-admin-name, #pcf-admin-email, #pcf-admin-pass');
+    adminInputs.forEach(el => el.required = false);
+    document.getElementById('platform-clinic-modal').classList.remove('hidden');
+};
+
+window.platformCloseClinicModal = function() {
+    document.getElementById('platform-clinic-modal').classList.add('hidden');
+};
+
+window.platformSaveClinic = async function(e) {
+    e.preventDefault();
+    const id      = document.getElementById('platform-clinic-id').value;
+    const dbType  = document.getElementById('pcf-dbtype').value;
+    const dburlEl = document.getElementById('pcf-dburl');
+    const dbUrl   = dburlEl ? dburlEl.value.trim() : null;
+
+    if (dbType === 'dedicated' && !dbUrl) {
+        showPlatformAlert('Ingresá la DATABASE_URL para la base de datos dedicada.', 'error'); return;
+    }
+
+    const body = {
+        name:        document.getElementById('pcf-name').value.trim(),
+        slug:        document.getElementById('pcf-slug').value.trim(),
+        phone:       document.getElementById('pcf-phone').value.trim()   || null,
+        email:       document.getElementById('pcf-email').value.trim()   || null,
+        address:     document.getElementById('pcf-address').value.trim() || null,
+        plan:        document.getElementById('pcf-plan').value           || null,
+        notes:       document.getElementById('pcf-notes').value.trim()   || null,
+        dbType,
+        databaseUrl: dbType === 'dedicated' ? dbUrl : null,
+    };
+
+    // Al crear, incluir datos del superadmin inicial
+    if (!id) {
+        body.adminName     = document.getElementById('pcf-admin-name').value.trim();
+        body.adminEmail    = document.getElementById('pcf-admin-email').value.trim();
+        body.adminPassword = document.getElementById('pcf-admin-pass').value;
+    }
+
+    try {
+        const res = id
+            ? await apiFetch(`/platform/clinics/${id}`, { method:'PUT',  body:JSON.stringify(body) })
+            : await apiFetch('/platform/clinics',        { method:'POST', body:JSON.stringify(body) });
+        if (!res.ok) throw new Error(res.error || 'Error al guardar');
+        window.platformCloseClinicModal();
+        await loadView('platform-clinics', 'Clínicas', { skipSync:true });
+        // Toast informativo post-creación
+        if (!id) {
+            const adminInfo = res.adminUser ? ` · Superadmin: ${res.adminUser.email}` : '';
+            showPlatformAlert(`Clínica "${res.clinic.name}" creada${adminInfo}`, 'success');
+        } else {
+            showPlatformAlert('Clínica actualizada correctamente.', 'success');
+        }
+    } catch(err) {
+        showPlatformAlert(err.message, 'error');
+    }
+};
+
+window.platformToggleClinic = async function(id) {
+    const clinic = (state._platformClinics || []).find(x => x.id === id);
+    const isActive = clinic?.active ?? true;
+    const action = isActive ? 'desactivar' : 'activar';
+    const confirmed = await showConfirm(
+        `¿Querés ${action} la clínica "${clinic?.name || id}"? ${isActive ? 'Los usuarios no podrán ingresar mientras esté inactiva.' : ''}`,
+        { title: isActive ? 'Desactivar clínica' : 'Activar clínica', variant: isActive ? 'danger' : 'info',
+          confirmText: isActive ? 'Sí, desactivar' : 'Sí, activar' }
+    );
+    if (!confirmed) return;
+    try {
+        const res = await apiFetch(`/platform/clinics/${id}/toggle`, { method:'PATCH' });
+        if (!res.ok) throw new Error(res.error || 'Error');
+        await loadView('platform-clinics', 'Clínicas', { skipSync:true });
+    } catch(err) {
+        showPlatformAlert(err.message, 'error');
+    }
+};
+
+// Eliminación de clínicas deshabilitada intencionalmente.
+// Las clínicas solo pueden desactivarse o archivarse, nunca eliminarse.
+window.platformDeleteClinic = function() {
+    showPlatformAlert('Las clínicas no pueden eliminarse. Podés desactivarlas o archivarlas.', 'error');
+};
+
+window.platformLoginAsClinic = async function(clinicId, clinicName) {
+    // Buscar el superadmin de la clínica para mostrarlo en el confirm
+    let adminLabel = 'el superadmin';
+    try {
+        const usersRes = await apiFetch(`/platform/clinics/${clinicId}/users`);
+        if (usersRes.ok) {
+            const superadmin = (usersRes.users || []).find(u => u.roles.includes('superadmin') && u.active);
+            if (superadmin) adminLabel = superadmin.email;
+        }
+    } catch(_) { /* silencioso */ }
+
+    const confirmed = await showConfirm(
+        `Vas a ingresar a "${clinicName}" como <strong>${adminLabel}</strong>. Tu sesión de plataforma quedará guardada y podrás volver desde el banner superior.`,
+        { title: 'Ingresar como clínica', variant: 'info', confirmText: 'Ingresar' }
+    );
+    if (!confirmed) return;
+    try {
+        const res = await apiFetch('/platform/login-as-clinic', { method: 'POST', body: JSON.stringify({ clinicId }) });
+        if (!res.ok) throw new Error(res.error || 'No se pudo ingresar a la clínica.');
+        // Guardar token de plataforma para poder volver
+        const platformAuth = JSON.parse(localStorage.getItem('odentara_auth_v1') || '{}');
+        localStorage.setItem('odentara_platform_auth_backup', JSON.stringify(platformAuth));
+        // Aplicar el token de la clínica
+        const auth = { token: res.token, user: res.user };
+        localStorage.setItem('odentara_auth_v1', JSON.stringify(auth));
+        state.user = res.user;
+        state.authToken = res.token;
+        applyPlatformTheme(false);
+        await loadView('dashboard');
+        showToast(`Ingresaste como ${res.user.fullName || res.user.email} en ${clinicName}`, 'success');
+    } catch(err) {
+        showPlatformAlert(err.message || 'Error al ingresar a la clínica.', 'error');
+    }
+};
+
+window.returnToPlatform = function() {
+    const backup = localStorage.getItem('odentara_platform_auth_backup');
+    if (!backup) return;
+    const auth = JSON.parse(backup);
+    localStorage.setItem('odentara_auth_v1', backup);
+    localStorage.removeItem('odentara_platform_auth_backup');
+    state.user = auth.user;
+    state.authToken = auth.token;
+    loadView('platform-clinics', 'Clínicas', { skipSync: true });
+};
+
+window.platformOpenAdminModal = function(clinicId) {
+    document.getElementById('paf-clinic-id').value = clinicId;
+    document.getElementById('paf-name').value  = '';
+    document.getElementById('paf-email').value = '';
+    document.getElementById('paf-pass').value  = 'odentara123';
+    document.getElementById('platform-admin-modal').classList.remove('hidden');
+};
+
+window.platformCloseAdminModal = function() {
+    document.getElementById('platform-admin-modal').classList.add('hidden');
+};
+
+window.platformSaveAdmin = async function(e) {
+    e.preventDefault();
+    const clinicId = document.getElementById('paf-clinic-id').value;
+    const body = {
+        fullName: document.getElementById('paf-name').value.trim(),
+        email:    document.getElementById('paf-email').value.trim(),
+        password: document.getElementById('paf-pass').value,
+    };
+    try {
+        const res = await apiFetch(`/platform/clinics/${clinicId}/admin`, { method:'POST', body:JSON.stringify(body) });
+        if (!res.ok) throw new Error(res.error || 'Error');
+        window.platformCloseAdminModal();
+        showPlatformAlert(`Admin ${res.user.email} creado correctamente.`, 'success');
+    } catch(err) {
+        showPlatformAlert(err.message, 'error');
+    }
+};
+
+window.platformViewUsers = async function(clinicId, clinicName) {
+    try {
+        const res = await apiFetch(`/platform/clinics/${clinicId}/users`);
+        if (!res.ok) throw new Error(res.error);
+        const users = res.users || [];
+
+        const existing = document.getElementById('platform-users-modal');
+        if (existing) existing.remove();
+        const modal = document.createElement('div');
+        modal.id = 'platform-users-modal';
+        modal.className = 'pa-modal-overlay';
+        modal.innerHTML = `
+            <div class="pa-modal" style="max-width:560px">
+                <div class="pa-modal-header">
+                    <span class="pa-modal-title">${clinicName} — ${users.length} usuario${users.length !== 1 ? 's' : ''}</span>
+                    <button class="pa-modal-close" onclick="document.getElementById('platform-users-modal').remove()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="pa-users-list">
+                    ${users.length === 0
+                        ? '<div class="pa-empty" style="padding:30px"><i class="fa-solid fa-user-slash"></i><p>Sin usuarios</p></div>'
+                        : users.map(u => `
+                            <div class="pa-user-row">
+                                <div>
+                                    <div class="pa-user-name">${u.fullName}</div>
+                                    <div class="pa-user-email">${u.email}</div>
+                                </div>
+                                <div style="display:flex;gap:6px;align-items:center">
+                                    ${u.roles.map(r => `<span class="pa-badge pa-badge-shared">${r}</span>`).join('')}
+                                    <span class="pa-badge ${u.active ? 'pa-badge-active' : 'pa-badge-inactive'}">${u.active ? '●' : '○'}</span>
+                                </div>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+                <div class="pa-modal-footer">
+                    <button class="pa-btn pa-btn-ghost" onclick="document.getElementById('platform-users-modal').remove()">Cerrar</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+    } catch(err) {
+        showPlatformAlert(err.message, 'error');
+    }
+};
+
+function showPlatformAlert(msg, type = 'info') {
+    const colors     = { error:'#7f1d1d',  success:'#052e16', info:'#0c1a2e' };
+    const textColors = { error:'#fca5a5',  success:'#4ade80', info:'#60a5fa' };
+    const icons      = { error:'fa-circle-exclamation', success:'fa-check-circle', info:'fa-info-circle' };
+    const toast = document.createElement('div');
+    toast.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:99999;background:${colors[type]};border:1px solid ${textColors[type]}22;color:${textColors[type]};padding:12px 18px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:10px;max-width:340px;box-shadow:0 4px 20px rgba(0,0,0,.5)`;
+    toast.innerHTML = `<i class="fa-solid ${icons[type]}"></i><span>${msg}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+// ── Fin Ultra-Admin Views ─────────────────────────────────────────────────────
+
 function renderPlaceholder(viewId) {
-    return `<div class="card p-12 text-center"><i class="fa-solid fa-tools text-4xl text-gray-300 mb-4"></i><h3 class="text-lg font-medium text-gray-700">MÃ³dulo ${viewId} en ConstrucciÃ³n</h3></div>`;
+    return `<div class="card p-12 text-center"><i class="fa-solid fa-tools text-4xl text-gray-300 mb-4"></i><h3 class="text-lg font-medium text-gray-700">Módulo ${viewId} en Construcción</h3></div>`;
 }
 
 // --- Helpers ---
@@ -2342,6 +3682,50 @@ function isProfessionalUser() {
 }
 
 function canManagePatientBillingUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
+}
+
+function canViewPatientBillingUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin', 'professional'].includes(role));
+}
+
+function canManageAppointmentsUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary'].includes(role));
+}
+
+function canViewAppointmentsUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary', 'professional'].includes(role));
+}
+
+function canEditAppointmentsUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary', 'professional'].includes(role));
+}
+
+function canCreatePatientUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary'].includes(role));
+}
+
+function canEditPatientUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary', 'professional'].includes(role));
+}
+
+function canManageProfessionalSchedulesUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary'].includes(role));
+}
+
+function canManageProfessionalsUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
+}
+
+function canViewBillingUi() {
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
+}
+
+function canManageUsersUi() {
+    return !!state.user && state.user.roles.includes('superadmin');
+}
+
+function canAccessSettingsUi() {
     return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
 }
 
@@ -2449,7 +3833,7 @@ function getPatientProfessionalAccountRows() {
 }
 
 window.openPatientBilling = async function(patientId) {
-    if (!canManagePatientBillingUi() || !canAccessPatient(patientId)) {
+    if (!canViewPatientBillingUi() || !canAccessPatient(patientId)) {
         showAlert('No tienes permisos para acceder a la cuenta corriente de este paciente.', { title: 'Facturación', variant: 'error' });
         return;
     }
@@ -2498,21 +3882,8 @@ function getAccessibleAppointments() {
 }
 
 function getAccessiblePatientIds() {
-    if (isSuperadmin()) {
-        return DB.get('patients').map(p => p.id);
-    }
-
-    const ids = new Set();
-    getAccessibleAppointments().forEach(apt => {
-        const patient = getPatientByAppointment(apt);
-        if (patient) ids.add(patient.id);
-    });
-
-    DB.get('billing')
-        .filter(tx => canAccessProfessional(tx.professionalId))
-        .forEach(tx => ids.add(tx.patientId));
-
-    return Array.from(ids);
+    // Los pacientes pertenecen a toda la clínica — todos los roles ven todos los pacientes
+    return DB.get('patients').map(p => p.id);
 }
 
 function canAccessPatient(patientId) {
@@ -2532,6 +3903,11 @@ function canEditClinicalHistoryUi() {
 function canViewClinicalHistoryUi() {
     if (!state.user) return false;
     return state.user.roles.includes('professional') || state.user.roles.includes('superadmin');
+}
+
+function getCurrentOdontoProfessionalId() {
+    if (isSuperadmin()) return state.clinicalOdontoProfessionalId || null;
+    return state.user?.assignedProfessionalId || null;
 }
 
 function isBlockingAppointmentStatus(status = '') {
@@ -2574,14 +3950,18 @@ let _openStatusMenu = null; // { dropdown, menu, originalParent, close }
 function _closeStatusMenu() {
     if (!_openStatusMenu) return;
     const { dropdown, menu, originalParent, close } = _openStatusMenu;
+    // Null out first to prevent re-entrant calls
+    _openStatusMenu = null;
+    document.removeEventListener('click', close, true);
     dropdown.classList.remove('is-open');
     if (menu.parentNode === document.body) {
         document.body.removeChild(menu);
-        originalParent.appendChild(menu);
+        // Only re-attach if originalParent is still in the document
+        if (document.contains(originalParent)) {
+            originalParent.appendChild(menu);
+        }
     }
     menu.style.cssText = '';
-    document.removeEventListener('click', close, true);
-    _openStatusMenu = null;
 }
 
 window.toggleStatusDropdown = function(btn) {
@@ -2614,7 +3994,8 @@ window.toggleStatusDropdown = function(btn) {
     dropdown.classList.add('is-open');
 
     const close = (e) => {
-        if (!dropdown.contains(e.target) && !menu.contains(e.target)) {
+        // Also close if dropdown was removed from document (page re-rendered)
+        if (!document.contains(dropdown) || (!dropdown.contains(e.target) && !menu.contains(e.target))) {
             _closeStatusMenu();
         }
     };
@@ -2859,6 +4240,117 @@ window.stepClinicalImageViewer = function(direction) {
     renderClinicalImageViewer();
 };
 
+let _viewerZoom = 1;
+let _viewerPanX = 0;
+let _viewerPanY = 0;
+
+function _applyViewerTransform() {
+    const wrap = document.getElementById('clinical-viewer-zoom-wrap');
+    if (!wrap) return;
+    wrap.style.transform = `scale(${_viewerZoom}) translate(${_viewerPanX}px, ${_viewerPanY}px)`;
+    wrap.style.cursor = _viewerZoom > 1 ? 'grab' : 'zoom-in';
+}
+
+window.adjustViewerZoom = function(delta) {
+    if (delta === 0) {
+        _viewerZoom = 1; _viewerPanX = 0; _viewerPanY = 0;
+    } else {
+        _viewerZoom = Math.min(5, Math.max(1, _viewerZoom + delta));
+        if (_viewerZoom === 1) { _viewerPanX = 0; _viewerPanY = 0; }
+    }
+    _applyViewerTransform();
+};
+
+window.toggleViewerZoom = function() {
+    _viewerZoom = _viewerZoom > 1 ? 1 : 2.5;
+    _viewerPanX = 0; _viewerPanY = 0;
+    _applyViewerTransform();
+};
+
+function _bindViewerZoomEvents() {
+    const wrap = document.getElementById('clinical-viewer-zoom-wrap');
+    if (!wrap) return;
+    _viewerZoom = 1; _viewerPanX = 0; _viewerPanY = 0;
+    _applyViewerTransform();
+
+    // Pinch-to-zoom
+    let lastDist = null;
+    let lastZoom = 1;
+    wrap.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            lastDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            lastZoom = _viewerZoom;
+            e.preventDefault();
+        }
+    }, { passive: false });
+    wrap.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2 && lastDist) {
+            const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            _viewerZoom = Math.min(5, Math.max(1, lastZoom * (dist / lastDist)));
+            if (_viewerZoom === 1) { _viewerPanX = 0; _viewerPanY = 0; }
+            _applyViewerTransform();
+            e.preventDefault();
+        }
+    }, { passive: false });
+    wrap.addEventListener('touchend', () => { lastDist = null; });
+
+    // Wheel zoom
+    wrap.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        _viewerZoom = Math.min(5, Math.max(1, _viewerZoom - e.deltaY * 0.001));
+        if (_viewerZoom === 1) { _viewerPanX = 0; _viewerPanY = 0; }
+        _applyViewerTransform();
+    }, { passive: false });
+
+    // Mouse drag to pan
+    let isDragging = false;
+    let dragStartX = 0, dragStartY = 0;
+    let panStartX = 0, panStartY = 0;
+
+    wrap.addEventListener('mousedown', (e) => {
+        if (_viewerZoom <= 1) return;
+        isDragging = true;
+        dragStartX = e.clientX; dragStartY = e.clientY;
+        panStartX = _viewerPanX; panStartY = _viewerPanY;
+        wrap.style.cursor = 'grabbing';
+        e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        _viewerPanX = panStartX + (e.clientX - dragStartX) / _viewerZoom;
+        _viewerPanY = panStartY + (e.clientY - dragStartY) / _viewerZoom;
+        _applyViewerTransform();
+    });
+    window.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            wrap.style.cursor = _viewerZoom > 1 ? 'grab' : 'zoom-in';
+        }
+    });
+
+    // Single-finger touch drag to pan
+    let touchDragging = false;
+    let touchStartX = 0, touchStartY = 0;
+    let touchPanStartX = 0, touchPanStartY = 0;
+
+    wrap.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1 && _viewerZoom > 1) {
+            touchDragging = true;
+            touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+            touchPanStartX = _viewerPanX; touchPanStartY = _viewerPanY;
+        }
+    }, { passive: true });
+    wrap.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && touchDragging && _viewerZoom > 1) {
+            _viewerPanX = touchPanStartX + (e.touches[0].clientX - touchStartX) / _viewerZoom;
+            _viewerPanY = touchPanStartY + (e.touches[0].clientY - touchStartY) / _viewerZoom;
+            _applyViewerTransform();
+            e.preventDefault();
+        }
+    }, { passive: false });
+    wrap.addEventListener('touchend', () => { touchDragging = false; });
+}
+
 function renderClinicalImageViewer() {
     const viewer = state.clinicalImageViewer;
     if (!viewer) return;
@@ -2882,7 +4374,7 @@ function renderClinicalImageViewer() {
 
     modalsContainer.innerHTML = `
         <div class="modal-overlay active clinical-image-viewer-overlay">
-            <div class="clinical-image-viewer" role="dialog" aria-modal="true" aria-label="${escapeHtml(viewerTitle)}" onclick="event.stopPropagation()">
+            <div class="clinical-image-viewer" role="dialog" aria-modal="true" aria-label="${escapeHtml(viewerTitle)}">
                 <header class="clinical-image-viewer-header">
                     <div class="clinical-image-viewer-heading">
                         <span class="clinical-image-viewer-kicker">Secuencia clínica</span>
@@ -2890,7 +4382,12 @@ function renderClinicalImageViewer() {
                     </div>
                     <div class="clinical-image-viewer-header-actions">
                         <span class="clinical-image-viewer-counter">${safeIndex + 1} / ${images.length}</span>
-                        <button type="button" class="clinical-image-viewer-close" data-modal-close aria-label="Cerrar visor">
+                        <div class="clinical-image-viewer-zoom-btns">
+                            <button type="button" class="clinical-image-viewer-zoom-btn" onclick="event.stopPropagation(); adjustViewerZoom(-0.5)" aria-label="Alejar"><i class="fa-solid fa-minus"></i></button>
+                            <button type="button" class="clinical-image-viewer-zoom-btn" onclick="event.stopPropagation(); adjustViewerZoom(0)" aria-label="Tamaño original"><i class="fa-solid fa-expand"></i></button>
+                            <button type="button" class="clinical-image-viewer-zoom-btn" onclick="event.stopPropagation(); adjustViewerZoom(0.5)" aria-label="Acercar"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                        <button type="button" class="clinical-image-viewer-close" onclick="event.stopPropagation(); closeModal();" aria-label="Cerrar visor">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
@@ -2898,17 +4395,19 @@ function renderClinicalImageViewer() {
 
                 <div class="clinical-image-viewer-layout">
                     <div class="clinical-image-viewer-stage">
-                        <button type="button" class="clinical-image-viewer-nav prev" onclick="stepClinicalImageViewer(-1)" aria-label="Imagen anterior">
+                        <button type="button" class="clinical-image-viewer-nav prev" onclick="event.stopPropagation(); stepClinicalImageViewer(-1)" aria-label="Imagen anterior">
                             <i class="fa-solid fa-chevron-left"></i>
                         </button>
-                        <figure class="clinical-image-viewer-figure">
-                            <img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(label)}" class="clinical-image-viewer-img">
+                        <figure class="clinical-image-viewer-figure" id="clinical-viewer-figure">
+                            <div class="clinical-image-viewer-zoom-wrap" id="clinical-viewer-zoom-wrap">
+                            <img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(label)}" class="clinical-image-viewer-img" id="clinical-viewer-img" ondblclick="event.stopPropagation(); toggleViewerZoom()">
+                            </div>
                             <figcaption class="clinical-image-viewer-caption">
                                 <span>${escapeHtml(dateLabel)}</span>
                                 <strong>${escapeHtml(label)}</strong>
                             </figcaption>
                         </figure>
-                        <button type="button" class="clinical-image-viewer-nav next" onclick="stepClinicalImageViewer(1)" aria-label="Imagen siguiente">
+                        <button type="button" class="clinical-image-viewer-nav next" onclick="event.stopPropagation(); stepClinicalImageViewer(1)" aria-label="Imagen siguiente">
                             <i class="fa-solid fa-chevron-right"></i>
                         </button>
                     </div>
@@ -2931,11 +4430,11 @@ function renderClinicalImageViewer() {
                         </div>
                         ${images.length > 1 ? `
                         <div class="clinical-image-viewer-neighbors">
-                            <button type="button" onclick="stepClinicalImageViewer(-1)">
+                            <button type="button" onclick="event.stopPropagation(); stepClinicalImageViewer(-1)">
                                 <i class="fa-solid fa-arrow-left"></i>
                                 <span>${escapeHtml(formatClinicalImageDate(previousImage.date))}</span>
                             </button>
-                            <button type="button" onclick="stepClinicalImageViewer(1)">
+                            <button type="button" onclick="event.stopPropagation(); stepClinicalImageViewer(1)">
                                 <span>${escapeHtml(formatClinicalImageDate(nextImage.date))}</span>
                                 <i class="fa-solid fa-arrow-right"></i>
                             </button>
@@ -2948,7 +4447,7 @@ function renderClinicalImageViewer() {
                     ${images.map((item, index) => {
                         const itemLabel = item.description || 'Imagen clínica';
                         return `
-                        <button type="button" class="clinical-image-viewer-thumb ${index === safeIndex ? 'is-active' : ''}" onclick="goToClinicalImageViewer(${index})" aria-label="Ver ${escapeHtml(itemLabel)}">
+                        <button type="button" class="clinical-image-viewer-thumb ${index === safeIndex ? 'is-active' : ''}" onclick="event.stopPropagation(); goToClinicalImageViewer(${index})" aria-label="Ver ${escapeHtml(itemLabel)}">
                             <img src="${escapeHtml(item.dataUrl)}" alt="${escapeHtml(itemLabel)}">
                             <span>${escapeHtml(formatClinicalImageDate(item.date))}</span>
                         </button>
@@ -2958,6 +4457,7 @@ function renderClinicalImageViewer() {
             </div>
         </div>
     `;
+    _bindViewerZoomEvents();
 }
 
 function openAppointmentViewModal(aptId) {
@@ -2975,21 +4475,20 @@ function openAppointmentViewModal(aptId) {
                     <h3>Detalles del Turno</h3>
                 </div>
                 <div class="modal-body">
-                    <div class="grid grid-cols-2 gap-4 mb-4">
-                        <div><strong>Paciente:</strong> ${apt.patient}</div>
-                        <div><strong>Tel�fono:</strong> ${patient ? patient.phone : 'N/A'}</div>
-                        <div><strong>Profesional:</strong> ${prof ? prof.name : 'N/A'}</div>
-                        <div><strong>Especialidad:</strong> OdontologÃ­a</div>
-                        <div><strong>Fecha:</strong> ${parseLocalIsoDate(apt.date).toLocaleDateString('es-AR')}</div>
-                        <div><strong>Hora:</strong> ${apt.time} (${apt.duration} min)</div>
-                        <div><strong>Estado:</strong> <span class="badge ${statusMeta.badge}">${statusMeta.label}</span></div>
-                        <div><strong>Motivo:</strong> Consulta odontolÃ³gica</div>
+                    <div class="apt-view-info-grid">
+                        <div class="apt-view-row"><strong>Paciente</strong><span>${apt.patient}</span></div>
+                        <div class="apt-view-row"><strong>Teléfono</strong><span>${patient?.phone || '—'}</span></div>
+                        <div class="apt-view-row"><strong>Profesional</strong><span>${prof?.name || '—'}</span></div>
+                        <div class="apt-view-row"><strong>Fecha</strong><span>${normalizeDateLabel(parseLocalIsoDate(apt.date).toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }))}</span></div>
+                        <div class="apt-view-row"><strong>Hora</strong><span>${apt.time} · ${apt.duration} min</span></div>
+                        <div class="apt-view-row"><strong>Estado</strong><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></div>
+                        ${apt.notes ? `<div class="apt-view-row apt-view-row-full"><strong>Motivo</strong><span>${apt.notes}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-ghost" onclick="closeModal()">Cerrar</button>
-                    ${patient && canViewClinicalHistoryUi() ? `<button type="button" class="btn btn-secondary" onclick="closeModal(); loadClinicalHistory(${patient.id})">Historia Clinica</button>` : ''}
-                    <button type="button" class="btn btn-secondary" onclick="openAppointmentModal(${aptId})">Editar</button>
+                    ${patient && canViewClinicalHistoryUi() ? `<button type="button" class="btn btn-secondary" onclick="closeModal(); loadClinicalHistory(${patient.id})">Historia Clínica</button>` : ''}
+                    <button type="button" class="btn btn-primary" onclick="openAppointmentModal(${aptId})">Editar turno</button>
                 </div>
             </div>
         </div>
@@ -3057,7 +4556,7 @@ function openAppointmentModal(editId = null) {
     const professionals = getAccessibleProfessionals();
     
     if (patients.length === 0) {
-        alert("AtenciÃ³n: Necesitas crear al menos un paciente en el directorio antes de agendar un turno.");
+        alert("Atención: Necesitas crear al menos un paciente en el directorio antes de agendar un turno.");
         return;
     }
     
@@ -3077,8 +4576,9 @@ function openAppointmentModal(editId = null) {
                             </datalist>
                         </div>
                         <div class="input-group">
-                            <label>Profesional</label>
+                            <label>Profesional *</label>
                             <select id="apt-professional" required>
+                                ${!apt ? '<option value="">— Seleccionar profesional —</option>' : ''}
                                 ${professionals.map(p => `<option value="${p.id}" ${apt && apt.professionalId === p.id ? 'selected':''}>${p.name}</option>`).join('')}
                             </select>
                         </div>
@@ -3096,10 +4596,10 @@ function openAppointmentModal(editId = null) {
                         </div>
                         
                         <div class="input-group mb-0" id="duration-group">
-                            <label>DuraciÃ³n</label>
+                            <label>Duración</label>
                             <select id="apt-duration">
-                                <option value="30" ${apt && apt.duration===30?'selected':''}>30 minutos</option>
-                                <option value="60" ${!apt || apt.duration===60?'selected':''}>60 minutos (1 hora)</option>
+                                <option value="30" ${!apt || apt.duration===30?'selected':''}>30 minutos</option>
+                                <option value="60" ${apt && apt.duration===60?'selected':''}>60 minutos (1 hora)</option>
                                 <option value="90" ${apt && apt.duration===90?'selected':''}>90 minutos (1.5 horas)</option>
                                 <option value="120" ${apt && apt.duration===120?'selected':''}>120 minutos (2 horas)</option>
                             </select>
@@ -3113,6 +4613,14 @@ function openAppointmentModal(editId = null) {
             </div>
         </div>
     `;
+
+    // ESC cierra el modal de turno
+    const _aptEscHandler = (e) => {
+        if (e.key !== 'Escape') return;
+        document.removeEventListener('keydown', _aptEscHandler);
+        closeModal();
+    };
+    document.addEventListener('keydown', _aptEscHandler);
 
     const profSelect = document.getElementById('apt-professional');
     const timeSelect = document.getElementById('apt-time');
@@ -3135,7 +4643,7 @@ function openAppointmentModal(editId = null) {
 
         const maxDuration = getContiguousAvailabilityMinutes(profId, dateStr, timeVal, false, editId);
         
-        const currentDur = parseInt(durSelect.value) || (apt ? apt.duration : 60);
+        const currentDur = parseInt(durSelect.value) || (apt ? apt.duration : 30);
         durSelect.innerHTML = '';
         
         const durations = [
@@ -3252,12 +4760,12 @@ function openAppointmentModal(editId = null) {
         const selectedMinutes = timeToMinutes(selectedTime);
 
         if (isPastDate(selectedDate)) {
-            alert('No se pueden sacar turnos para dÃ­as anteriores.');
+            alert('No se pueden sacar turnos para días anteriores.');
             return;
         }
 
         if (isTodayDate(selectedDate) && !isOverbook && selectedMinutes !== null && selectedMinutes < getCurrentMinutes()) {
-            alert('Ese horario ya pasÃ³. Para horarios pasados del dÃ­a de hoy solo se permiten sobreturnos.');
+            alert('Ese horario ya pasó. Para horarios pasados del día de hoy solo se permiten sobreturnos.');
             return;
         }
 
@@ -3272,7 +4780,7 @@ function openAppointmentModal(editId = null) {
         });
 
         if (!matchedPatient) {
-            alert('Selecciona un paciente vÃ¡lido.');
+            alert('Selecciona un paciente válido.');
             return;
         }
 
@@ -3329,11 +4837,80 @@ function openAppointmentModal(editId = null) {
     });
 }
 
+function buildSchedTimePicker(id, value) {
+    const [hStr, mStr] = (value || '08:00').split(':');
+    const selH = parseInt(hStr) || 0;
+    const selM = parseInt(mStr) || 0;
+    const hours   = Array.from({length: 24}, (_, i) => `<button type="button" class="stp-item${i === selH ? ' is-sel' : ''}" data-val="${i}">${String(i).padStart(2,'0')}</button>`).join('');
+    const minutes = Array.from({length: 60}, (_, i) => `<button type="button" class="stp-item${i === selM ? ' is-sel' : ''}" data-val="${i}">${String(i).padStart(2,'0')}</button>`).join('');
+    return `<div class="stp-wrap" data-id="${id}">
+        <input type="hidden" id="${id}" value="${String(selH).padStart(2,'0')}:${String(selM).padStart(2,'0')}">
+        <button type="button" class="stp-trigger">${String(selH).padStart(2,'0')}:${String(selM).padStart(2,'0')}</button>
+        <div class="stp-dropdown" hidden>
+            <div class="stp-cols">
+                <div class="stp-col-wrap"><div class="stp-col-label">HH</div><div class="stp-col" data-unit="h">${hours}</div></div>
+                <div class="stp-sep">:</div>
+                <div class="stp-col-wrap"><div class="stp-col-label">MM</div><div class="stp-col" data-unit="m">${minutes}</div></div>
+            </div>
+            <button type="button" class="stp-confirm">Listo</button>
+        </div>
+    </div>`;
+}
+
+function initSchedTimePickers() {
+    document.querySelectorAll('.stp-wrap').forEach(wrap => {
+        const id = wrap.dataset.id;
+        const hidden = document.getElementById(id);
+        const trigger = wrap.querySelector('.stp-trigger');
+        const dropdown = wrap.querySelector('.stp-dropdown');
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = !dropdown.hidden;
+            document.querySelectorAll('.stp-dropdown').forEach(d => { d.hidden = true; });
+            if (isOpen) return;
+            dropdown.hidden = false;
+            // Scroll to selected items
+            dropdown.querySelectorAll('.stp-col').forEach(col => {
+                const sel = col.querySelector('.is-sel');
+                if (sel) { col.scrollTop = sel.offsetTop - col.clientHeight / 2 + sel.clientHeight / 2; }
+            });
+        });
+
+        wrap.querySelector('.stp-col[data-unit="h"]').addEventListener('click', (e) => {
+            const btn = e.target.closest('.stp-item');
+            if (!btn) return;
+            e.stopPropagation();
+            wrap.querySelectorAll('.stp-col[data-unit="h"] .stp-item').forEach(b => b.classList.remove('is-sel'));
+            btn.classList.add('is-sel');
+            const [, m] = hidden.value.split(':');
+            hidden.value = `${String(btn.dataset.val).padStart(2,'0')}:${m}`;
+            trigger.textContent = hidden.value;
+        });
+
+        wrap.querySelector('.stp-col[data-unit="m"]').addEventListener('click', (e) => {
+            const btn = e.target.closest('.stp-item');
+            if (!btn) return;
+            e.stopPropagation();
+            wrap.querySelectorAll('.stp-col[data-unit="m"] .stp-item').forEach(b => b.classList.remove('is-sel'));
+            btn.classList.add('is-sel');
+            const [h] = hidden.value.split(':');
+            hidden.value = `${h}:${String(btn.dataset.val).padStart(2,'0')}`;
+            trigger.textContent = hidden.value;
+        });
+
+        wrap.querySelector('.stp-confirm').addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdown.hidden = true;
+        });
+    });
+}
+
 function openScheduleModal(profId) {
     if (!canAccessProfessional(profId)) return;
     const prof = DB.get('professionals').find(x => x.id === profId);
     
-    const days = ['Domingo', 'Lunes', 'Martes', 'MiÃ©rcoles', 'Jueves', 'Viernes', 'SÃ¡bado'];
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     
     let daysHtml = '';
     for(let i=0; i<7; i++) {
@@ -3349,12 +4926,12 @@ function openScheduleModal(profId) {
                 <div class="schedule-time-grid">
                     <div class="schedule-time-field">
                         <span class="schedule-time-caption">Desde</span>
-                        <input type="time" id="sch-start-${i}" value="${d.start}" class="form-input schedule-time-input">
+                        ${buildSchedTimePicker(`sch-start-${i}`, d.start)}
                     </div>
                     <div class="schedule-time-separator">a</div>
                     <div class="schedule-time-field">
                         <span class="schedule-time-caption">Hasta</span>
-                        <input type="time" id="sch-end-${i}" value="${d.end}" class="form-input schedule-time-input">
+                        ${buildSchedTimePicker(`sch-end-${i}`, d.end)}
                     </div>
                 </div>
             </div>
@@ -3384,6 +4961,14 @@ function openScheduleModal(profId) {
             </div>
         </div>
     `;
+    initSchedTimePickers();
+    // ESC cierra el modal
+    const _escHandler = (e) => {
+        if (e.key !== 'Escape') return;
+        document.removeEventListener('keydown', _escHandler);
+        closeModal();
+    };
+    document.addEventListener('keydown', _escHandler);
     document.getElementById('schedule-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const newSched = {};
@@ -3447,6 +5032,272 @@ function openScheduleModal(profId) {
     });
 }
 
+// ── Importación de pacientes desde Excel ──────────────────────────────────────
+function openPatientImportModal() {
+    if (typeof XLSX === 'undefined') {
+        // Intentar cargar SheetJS dinámicamente si no cargó por CDN
+        const script = document.createElement('script');
+        script.src = '/xlsx.full.min.js';
+        script.onload = () => openPatientImportModal();
+        script.onerror = () => showAlert('No se pudo cargar la librería para leer Excel. Verificá tu conexión a internet.', { title: 'Error', variant: 'error' });
+        document.head.appendChild(script);
+        return;
+    }
+
+    // Columnas aceptadas (case-insensitive, con y sin tildes)
+    const COL_MAP = {
+        nombre: 'fullName', apellido: 'fullName', 'nombre completo': 'fullName',
+        dni: 'dni', documento: 'dni',
+        telefono: 'phone', tel: 'phone', celular: 'phone',
+        'teléfono': 'phone',
+        email: 'email', correo: 'email',
+        direccion: 'address', domicilio: 'address',
+        'dirección': 'address',
+        'obra social': 'insuranceName', 'obrasocial': 'insuranceName', mutual: 'insuranceName',
+        plan: 'insurancePlan',
+        credencial: 'credentialNumber', 'nro credencial': 'credentialNumber',
+        historia: 'chartNumber', 'nro historia': 'chartNumber', 'historia clinica': 'chartNumber',
+        nacimiento: 'birthDate', 'fecha nacimiento': 'birthDate', 'fecha de nacimiento': 'birthDate',
+    };
+
+    function normalize(s) {
+        return String(s || '').trim().toLowerCase()
+            .replace(/[áàäâ]/g, 'a')
+            .replace(/[éèëê]/g, 'e')
+            .replace(/[íìïî]/g, 'i')
+            .replace(/[óòöô]/g, 'o')
+            .replace(/[úùüû]/g, 'u')
+            .replace(/ñ/g, 'n');
+    }
+
+    function parseSheet(file) {
+        return new Promise((resolve, reject) => {
+            const isCsv = file.name.toLowerCase().endsWith('.csv');
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    let wb;
+                    if (isCsv) {
+                        // Leer CSV como texto UTF-8 para preservar acentos
+                        wb = XLSX.read(e.target.result, { type: 'string' });
+                    } else {
+                        wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+                    }
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+                    resolve(rows);
+                } catch(err) { reject(err); }
+            };
+            reader.onerror = reject;
+            if (isCsv) {
+                reader.readAsText(file, 'UTF-8');
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+        });
+    }
+
+    function mapRow(raw) {
+        const out = {};
+        for (const [col, val] of Object.entries(raw)) {
+            const key = COL_MAP[normalize(col)];
+            if (!key) continue;
+            if (key === 'fullName' && out.fullName) {
+                out.fullName = out.fullName + ' ' + String(val).trim(); // apellido separado
+            } else {
+                if (key === 'birthDate' && typeof val === 'number') {
+                    // XLSX convierte fechas CSV a serial de Excel; convertir a ISO
+                    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+                    out[key] = isNaN(d) ? '' : d.toISOString().slice(0, 10);
+                } else {
+                    out[key] = val instanceof Date
+                        ? val.toISOString().slice(0,10)
+                        : String(val).trim();
+                }
+            }
+        }
+        return out;
+    }
+
+    function renderPreview(rows, existingDnis) {
+        const existing = DB.get('patients').map(p => p.dni);
+        const dupeSet = new Set(existing);
+        let html = `<div style="max-height:320px;overflow-y:auto;margin-top:12px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead style="position:sticky;top:0;background:var(--surface,#fff)">
+                <tr>
+                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)">Estado</th>
+                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)">Nombre</th>
+                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)">DNI</th>
+                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)">Teléfono</th>
+                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)">Obra social</th>
+                </tr>
+            </thead><tbody>`;
+        let willImport = 0, willUpdate = 0, willSkip = 0, willError = 0;
+        const seenDnis = new Set();
+        // Mapa de paciente local para detectar cuáles se pueden completar
+        const localPatientMap = new Map(DB.get('patients').map(p => [String(p.dni).replace(/\D/g,''), p]));
+        for (const row of rows) {
+            const mapped = mapRow(row);
+            const dniClean = mapped.dni ? String(mapped.dni).replace(/\D/g,'') : '';
+            const isDupe = dniClean && (dupeSet.has(dniClean) || seenDnis.has(dniClean));
+            const noName  = !mapped.fullName;
+            const noDni   = !mapped.dni;
+            const noPhone = !mapped.phone;
+            if (dniClean) seenDnis.add(dniClean);
+            let badge, rowStyle;
+            if (noName || noDni || noPhone) {
+                const missing = [noName && 'nombre', noDni && 'DNI', noPhone && 'teléfono'].filter(Boolean).join(', ');
+                badge = `<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600" title="Falta: ${missing}">Error</span>`;
+                rowStyle = 'background:rgba(239,68,68,0.04)';
+                willError++;
+            } else if (isDupe) {
+                // Verificar si el paciente local tiene campos vacíos que el Excel puede completar
+                const local = localPatientMap.get(dniClean);
+                const canFill = local && ['phone','email','address','insuranceName'].some(f => !local[f] && mapped[f === 'insuranceName' ? 'insuranceName' : f]);
+                if (canFill) {
+                    badge = `<span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600" title="Se completarán datos faltantes">Actualizar</span>`;
+                    rowStyle = 'background:rgba(59,130,246,0.04)';
+                    willUpdate++;
+                } else {
+                    badge = `<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">Duplicado</span>`;
+                    rowStyle = 'background:rgba(245,158,11,0.06)';
+                    willSkip++;
+                }
+            } else {
+                badge = `<span style="background:#d1fae5;color:#065f46;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">Nuevo</span>`;
+                rowStyle = '';
+                willImport++;
+            }
+            html += `<tr style="${rowStyle}">
+                <td style="padding:5px 8px;border-bottom:1px solid var(--border)">${badge}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--border)">${mapped.fullName || '<i style="color:#9ca3af">Sin nombre</i>'}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--border);font-family:monospace">${mapped.dni || '<i style="color:#9ca3af">Sin DNI</i>'}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--border)">${mapped.phone || '—'}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--border)">${mapped.insuranceName || '—'}</td>
+            </tr>`;
+        }
+        html += `</tbody></table></div>
+        <div style="display:flex;gap:12px;margin-top:10px;font-size:12px;font-weight:600;flex-wrap:wrap">
+            ${willImport ? `<span style="color:#065f46"><i class="fa-solid fa-circle-check"></i> ${willImport} para importar</span>` : ''}
+            ${willUpdate ? `<span style="color:#1e40af"><i class="fa-solid fa-pen-to-square"></i> ${willUpdate} para actualizar</span>` : ''}
+            ${willSkip   ? `<span style="color:#92400e"><i class="fa-solid fa-triangle-exclamation"></i> ${willSkip} duplicado${willSkip!==1?'s':''}</span>` : ''}
+            ${willError  ? `<span style="color:#991b1b"><i class="fa-solid fa-circle-xmark"></i> ${willError} con error</span>` : ''}
+        </div>`;
+        return { html, willImport: willImport + willUpdate };
+    }
+
+    let _parsedRows = [];
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.innerHTML = `
+    <div class="modal-content" style="max-width:680px;width:95vw;margin-top:2rem">
+        <div class="modal-header">
+            <h3 class="modal-title"><i class="fa-solid fa-file-excel" style="color:#16a34a"></i> Importar pacientes desde Excel</h3>
+            <button class="modal-close" id="import-modal-close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <div id="import-dropzone" style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:border-color .15s">
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size:2rem;color:#6366f1;margin-bottom:8px"></i>
+                <div style="font-weight:600;margin-bottom:4px">Arrastrá tu archivo Excel o CSV aquí</div>
+                <div style="font-size:12px;color:#6b7280">Formatos: .xlsx, .xls, .csv — columnas: Nombre, DNI, Teléfono, Email, Obra Social, Plan, Dirección, Nacimiento</div>
+                <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" style="display:none">
+                <button class="btn btn-secondary mt-4" id="import-pick-file" style="margin-top:12px"><i class="fa-solid fa-folder-open"></i> Elegir archivo</button>
+            </div>
+            <div id="import-preview"></div>
+        </div>
+        <div class="modal-footer">
+            <a href="#" id="import-download-template" style="font-size:12px;color:#6366f1;text-decoration:none;margin-right:auto"><i class="fa-solid fa-download"></i> Descargar plantilla</a>
+            <button class="btn btn-ghost" id="import-cancel">Cancelar</button>
+            <button class="btn btn-primary" id="import-confirm" disabled><i class="fa-solid fa-file-import"></i> Importar</button>
+        </div>
+    </div>`;
+
+    document.body.appendChild(modal);
+
+    const fileInput = modal.querySelector('#import-file-input');
+    const dropzone  = modal.querySelector('#import-dropzone');
+    const preview   = modal.querySelector('#import-preview');
+    const confirmBtn = modal.querySelector('#import-confirm');
+
+    function close() { modal.classList.remove('active'); setTimeout(() => modal.remove(), 200); }
+    modal.addEventListener('click', e => { if (e.target === modal) close(); });
+    modal.querySelector('#import-modal-close').onclick = close;
+    modal.querySelector('#import-cancel').onclick = close;
+    modal.querySelector('#import-pick-file').onclick = () => fileInput.click();
+
+    // Plantilla descargable
+    modal.querySelector('#import-download-template').onclick = e => {
+        e.preventDefault();
+        const ws = XLSX.utils.aoa_to_sheet([
+            ['Nombre','DNI','Teléfono','Email','Dirección','Obra Social','Plan','Credencial','Historia','Nacimiento'],
+            ['Juan Pérez','12345678','2613001234','juan@mail.com','Av. San Martín 100','OSDE','210','12345','HC001','1985-03-15'],
+        ]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Pacientes');
+        XLSX.writeFile(wb, 'plantilla_pacientes.xlsx');
+    };
+
+    // Drag & drop
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.style.borderColor='#6366f1'; });
+    dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor=''; });
+    dropzone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropzone.style.borderColor='';
+        if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+    async function handleFile(file) {
+        preview.innerHTML = '<div style="padding:16px;text-align:center;color:#6b7280"><i class="fa-solid fa-spinner fa-spin"></i> Procesando...</div>';
+        confirmBtn.disabled = true;
+        try {
+            _parsedRows = await parseSheet(file);
+            if (_parsedRows.length === 0) {
+                preview.innerHTML = '<div style="color:#ef4444;padding:12px">El archivo está vacío o no tiene el formato correcto.</div>';
+                return;
+            }
+            const { html, willImport } = renderPreview(_parsedRows);
+            preview.innerHTML = `<div style="margin-top:8px;font-size:12px;color:#6b7280">${file.name} — ${_parsedRows.length} fila${_parsedRows.length!==1?'s':''}</div>` + html;
+            confirmBtn.disabled = willImport === 0;
+        } catch(err) {
+            preview.innerHTML = `<div style="color:#ef4444;padding:12px">Error al leer el archivo: ${err.message}</div>`;
+        }
+    }
+
+    confirmBtn.onclick = async () => {
+        if (_parsedRows.length === 0) return;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importando...';
+        // Enviar todas las filas válidas; el backend descarta duplicados
+        const seenDnis = new Set();
+        const patients = _parsedRows.map(mapRow).filter(r => {
+            if (!r.fullName || !r.dni || !r.phone) return false;
+            const dni = String(r.dni).replace(/\D/g, '');
+            if (seenDnis.has(dni)) return false;
+            seenDnis.add(dni);
+            return true;
+        });
+        try {
+            const res = await apiFetch('/patients/import', { method: 'POST', body: JSON.stringify({ patients }) });
+            if (!res.ok) throw new Error(res.error || 'Error al importar');
+            await syncBackendSnapshotToLocalDb();
+            close();
+            refreshCurrentView();
+            const parts = [];
+            if (res.created) parts.push(`${res.created} paciente${res.created!==1?'s':''} importado${res.created!==1?'s':''}`);
+            if (res.updated) parts.push(`${res.updated} paciente${res.updated!==1?'s':''} modificado${res.updated!==1?'s':''}`);
+            if (res.skipped) parts.push(`${res.skipped} omitido${res.skipped!==1?'s':''}`);
+            showToast(`✓ ${parts.join(' · ')}`, { type: 'success', duration: 7000 });
+        } catch(err) {
+            showToast(err.message, 'error');
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fa-solid fa-file-import"></i> Importar';
+        }
+    };
+}
+
 function openPatientModal(editId = null) {
     const p = editId ? getAccessiblePatients().find(x => x.id === editId) : null;
     if (editId && !p) return;
@@ -3462,7 +5313,7 @@ function openPatientModal(editId = null) {
                         <div class="input-group"><label>Nombre y Apellido *</label><input type="text" id="p-name" value="${p?p.name:''}" required></div>
                         <div class="patient-form-row patient-form-row-2">
                             <div class="input-group flex-1"><label>DNI *</label><input type="text" id="p-dni" value="${p?p.dni||'':''}" required></div>
-                            <div class="input-group flex-1"><label>Tel�fono (Celular) *</label><input type="text" id="p-phone" value="${p?p.phone||'':''}" required></div>
+                            <div class="input-group flex-1"><label>Teléfono (Celular) *</label><input type="text" id="p-phone" value="${p?p.phone||'':''}" required></div>
                         </div>
                         <div class="patient-form-row patient-form-row-2">
                             <div class="input-group flex-1"><label>Fecha de Nacimiento</label><input type="date" id="p-nacimiento" value="${p?p.fechaNacimiento||'':''}"></div>
@@ -3472,9 +5323,9 @@ function openPatientModal(editId = null) {
                         <div class="patient-form-row patient-form-row-3">
                             <div class="input-group flex-1"><label>Obra Social / Plan</label><input type="text" id="p-obrasocial" value="${p?p.obraSocial||'':''}"></div>
                             <div class="input-group flex-1"><label>Credencial</label><input type="text" id="p-credencial" value="${p?p.credencial||'':''}"></div>
-                            <div class="input-group flex-1"><label>Ficha N�</label><input type="text" id="p-ficha" value="${p?p.fichaNumero||'':''}"></div>
+                            <div class="input-group flex-1"><label>Ficha N°</label><input type="text" id="p-ficha" value="${p?p.fichaNumero||'':''}"></div>
                         </div>
-                        <div class="input-group"><label>Observaciones M�dicas / Alergias</label><input type="text" id="p-notes" value="${p?p.notes||'':''}"></div>
+                        <div class="input-group"><label>Observaciones Médicas / Alergias</label><input type="text" id="p-notes" value="${p?p.notes||'':''}"></div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -3484,7 +5335,29 @@ function openPatientModal(editId = null) {
             </div>
         </div>
     `;
+
+    // ESC cierra el modal
+    const _escHandler = (e) => {
+        if (e.key !== 'Escape') return;
+        document.removeEventListener('keydown', _escHandler);
+        closeModal();
+    };
+    document.addEventListener('keydown', _escHandler);
     const patientForm = document.getElementById('patient-form');
+
+    // Al editar, cargar las notas desde el ClinicalRecord
+    if (editId && state.authToken) {
+        const _profId = getCurrentOdontoProfessionalId() || getAccessibleProfessionals()[0]?.id || null;
+        const _url = _profId ? `/clinical-records/${editId}?professionalId=${_profId}` : null;
+        if (_url) {
+            apiFetch(_url).then(res => {
+                const notesField = document.getElementById('p-notes');
+                if (notesField && res?.record?.summaryNotes) {
+                    notesField.value = res.record.summaryNotes;
+                }
+            }).catch(() => {});
+        }
+    }
 
     ['#p-name', '#p-dni', '#p-phone', '#p-email'].forEach((selector) => {
         const field = patientForm.querySelector(selector);
@@ -3524,15 +5397,25 @@ function openPatientModal(editId = null) {
             await withAppLoading(editId ? 'Actualizando paciente...' : 'Guardando paciente...', async () => {
                 if (state.authToken) {
                     const payload = buildPatientApiPayload(data);
+                    let targetPatientId = editId;
                     if (editId) {
                         await apiFetch(`/patients/${editId}`, {
                             method: 'PUT',
                             body: JSON.stringify(payload)
                         });
                     } else {
-                        await apiFetch('/patients', {
+                        const res = await apiFetch('/patients', {
                             method: 'POST',
                             body: JSON.stringify(payload)
+                        });
+                        targetPatientId = res?.patient?.id || null;
+                    }
+                    // Guardar notas en el ClinicalRecord (requiere professionalId)
+                    const _profId = getCurrentOdontoProfessionalId() || getAccessibleProfessionals()[0]?.id || null;
+                    if (targetPatientId && _profId && data.notes !== undefined) {
+                        await apiFetch(`/clinical-records/${targetPatientId}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ professionalId: _profId, summaryNotes: data.notes || null })
                         });
                     }
                     await syncBackendSnapshotToLocalDb();
@@ -3552,7 +5435,7 @@ function openPatientModal(editId = null) {
     });
 }
 
-function openBillingModal() {
+function openBillingModal(preselectedPatientId = null) {
     const patients = getAccessiblePatients();
     const professionals = getAccessibleProfessionals();
 
@@ -3562,7 +5445,7 @@ function openBillingModal() {
         <div class="modal-overlay active">
             <div class="modal-content modal-content-billing" onclick="event.stopPropagation()">
                 <div class="modal-header">
-                    <h3>Nueva TransacciÃ³n</h3>
+                    <h3>Nueva Transacción</h3>
                     <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
                 </div>
                 <form id="tx-form">
@@ -3570,18 +5453,18 @@ function openBillingModal() {
                         <div class="input-group">
                             <label>Paciente</label>
                             <select id="tx-patient" required>
-                                ${patients.map(p => `<option value="${p.id}">${p.name} (DNI ${p.dni})</option>`).join('')}
+                                ${patients.map(p => `<option value="${p.id}" ${preselectedPatientId && p.id === preselectedPatientId ? 'selected' : ''}>${p.name} (DNI ${p.dni})</option>`).join('')}
                             </select>
                         </div>
                         <div class="input-group">
-                            <label>Profesional Asignado a la TransacciÃ³n</label>
+                            <label>Profesional Asignado a la Transacción</label>
                             <select id="tx-prof" required>
                                 ${professionals.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
                             </select>
                         </div>
                         <div class="input-group"><label>Tipo de Registro</label><select id="tx-type" required><option value="income">Abono / Pago recibido (Ingreso)</option><option value="debt">Cargo por Tratamiento (Deuda)</option></select></div>
                         <div class="input-group"><label>Monto ($)</label><input type="number" id="tx-amount" min="1" required></div>
-                        <div class="input-group"><label>Concepto / DescripciÃ³n</label><input type="text" id="tx-desc" required placeholder="Ej: Tratamiento conducto, Pago parcial..."></div>
+                        <div class="input-group"><label>Concepto / Descripción</label><input type="text" id="tx-desc" required placeholder="Ej: Tratamiento conducto, Pago parcial..."></div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -3591,6 +5474,14 @@ function openBillingModal() {
             </div>
         </div>
     `;
+
+    // ESC cierra el modal
+    const _escHandler = (e) => {
+        if (e.key !== 'Escape') return;
+        document.removeEventListener('keydown', _escHandler);
+        closeModal();
+    };
+    document.addEventListener('keydown', _escHandler);
     document.getElementById('tx-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = {
@@ -3624,7 +5515,7 @@ function openBillingModal() {
 }
 
 function openPatientBillingPicker() {
-    if (!canManagePatientBillingUi()) {
+    if (!canViewPatientBillingUi()) {
         showAlert('No tienes permisos para acceder a cuentas corrientes por paciente.', { title: 'Facturación', variant: 'error' });
         return;
     }
@@ -3789,7 +5680,7 @@ function renderDashboard() {
 
         <div class="table-container shadow-sm mt-6 border border-gray-200">
             <div class="table-header">
-                <h3>PrÃ³ximos Turnos</h3>
+                <h3>Próximos Turnos</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
@@ -3854,18 +5745,29 @@ function getProfColor(profId) {
     const clinicSettings = getClinicSettings();
     const customColorMap = clinicSettings.professionalColors || {};
     const idx = profs.findIndex(p => p.id === profId);
-    const prof = profs[idx];
-    const fallbackPaletteColor = PROF_COLORS[(idx >= 0 ? idx : 0) % PROF_COLORS.length] || { bg: '#6b7280', text: '#ffffff' };
+    const paletteColor = PROF_COLORS[(idx >= 0 ? idx : 0) % PROF_COLORS.length] || { bg: '#6b7280', text: '#ffffff' };
+    // Solo usar color personalizado si fue explícitamente asignado en configuración
     const customColor = customColorMap[String(profId)];
-    const bg = normalizeHexColor(customColor || prof?.color || fallbackPaletteColor.bg, fallbackPaletteColor.bg);
+    const bg = customColor ? normalizeHexColor(customColor, paletteColor.bg) : paletteColor.bg;
     return {
         bg,
-        text: getContrastingTextColor(bg)
+        text: paletteColor.text
     };
 }
 
 function getAppointmentVisual(apt) {
     const profColor = getProfColor(apt.professionalId);
+    const status = normalizeAppointmentStatus(apt.status);
+
+    if (status === 'cancelled') {
+        return {
+            bg: 'repeating-linear-gradient(135deg, #fee2e2 0px, #fee2e2 6px, #fecaca 6px, #fecaca 12px)',
+            text: '#991b1b',
+            border: '#ef4444',
+            accent: '#ef4444',
+            cancelled: true
+        };
+    }
 
     if (apt.isOverbook) {
         return {
@@ -3954,7 +5856,7 @@ function renderAppointmentCompactCard(apt) {
     const statusMeta = getAppointmentStatusMeta(apt.status);
     const visual = getAppointmentVisual(apt);
     return `
-        <article class="cal-mobile-card ${apt.isOverbook ? 'is-overbook' : ''}" style="border-left-color:${visual.border}">
+        <article class="cal-mobile-card ${apt.isOverbook ? 'is-overbook' : ''} ${visual.cancelled ? 'is-cancelled' : ''}" style="border-left-color:${visual.border}">
             <div class="cal-mobile-card-top">
                 <div>
                     <div class="cal-mobile-card-time">${apt.time}</div>
@@ -3965,19 +5867,19 @@ function renderAppointmentCompactCard(apt) {
                     ${apt.isOverbook ? '<span class="badge badge-purple">Sobreturno</span>' : ''}
                 </div>
             </div>
-            <div class="cal-mobile-card-name">${apt.patient}</div>
+            <div class="cal-mobile-card-name ${visual.cancelled ? 'cal-apt-name-cancelled' : ''}">${apt.patient}</div>
             <div class="cal-mobile-card-prof">${getProfName(apt.professionalId)}</div>
             <div class="cal-mobile-card-actions">
                 ${patient && canViewClinicalHistoryUi() ? `<button class="btn btn-ghost btn-sm" onclick="loadClinicalHistory(${patient.id})">Historia</button>` : ''}
                 <button class="btn btn-secondary btn-sm" onclick="openAppointmentViewModal(${apt.id})">Ver</button>
-                ${state.user.roles.some(r => ['secretary', 'superadmin', 'admin'].includes(r)) ? `<button class="btn btn-primary btn-sm" onclick="openAppointmentModal(${apt.id})">Editar</button>` : ''}
+                ${canManageAppointmentsUi() ? `<button class="btn btn-primary btn-sm" onclick="openAppointmentModal(${apt.id})">Editar</button>` : ''}
             </div>
         </article>
     `;
 }
 
 function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit) {
-    const legendHtml = renderCalendarFilterLegend(professionals);
+    const legendHtml = renderCalendarFilterLegend(professionals, { horizontal: true, compact: true });
     const toolbar = renderCalendarToolbar(
         parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
         canEdit
@@ -4020,11 +5922,11 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
                 .sort((a, b) => a.time.localeCompare(b.time));
             const countLabel = formatAppointmentCountLabel(dayApts.length);
             return `
-                <section class="cal-mobile-section">
-                    <header class="cal-mobile-section-header">${day.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</header>
+                <section class="cal-mobile-section" data-calendar-date="${iso}" style="cursor:pointer;">
+                    <header class="cal-mobile-section-header">${normalizeDateLabel(day.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }))}</header>
                     <div class="cal-mobile-list">
                         ${dayApts.length
-                            ? `<div class="cal-mobile-empty" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border:1px solid ${selectedProfessionalColor.bg}; font-weight:700;">${countLabel}.</div>`
+                            ? `<div class="cal-mobile-count" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text};">${countLabel}</div>`
                             : '<div class="cal-mobile-empty">Sin turnos.</div>'}
                     </div>
                 </section>
@@ -4049,10 +5951,10 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
 
         sectionsHtml = Object.keys(grouped).length
             ? Object.entries(grouped).map(([dateStr, items]) => `
-                <section class="cal-mobile-section">
-                    <header class="cal-mobile-section-header">${parseLocalIsoDate(dateStr).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</header>
+                <section class="cal-mobile-section" data-calendar-date="${dateStr}" style="cursor:pointer;">
+                    <header class="cal-mobile-section-header">${normalizeDateLabel(parseLocalIsoDate(dateStr).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }))}</header>
                     <div class="cal-mobile-list">
-                        <div class="cal-mobile-empty" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border:1px solid ${selectedProfessionalColor.bg}; font-weight:700;">${formatAppointmentCountLabel(items.length)}.</div>
+                        <div class="cal-mobile-count" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text};">${formatAppointmentCountLabel(items.length)}</div>
                     </div>
                 </section>
             `).join('')
@@ -4085,7 +5987,7 @@ function renderAppointments() {
 
     const allApts = getAccessibleAppointments();
     const currentDate = calendarState.currentDate;
-    const canEdit = state.user.roles.some(r => ['secretary', 'superadmin', 'admin'].includes(r));
+    const canEdit = canManageAppointmentsUi();
 
     if (isCompactAppointmentsLayout()) {
         return renderAppointmentsCompact(professionals, allApts, currentDate, canEdit);
@@ -4097,7 +5999,7 @@ function renderAppointments() {
         if (!activeProfessional) {
             return `
                 <div class="cal-wrapper">
-                    ${renderCalendarToolbar(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}), canEdit)}
+                    ${renderCalendarToolbar(normalizeDateLabel(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})), canEdit)}
                     <div class="card p-6 text-center text-gray-500">No hay profesionales disponibles para mostrar esta agenda.</div>
                 </div>
             `;
@@ -4123,12 +6025,12 @@ function renderAppointments() {
 
         // Mensaje si no trabaja hoy
         if (!profWorksToday) {
-            const dateLabel = parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'});
+            const dateLabel = normalizeDateLabel(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'}));
             const profColor = getProfColor(activeProfessional.id);
             const legendHtml = renderCalendarFilterLegend(professionals, { horizontal: true, compact: true });
             return `
             <div class="cal-wrapper">
-                ${renderCalendarToolbar(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}), canEdit)}
+                ${renderCalendarToolbar(normalizeDateLabel(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})), canEdit)}
                 ${legendHtml}
                 <div class="cal-no-work-card">
                     <div class="cal-no-work-icon" style="background:${profColor.bg}22; color:${profColor.bg};">
@@ -4182,25 +6084,25 @@ function renderAppointments() {
                 const topPx = offsetMin * CAL_PX_PER_MIN;
                 const heightPx = Math.max(duration * CAL_PX_PER_MIN, 28);
                 const visual = getAppointmentVisual(apt);
-                const blockClasses = `cal-apt-block ${apt.isOverbook ? 'cal-apt-overbook' : ''}`;
+                const blockClasses = `cal-apt-block ${apt.isOverbook ? 'cal-apt-overbook' : ''} ${visual.cancelled ? 'cal-apt-cancelled' : ''}`;
                 const blockStyle = apt.isOverbook
                     ? `background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border}; top:${topPx}px; height:${heightPx}px; cursor:pointer; z-index:20;`
                     : `background:${visual.bg}; color:${visual.text}; border-left:4px solid ${visual.border}; top:${topPx}px; height:${heightPx}px; cursor:pointer;`;
 
-                return `<div class="${blockClasses}" 
+                return `<div class="${blockClasses}"
                     style="${blockStyle}"
                     onclick="openAppointmentViewModal(${apt.id})">
                     <div class="cal-apt-content">
-                        <span class="cal-apt-name">${apt.patient}</span>
+                        <span class="cal-apt-name ${visual.cancelled ? 'cal-apt-name-cancelled' : ''}">${apt.patient}</span>
                         <span class="cal-apt-meta">${apt.time} - ${duration}min</span>
-                        ${apt.isOverbook ? '<span class="cal-apt-tag">Sobreturno</span>' : ''}
+                        ${visual.cancelled ? '<span class="cal-apt-tag cal-apt-tag-cancelled">Cancelado</span>' : apt.isOverbook ? '<span class="cal-apt-tag">Sobreturno</span>' : ''}
                     </div>
                     ${canEdit ? `<div class="cal-apt-actions">
-                        ${patient && canViewClinicalHistoryUi() ? `<button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia clinica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>` : ''}
+                        ${patient && canViewClinicalHistoryUi() ? `<button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia Clínica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>` : ''}
                         <button class="cal-apt-btn btn-edit-apt" data-id="${apt.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
                         <button class="cal-apt-btn btn-delete-apt" data-id="${apt.id}" title="Cancelar"><i class="fa-solid fa-times"></i></button>
                     </div>` : `${patient && canViewClinicalHistoryUi() ? `<div class="cal-apt-actions cal-apt-actions-readonly">
-                        <button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia clinica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>
+                        <button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia Clínica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>
                     </div>` : ''}`}
                 </div>`;
             }).join('');
@@ -4225,7 +6127,7 @@ function renderAppointments() {
 
         return `
         <div class="cal-wrapper">
-            ${renderCalendarToolbar(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}), canEdit)}
+            ${renderCalendarToolbar(normalizeDateLabel(parseLocalIsoDate(currentDate).toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})), canEdit)}
             ${legendHtml}
             <div class="cal-scroll-wrap cal-scroll-wrap-day">
                 <div class="cal-grid-day">
@@ -4285,7 +6187,7 @@ function renderAppointments() {
             }
 
             dayCols += `
-            <div class="cal-day-col ${!profWorksDay && weekSelectedProf ? 'cal-day-col-no-work' : ''}">
+            <div class="cal-day-col ${!profWorksDay && weekSelectedProf ? 'cal-day-col-no-work' : ''}" data-calendar-date="${iso}" style="cursor:pointer;">
                 <button type="button" class="cal-day-header ${isToday ? 'cal-today-header' : ''}" data-calendar-date="${iso}">
                     <span class="cal-day-name">${dayName}</span>
                     <span class="cal-day-number ${isToday ? 'cal-today-badge' : ''}">${dayNum}</span>
@@ -4300,7 +6202,7 @@ function renderAppointments() {
 
         return `
         <div class="cal-wrapper">
-            ${renderCalendarToolbar(`${days[0].toLocaleDateString('es-AR',{day:'numeric',month:'short'})} â€“ ${days[6].toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'numeric'})}`, canEdit)}
+            ${renderCalendarToolbar(`${normalizeDateLabel(days[0].toLocaleDateString('es-AR',{day:'numeric',month:'short'}))} – ${normalizeDateLabel(days[6].toLocaleDateString('es-AR',{day:'numeric',month:'short',year:'numeric'}))}`, canEdit)}
 
             <div class="cal-month-layout">
                 ${legendHtml}
@@ -4365,10 +6267,10 @@ function renderAppointments() {
                 `;
             }
 
-            cells += `<div class="cal-month-cell ${isCurrentMonth ? '' : 'is-outside-month'}${isCurrentMonth && !monthProfWorks ? ' cal-month-cell-no-work' : ''}">${content}</div>`;
+            cells += `<div class="cal-month-cell ${isCurrentMonth ? '' : 'is-outside-month'}${isCurrentMonth && !monthProfWorks ? ' cal-month-cell-no-work' : ''}"${isCurrentMonth && cellDate ? ` data-calendar-date="${formatDateToLocalIso(cellDate)}" style="cursor:pointer;"` : ''}>${content}</div>`;
         }
 
-        const monthName = date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+        const monthName = normalizeDateLabel(date.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }));
 
         const legend = renderCalendarFilterLegend(professionals, { horizontal: true, compact: true });
 
@@ -4384,10 +6286,10 @@ function renderAppointments() {
                             <div class="cal-month-weekday">Dom</div>
                             <div class="cal-month-weekday">Lun</div>
                             <div class="cal-month-weekday">Mar</div>
-                            <div class="cal-month-weekday">MiÃ©</div>
+                            <div class="cal-month-weekday">Mié</div>
                             <div class="cal-month-weekday">Jue</div>
                             <div class="cal-month-weekday">Vie</div>
-                            <div class="cal-month-weekday">SÃ¡b</div>
+                            <div class="cal-month-weekday">Sáb</div>
                         </div>
                         <div class="cal-month-grid">
                         ${cells}
@@ -4409,27 +6311,33 @@ function renderProfessionals() {
                 <p class="section-subtitle">Administra la disponibilidad semanal de cada profesional y organiza la agenda activa.</p>
             </div>
         </div>
-        <div class="table-container table-container-schedules shadow-sm">
-            <table class="w-full text-left table-agenda-professionals">
-                <thead><tr><th>Profesional</th><th class="table-actions-head">Acciones</th></tr></thead>
-                <tbody>
-                    ${profs.map(p => `
-                        <tr>
-                            <td class="font-medium table-prof-name-cell" data-label="Profesional">
-                                <div class="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs"><i class="fa-solid fa-user-md"></i></div>
-                                ${p.name}
-                            </td>
-                            <td data-label="Acciones" class="table-actions-cell">
-                                ${canAccessProfessional(p.id) ? `
-                                <button class="btn btn-secondary btn-sm btn-edit-schedule btn-schedule-mobile" data-id="${p.id}" aria-label="Configurar horarios de ${p.name}" title="Configurar horarios de ${p.name}"><i class="fa-solid fa-clock"></i><span class="btn-label">Configurar Horarios por Día</span></button>
-                                ` : ''}
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+        <div class="prof-schedule-list">
+            ${profs.length === 0 ? `
+                <div class="prof-schedule-empty">
+                    <i class="fa-solid fa-user-doctor"></i>
+                    <span>No hay profesionales disponibles</span>
+                </div>
+            ` : profs.map((p, idx) => {
+                const profColor = getProfColor(p.id);
+                const initials = (p.name || '').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                return `
+                <div class="prof-schedule-card">
+                    <div class="prof-schedule-avatar" style="background:${profColor.bg}22; color:${profColor.bg}; border: 2px solid ${profColor.bg}44;">
+                        ${initials || '<i class="fa-solid fa-user-doctor"></i>'}
+                    </div>
+                    <div class="prof-schedule-info">
+                        <span class="prof-schedule-name">${p.name}</span>
+                        ${p.specialty ? `<span class="prof-schedule-specialty">${p.specialty}</span>` : ''}
+                    </div>
+                    ${canAccessProfessional(p.id) ? `
+                    <button class="btn btn-secondary btn-sm btn-edit-schedule prof-schedule-btn" data-id="${p.id}" aria-label="Configurar horarios de ${p.name}" title="Configurar horarios">
+                        <i class="fa-solid fa-clock"></i>
+                        <span>Horarios</span>
+                    </button>` : ''}
+                </div>`;
+            }).join('')}
         </div>
-        <div class="schedules-hint mt-4 text-sm text-gray-500 ml-2"><i class="fa-solid fa-info-circle mr-1 text-primary-500"></i> Los turnos solo se podrán asignar según el horario activo configurado para cada día de la semana.</div>
+        <p class="schedules-hint mt-4 text-sm text-gray-500 ml-1"><i class="fa-solid fa-circle-info mr-1 text-primary-400"></i> Los turnos solo se asignan dentro del horario activo configurado para cada día.</p>
     `;
 }
 
@@ -4442,20 +6350,23 @@ function renderPatients() {
                 <h3 class="section-title">Registro de Pacientes</h3>
                 <p class="section-subtitle">Visualiza, edita y administra los datos base de cada paciente.</p>
             </div>
-            ${state.user.roles.some(r => ['superadmin', 'secretary', 'admin'].includes(r)) ? 
-            '<button class="btn btn-primary" id="btn-add-patient"><i class="fa-solid fa-user-plus"></i> Nuevo Paciente</button>' : ''}
+            ${canCreatePatientUi() ? `
+            <div class="flex gap-2 flex-wrap">
+                <button class="btn btn-primary" id="btn-add-patient"><i class="fa-solid fa-user-plus"></i> Nuevo Paciente</button>
+                <button class="btn btn-secondary" id="btn-import-patients"><i class="fa-solid fa-file-excel"></i> Importar Excel</button>
+            </div>` : ''}
         </div>
         <div class="patient-search-shell mb-4">
             <input type="search" id="search-patient" placeholder="Buscar pacientes por nombre o DNI..." class="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
         </div>
         <div class="table-container table-container-patients shadow-sm">
             <table class="w-full text-left" id="patients-table">
-                <thead><tr><th>Paciente</th><th>Contacto</th><th>DNI</th><th>Notas MÃ©dicas</th><th>Acciones</th></tr></thead>
+                <thead><tr><th>Paciente</th><th>Contacto</th><th>DNI</th><th>Acciones</th></tr></thead>
                 <tbody>
                     ${patients.map(p => `
                         <tr>
                             <td class="font-medium flex items-center gap-3" data-label="Paciente">
-                                <div class="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs">${p.name.substring(0,2).toUpperCase()}</div>
+                                <div class="patient-list-avatar">${p.name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}</div>
                                 ${p.name}
                             </td>
                             <td data-label="Contacto">
@@ -4463,15 +6374,12 @@ function renderPatients() {
                                 <span class="block text-xs text-gray-400"><i class="fa-solid fa-envelope mr-1"></i> ${p.email || 'Sin email'}</span>
                             </td>
                             <td class="text-sm font-semibold" data-label="DNI">${p.dni}</td>
-                            <td class="text-xs text-gray-600" data-label="Notas MÃ©dicas">${p.notes || '-'}</td>
                             <td data-label="Acciones" class="table-actions-cell">
                                 <div class="flex gap-2 patient-actions">
-                                ${state.user.roles.some(r => ['superadmin', 'secretary'].includes(r)) ? `
-                                    ${canViewClinicalHistoryUi() ? `<button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia ClÃ­nica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>` : ''}
-                                    <button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}"><i class="fa-solid fa-pen text-primary-600"></i></button>
-                                    ${isSuperadmin() ? `<button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}"><i class="fa-solid fa-trash text-danger"></i></button>` : ''}
-                                ` : `${canViewClinicalHistoryUi() ? '<button class="btn btn-secondary btn-sm btn-view-history" data-id="'+p.id+'"><i class="fa-solid fa-eye"></i> Historia</button>' : ''}`}
-                                ${canManagePatientBillingUi() ? `<button class="btn btn-ghost p-1 btn-view-patient-billing" data-id="${p.id}" title="Cuenta Corriente"><i class="fa-solid fa-wallet text-emerald-600"></i></button>` : ''}
+                                    ${canViewClinicalHistoryUi() ? `<button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia Clínica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>` : ''}
+                                    ${canEditPatientUi() ? `<button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}" title="Editar"><i class="fa-solid fa-pen text-primary-600"></i></button>` : ''}
+                                    ${isSuperadmin() ? `<button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}" title="Eliminar"><i class="fa-solid fa-trash text-danger"></i></button>` : ''}
+                                    ${canViewPatientBillingUi() ? `<button class="btn btn-ghost p-1 btn-view-patient-billing" data-id="${p.id}" title="Cuenta Corriente"><i class="fa-solid fa-wallet text-emerald-600"></i></button>` : ''}
                                 </div>
                             </td>
                         </tr>
@@ -4548,7 +6456,8 @@ function renderBilling() {
                     <p class="section-subtitle">DNI ${selectedAccount.patient.dni} · Seguimiento individual de movimientos, cargos y pagos.</p>
                 </div>
                 <div class="flex gap-2 flex-wrap">
-                    <button class="btn btn-secondary" id="btn-clear-patient-billing"><i class="fa-solid fa-arrow-left"></i> Volver a la vista general</button>
+                    <button class="btn btn-secondary" id="btn-clear-patient-billing"><i class="fa-solid fa-arrow-left"></i> Volver</button>
+                    ${canManagePatientBillingUi() ? `<button class="btn btn-primary" id="btn-add-movement-from-account" data-patient-id="${selectedAccount.patient.id}"><i class="fa-solid fa-plus"></i> Agregar movimiento</button>` : ''}
                 </div>
             </div>
             <div class="mt-4 text-sm text-gray-500">
@@ -4848,8 +6757,8 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
             </div>
         </div>
 
-        <div class="table-container shadow-sm mt-6 border border-gray-200">
-            <div class="table-header">
+        <div class="dashboard-main-card mt-6">
+            <div class="dashboard-sticky-header">
                 <div>
                     <h3>${selectedTitle}</h3>
                     <p class="dashboard-date-label">${selectedLabel}</p>
@@ -4861,24 +6770,39 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead><tr><th>Hora</th><th>Paciente</th><th class="col-hide-xs">Profesional</th><th class="col-hide-sm">Sala</th><th>Confirmacion</th><th class="col-hide-sm">Whatsapp</th></tr></thead>
+                    <colgroup>
+                        <col style="width:120px; min-width:120px;">
+                        <col>
+                        <col>
+                        <col>
+                        <col>
+                        <col>
+                        <col>
+                    </colgroup>
+                    <thead><tr><th class="col-sticky-left">Hora</th><th>Paciente</th><th class="col-hide-xs">Profesional</th><th class="col-hide-sm">Sala</th><th class="col-hide-lg">Confirmación</th><th class="col-show-lg">Estado</th><th class="col-hide-lg">Whatsapp</th></tr></thead>
                     <tbody>
                         ${pendingApts.map(apt => {
                             const patient = getPatientByAppointment(apt);
                             const whatsappLink = getWhatsAppLink(patient, apt);
                             const statusMeta = getAppointmentStatusMeta(apt.status);
                             const profColor = getProfColor(apt.professionalId);
-                            const isDark = document.body.classList.contains('theme-dark');
-                            const bgAlpha = isDark ? '28' : '12';
-                            const rowStyle = `border-left: 3px solid ${profColor.bg}; background: ${profColor.bg}${bgAlpha};`;
+                            const _r = parseInt(profColor.bg.slice(1,3), 16);
+                            const _g = parseInt(profColor.bg.slice(3,5), 16);
+                            const _b = parseInt(profColor.bg.slice(5,7), 16);
+                            const _isDark = document.body.classList.contains('theme-dark');
+                            const _br = _isDark ? 30 : 255, _bg2 = _isDark ? 41 : 255, _bb = _isDark ? 59 : 255;
+                            const _a = _isDark ? 0.14 : 0.08;
+                            const _rowBg = `rgb(${Math.round(_br*(1-_a)+_r*_a)},${Math.round(_bg2*(1-_a)+_g*_a)},${Math.round(_bb*(1-_a)+_b*_a)})`;
+                            const rowStyle = `border-left: 3px solid ${profColor.bg}; background: ${_rowBg};`;
                             return `
                                 <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}" style="${rowStyle}">
-                                    <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
+                                    <td class="col-sticky-left" style="background:${_rowBg}"><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
                                     <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
-                                    <td class="col-hide-xs"><span class="dash-prof-chip" style="background:${profColor.bg}${isDark ? '33' : '22'}; color:${profColor.bg}; border:1px solid ${profColor.bg}${isDark ? '66' : '44'};">${getProfName(apt.professionalId)}</span></td>
+                                    <td class="col-hide-xs"><span class="dash-prof-chip" style="background:${profColor.bg}; color:${profColor.text};">${getProfName(apt.professionalId)}</span></td>
                                     <td class="col-hide-sm">${renderPresenceBtnHtml(apt.id)}</td>
-                                    <td>${canManageStatus ? renderStatusDropdownHtml(apt.id, statusMeta) : `<span class="badge ${statusMeta.badge}">${statusMeta.label}</span>`}</td>
-                                    <td class="col-hide-sm">${canUseWhatsapp ? (whatsappLink ? (() => {
+                                    <td class="col-hide-lg">${canManageStatus ? renderStatusDropdownHtml(apt.id, statusMeta) : `<span class="badge ${statusMeta.badge}">${statusMeta.label}</span>`}</td>
+                                    <td class="col-show-lg"><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></td>
+                                    <td class="col-hide-lg">${canUseWhatsapp ? (whatsappLink ? (() => {
                                             const alreadySent = ['sent', 'confirmed', 'rescheduled', 'cancelled'].includes(statusMeta.key);
                                             return alreadySent
                                                 ? `<span class="wa-sent-badge"><i class="fa-brands fa-whatsapp"></i> Enviado</span>`
@@ -4887,7 +6811,7 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                 </tr>
                             `;
                         }).join('')}
-                        ${pendingApts.length === 0 ? `<tr><td colspan="6" class="text-center py-6 text-gray-500">${emptyStateText}</td></tr>` : ''}
+                        ${pendingApts.length === 0 ? `<tr><td colspan="7" class="text-center py-6 text-gray-500">${emptyStateText}</td></tr>` : ''}
                     </tbody>
                 </table>
             </div>
@@ -4936,28 +6860,31 @@ function renderSettingsSubpages() {
         return `
             <div class="settings-card">
                 <h3>Acceso denegado</h3>
-                <p>Solo los usuarios con rol superadmin o admin pueden gestionar la configuraciÃƒÂ³n.</p>
+                <p>Solo los usuarios con rol superadmin o admin pueden gestionar la configuración.</p>
             </div>
         `;
     }
 
-    const userRows = users.map(u => {
-        const roles = (u.roles || (u.role ? [u.role] : [])).map(r => `
-            <span class="badge ${r === 'superadmin' ? 'badge-primary' : (r === 'admin' ? 'badge-info' : (r === 'secretary' ? 'badge-warning' : 'badge-gray'))}">${r}</span>
-        `).join(' ');
-
-        const profNames = u.allowedProfessionals && u.allowedProfessionals.length > 0
-            ? u.allowedProfessionals.map(id => `<span class="badge badge-gray">${getProfName(id)}</span>`).join(' ')
-            : `<span class="badge badge-gray">No asignado</span>`;
-
+    const userCards = users.map(u => {
+        const rolesList = (u.roles || (u.role ? [u.role] : []));
+        const primaryRole = rolesList[0] || u.type || 'usuario';
+        const roleBadgeClass = primaryRole === 'superadmin' ? 'badge-primary' : (primaryRole === 'admin' ? 'badge-info' : (primaryRole === 'secretary' ? 'badge-warning' : 'badge-gray'));
+        const initials = (u.name || u.email || 'U').substring(0, 2).toUpperCase();
         return `
-            <tr class="hover-row">
-                <td class="table-name"><strong>${u.name || 'Sin nombre'}</strong><br><span class="subtle">${u.email || '-'}</span></td>
-                <td>${u.type || '-'}</td>
-                <td class="col-hide-sm">${roles}</td>
-                <td class="col-hide-sm">${profNames}</td>
-                <td class="text-center">${isSuper ? `<button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar usuario"><i class="fa-solid fa-pen"></i></button><button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar usuario" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
-            </tr>`;
+            <div class="settings-entity-card">
+                <div class="settings-entity-avatar">${initials}</div>
+                <div class="settings-entity-info">
+                    <span class="settings-entity-name">${u.name || 'Sin nombre'}</span>
+                    <span class="settings-entity-sub">${u.email || '-'}</span>
+                </div>
+                <span class="badge ${roleBadgeClass} flex-shrink-0">${primaryRole}</span>
+                <div class="settings-entity-actions">
+                    ${isSuper ? `
+                    <button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>
+                    ` : '<span class="text-xs text-gray-400">Solo lectura</span>'}
+                </div>
+            </div>`;
     }).join('');
 
     const profesionalRows = profs.map(p => {
@@ -4965,15 +6892,21 @@ function renderSettingsSubpages() {
             ? `<span class="badge badge-success">Activo</span>`
             : `<span class="badge badge-gray">Inactivo</span>`;
         return `
-            <tr class="hover-row">
-                <td class="table-name">${p.name}</td>
-                <td class="col-hide-xs">${p.lastName || '-'}</td>
-                <td class="col-hide-xs">${p.specialty || '-'}</td>
-                <td class="col-hide-sm">${p.phone || '-'}</td>
-                <td class="col-hide-sm">${p.email || '-'}</td>
-                <td>${statusLabel}</td>
-                <td class="text-center"><button class="btn btn-icon btn-edit-prof" data-id="${p.id}" title="Editar profesional"><i class="fa-solid fa-pen"></i></button><button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Ver calendario"><i class="fa-solid fa-calendar-days"></i></button><button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Configurar horarios"><i class="fa-solid fa-clock"></i></button></td>
-            </tr>`;
+            <div class="settings-entity-card">
+                <div class="settings-entity-avatar" style="background:${getProfColor(p.id).bg}22; color:${getProfColor(p.id).bg}; border:2px solid ${getProfColor(p.id).bg}44;">
+                    ${(p.name||'').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase() || '?'}
+                </div>
+                <div class="settings-entity-info">
+                    <span class="settings-entity-name">${p.name}${p.lastName ? ' ' + p.lastName : ''}</span>
+                    <span class="settings-entity-sub">${p.specialty || p.email || '-'}</span>
+                </div>
+                ${statusLabel}
+                <div class="settings-entity-actions">
+                    <button class="btn btn-icon btn-edit-prof" data-id="${p.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                    ${canViewAppointmentsUi() ? `<button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Calendario"><i class="fa-solid fa-calendar-days"></i></button>` : ''}
+                    ${canManageProfessionalSchedulesUi() ? `<button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Horarios"><i class="fa-solid fa-clock"></i></button>` : ''}
+                </div>
+            </div>`;
     }).join('');
 
     const professionalColorRows = profs.length
@@ -5107,40 +7040,16 @@ function renderSettingsSubpages() {
         'users-list': canManageSettings ? `
             <section class="settings-card settings-panel-card">
                 <header><h3>Usuarios Existentes</h3></header>
-                <div class="table-container overflow-x-auto">
-                    <table class="table-modern table-compact">
-                        <thead>
-                            <tr>
-                                <th>Nombre / Email</th>
-                                <th>Tipo</th>
-                                <th class="col-hide-sm">Roles</th>
-                                <th class="col-hide-sm">Profesionales</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>${userRows || `<tr><td colspan="5" class="text-gray-500">No hay usuarios registrados</td></tr>`}</tbody>
-                    </table>
+                <div class="settings-entity-list">
+                    ${userCards || `<div class="settings-entity-empty"><i class="fa-solid fa-users"></i><span>No hay usuarios registrados</span></div>`}
                 </div>
             </section>
         ` : '',
         'professionals-list': `
             <section class="settings-card settings-panel-card">
                 <header><h3>Profesionales Existentes</h3></header>
-                <div class="table-container overflow-x-auto">
-                    <table class="table-modern table-compact">
-                        <thead>
-                            <tr>
-                                <th>Nombre</th>
-                                <th class="col-hide-xs">Apellido</th>
-                                <th class="col-hide-xs">Especialidad</th>
-                                <th class="col-hide-sm">Teléfono</th>
-                                <th class="col-hide-sm">Email</th>
-                                <th>Estado</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>${profesionalRows || `<tr><td colspan="7" class="text-gray-500">No hay profesionales registrados</td></tr>`}</tbody>
-                    </table>
+                <div class="settings-entity-list">
+                    ${profesionalRows || `<div class="settings-entity-empty"><i class="fa-solid fa-user-doctor"></i><span>No hay profesionales registrados</span></div>`}
                 </div>
             </section>
         `
@@ -5185,7 +7094,7 @@ function renderSettings() {
         return `
             <div class="settings-card">
                 <h3>Acceso denegado</h3>
-                <p>Solo los usuarios con rol superadmin o admin pueden gestionar la configuraciÃ³n.</p>
+                <p>Solo los usuarios con rol superadmin o admin pueden gestionar la configuración.</p>
             </div>
         `;
     }
@@ -5221,7 +7130,7 @@ function renderSettings() {
                 <td>${p.phone || '-'}</td>
                 <td>${p.email || '-'}</td>
                 <td>${statusLabel}</td>
-                <td class="text-center"><button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Ver calendario"><i class="fa-solid fa-calendar-days"></i></button><button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Configurar horarios"><i class="fa-solid fa-clock"></i></button></td>
+                <td class="text-center">${canViewAppointmentsUi() ? `<button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Ver calendario"><i class="fa-solid fa-calendar-days"></i></button>` : ''}${canManageProfessionalSchedulesUi() ? `<button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Configurar horarios"><i class="fa-solid fa-clock"></i></button>` : ''}</td>
             </tr>`;
     }).join('');
 
@@ -5252,7 +7161,7 @@ function renderSettings() {
 
                     <div class="settings-subsection">
                         <h4>Asignar Profesionales (opcional)</h4>
-                        <p class="subtext">Se puede dejar vacÃ­o; acceso completo si no se selecciona ninguno.</p>
+                        <p class="subtext">Se puede dejar vacío; acceso completo si no se selecciona ninguno.</p>
                         <div class="settings-list settings-list-static">
                             ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}"><label>${p.name}</label></div>`).join('')}
                         </div>
@@ -5272,7 +7181,7 @@ function renderSettings() {
                     <div class="input-group"><label>Nombre *</label><input type="text" id="p-name" required></div>
                     <div class="input-group"><label>Apellido *</label><input type="text" id="p-lastname" required></div>
                     <div class="input-group"><label>Especialidad *</label><input type="text" id="p-specialty" required></div>
-                    <div class="input-group"><label>TelÃ©fono</label><input type="text" id="p-phone"></div>
+                    <div class="input-group"><label>Teléfono</label><input type="text" id="p-phone"></div>
                     <div class="input-group"><label>Email</label><input type="email" id="p-email"></div>
                     <div class="input-group"><label>Estado</label><select id="p-status"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
                     <button type="submit" class="btn btn-primary">Guardar Profesional</button>
@@ -5291,7 +7200,7 @@ function renderSettings() {
                                 <th>Tipo</th>
                                 <th>Roles</th>
                                 <th>Profesionales</th>
-                                <th>AcciÃ³n</th>
+                                <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody>${userRows || `<tr><td colspan="5" class="text-gray-500">No hay usuarios registrados</td></tr>`}</tbody>
@@ -5307,10 +7216,10 @@ function renderSettings() {
                                 <th>Nombre</th>
                                 <th>Apellido</th>
                                 <th>Especialidad</th>
-                                <th>TelÃ©fono</th>
+                                <th>Teléfono</th>
                                 <th>Email</th>
                                 <th>Estado</th>
-                                <th>AcciÃ³n</th>
+                                <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody>${profesionalRows || `<tr><td colspan="7" class="text-gray-500">No hay profesionales registrados</td></tr>`}</tbody>
@@ -5338,12 +7247,20 @@ async function loadClinicalHistory(patientId, options = {}) {
     }
     state.currentView = 'patient-history';
     state.currentPatientId = patientId;
-    pageTitle.innerText = 'Ficha OdontolÃ³gica';
+    pageTitle.innerText = 'Ficha Odontológica';
     mainContent.innerHTML = '<div class="card p-6 text-center text-gray-500">Cargando historia clínica...</div>';
     
+    // Determinar qué profesional se usa para el odontograma
+    if (isSuperadmin() && !state.clinicalOdontoProfessionalId) {
+        const activeProfessionals = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
+        if (activeProfessionals.length > 0) {
+            state.clinicalOdontoProfessionalId = activeProfessionals[0].id;
+        }
+    }
+
     try {
         if (!options.skipSync) {
-            await syncPatientClinicalData(patientId);
+            await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
         }
     } catch (error) {
         showAlert(error.message || 'No se pudo cargar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
@@ -5394,10 +7311,10 @@ function enhanceClinicalPatientEditor(patientId) {
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Edad</strong>
-                <div class="clinical-static-value">${age} aÃ±os</div>
+                <div class="clinical-static-value">${age} años</div>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
-                <strong class="text-gray-600 uppercase text-xs">Telefono</strong>
+                <strong class="text-gray-600 uppercase text-xs">Teléfono</strong>
                 <input class="form-input" type="text" id="clinical-phone" value="${patient.phone || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
@@ -5413,7 +7330,7 @@ function enhanceClinicalPatientEditor(patientId) {
                 <input class="form-input" type="text" id="clinical-credencial" value="${patient.credencial || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
-                <strong class="text-gray-600 uppercase text-xs">Ficha NÂ°</strong>
+                <strong class="text-gray-600 uppercase text-xs">Ficha N°</strong>
                 <input class="form-input" type="text" id="clinical-ficha-numero" value="${patient.fichaNumero || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact clinical-info-item-wide">
@@ -5425,9 +7342,29 @@ function enhanceClinicalPatientEditor(patientId) {
 }
 
 // ── Odontogram tool state ─────────────────────────────────────
-let odontogramTool = { color: 'rojo', treatment: null };
+let odontogramTool = { color: 'rojo', treatment: null, clearing: false };
 
-function drawTeethRow(teethArray, patientOdontograma) {
+function calcAge(fechaNacimiento) {
+    if (!fechaNacimiento) return null;
+    const birth = new Date(fechaNacimiento);
+    if (isNaN(birth.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    const m = now.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+    return age;
+}
+
+window.toggleInfantilSection = function() {
+    const section = document.getElementById('odonto-infantil-section');
+    const icon    = document.getElementById('odonto-infantil-icon');
+    if (!section) return;
+    const visible = section.style.display !== 'none';
+    section.style.display = visible ? 'none' : 'flex';
+    if (icon) icon.className = visible ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
+};
+
+function drawTeethRow(teethArray, patientOdontograma, isUpper = true) {
     if(!patientOdontograma) patientOdontograma = {};
     const S = '#b0a0a0';   // stroke color
     const BG = '#f2e8e8';  // face background (light pinkish)
@@ -5458,7 +7395,7 @@ function drawTeethRow(teethArray, patientOdontograma) {
         };
 
         let facesHtml = '';
-        let extraOverlay = '';
+        let indHtml = '';   // indicator below/above tooth (same slot on every tooth)
 
         if(estado === 'ausente') {
             facesHtml = `
@@ -5472,18 +7409,22 @@ function drawTeethRow(teethArray, patientOdontograma) {
             const ic = tColor === 'azul' ? '#1d4ed8' : '#dc2626';
             facesHtml = `
                 <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
-                ${baseFaces(false)}
-                <rect x="36" y="18" width="28" height="64" rx="14" fill="${ic}" stroke="white" stroke-width="2"/>
-                <line x1="50" y1="26" x2="50" y2="74" stroke="white" stroke-width="2.5" stroke-dasharray="4,4"/>
-                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
+                ${baseFaces(true)}
             `;
+            indHtml = `<svg width="11" height="11" viewBox="0 0 11 11"><rect x="0" y="0" width="11" height="11" fill="${ic}" rx="1.5"/></svg>`;
+        } else if(estado === 'corona-implante') {
+            const ci = tColor === 'azul' ? '#2563eb' : '#dc2626';
+            facesHtml = `
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(true)}
+            `;
+            indHtml = `<svg width="11" height="11" viewBox="0 0 11 11"><polygon points="5.5,0 11,5.5 5.5,11 0,5.5" fill="${ci}"/></svg>`;
         } else if(estado === 'corona') {
             const cc = tColor === 'azul' ? '#2563eb' : '#dc2626';
             facesHtml = `
                 <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
                 ${baseFaces(false)}
-                <rect x="22" y="55" width="56" height="22" rx="4" fill="${cc}" stroke="white" stroke-width="1.5"/>
-                <polygon points="22,55 36,30 50,45 64,30 78,55" fill="${cc}" stroke="white" stroke-width="1.5"/>
+                <circle cx="50" cy="50" r="38" fill="transparent" stroke="${cc}" stroke-width="10"/>
                 <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
             `;
         } else if(estado === 'endodoncia') {
@@ -5491,29 +7432,24 @@ function drawTeethRow(teethArray, patientOdontograma) {
             facesHtml = `
                 <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
                 ${baseFaces(false)}
-                <circle cx="50" cy="50" r="24" fill="${ec}" stroke="${S}" stroke-width="2"/>
-                <line x1="50" y1="26" x2="50" y2="74" stroke="white" stroke-width="3"/>
-                <line x1="38" y1="34" x2="62" y2="34" stroke="white" stroke-width="2.5"/>
-                <line x1="35" y1="50" x2="65" y2="50" stroke="white" stroke-width="2.5"/>
-                <line x1="38" y1="66" x2="62" y2="66" stroke="white" stroke-width="2.5"/>
-                <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
-            `;
-        } else if(estado === 'ortodoncia') {
-            const oc = tColor === 'azul' ? '#2563eb' : '#dc2626';
-            facesHtml = `
-                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
-                ${baseFaces(false)}
-                <rect x="30" y="42" width="40" height="16" rx="3" fill="${oc}" stroke="white" stroke-width="1.5"/>
-                <line x1="2" y1="50" x2="98" y2="50" stroke="${oc}" stroke-width="4"/>
+                <rect x="24" y="16" width="52" height="12" fill="${ec}"/>
+                <rect x="44" y="28" width="12" height="44" fill="${ec}"/>
+                <rect x="24" y="72" width="52" height="12" fill="${ec}"/>
                 <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
             `;
         } else if(estado === 'sello') {
             const sc = tColor === 'azul' ? '#2563eb' : '#dc2626';
             facesHtml = `
                 <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
+                ${baseFaces(true)}
+                <text x="50" y="56" font-size="54" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${sc}" font-family="Georgia,serif" opacity="0.88" pointer-events="none">S</text>
+            `;
+        } else if(estado === 'ortodoncia') {
+            const oc = tColor === 'azul' ? '#2563eb' : '#dc2626';
+            facesHtml = `
+                <rect x="2" y="2" width="96" height="96" fill="${BG}" stroke="${S}" stroke-width="2.5"/>
                 ${baseFaces(false)}
-                <circle cx="50" cy="50" r="18" fill="${sc}" opacity="0.85" stroke="white" stroke-width="2"/>
-                <circle cx="50" cy="50" r="10" fill="white" opacity="0.5"/>
+                <path d="M 62 20 C 62 20 28 20 28 42 C 28 62 72 40 72 62 C 72 82 38 82 38 82" stroke="${oc}" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                 <rect x="0" y="0" width="100" height="100" class="tooth-face cursor-pointer" data-tooth="${id}" data-face="center" fill="transparent" stroke="none"/>
             `;
         } else {
@@ -5523,16 +7459,24 @@ function drawTeethRow(teethArray, patientOdontograma) {
             `;
         }
 
-        return `
-        <div class="flex flex-col items-center tooth-box" data-tooth="${id}">
-            <span class="text-[9px] md:text-[11px] font-bold text-gray-600 w-full text-center leading-tight">${id}</span>
-            <div class="relative" style="width:48px;height:48px;">
+        const numSpan = `<span class="text-[9px] md:text-[11px] font-bold text-gray-600 w-full text-center leading-tight">${id}</span>`;
+        const svgBox = `<div class="relative tooth-svg-box">
                 <svg viewBox="0 0 100 100" class="w-full h-full" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.12));">
                     ${facesHtml}
                 </svg>
-            </div>
-        </div>
-        `;
+            </div>`;
+        // Fila inferior: número e indicador en la misma línea
+        // implante → cuadrado a la izquierda del número; corona-implante → rombo a la derecha
+        const lowerBottom = `<div class="tooth-ind-slot" style="justify-content:center;gap:2px;">
+            <div style="width:11px;height:11px;flex-shrink:0;">${estado === 'implante' ? indHtml : ''}</div>
+            <span class="text-[9px] md:text-[11px] font-bold text-gray-600 leading-tight">${id}</span>
+            <div style="width:11px;height:11px;flex-shrink:0;">${estado === 'corona-implante' ? indHtml : ''}</div>
+        </div>`;
+
+        const upperIndAlign = estado === 'corona-implante' ? 'flex-end' : 'flex-start';
+        return isUpper
+            ? `<div class="flex flex-col items-center tooth-box" data-tooth="${id}">${numSpan}${svgBox}<div class="tooth-ind-slot" style="justify-content:${upperIndAlign};">${indHtml}</div></div>`
+            : `<div class="flex flex-col items-center tooth-box" data-tooth="${id}">${svgBox}${lowerBottom}</div>`;
     }).join('');
 }
 
@@ -5543,6 +7487,13 @@ function renderClinicalHistory(patientId) {
     const latestClinicalImage = clinicalImages[0];
     const canEditClinical = canEditClinicalHistoryUi();
     const draft = getClinicalDraft(patientId);
+
+    // Tratamientos filtrados por profesional seleccionado
+    // Los tratamientos sin professionalId (null) se muestran para todos los profesionales
+    const selectedProfId = getCurrentOdontoProfessionalId();
+    const visibleTreatments = selectedProfId
+        ? (patient.treatments || []).filter(t => !t.professionalId || t.professionalId === selectedProfId)
+        : (patient.treatments || []);
 
     let age = '-';
     if(patient.fechaNacimiento) {
@@ -5557,8 +7508,8 @@ function renderClinicalHistory(patientId) {
             <div class="flex items-center gap-4 mb-4 md:mb-0">
                 <img src="favicon.svg" alt="Odentara" class="clinical-brand-logo">
                 <div>
-                    <h2 class="text-xl md:text-2xl font-black text-gray-900 tracking-tight uppercase">Circulo OdontolÃ³gico</h2>
-                    <p class="text-sm font-semibold text-primary-700">Ficha ClÃ­nica OdontolÃ³gica</p>
+                    <h2 class="text-xl md:text-2xl font-black text-gray-900 tracking-tight uppercase">${escapeHtml(getClinicDisplayName())}</h2>
+                    <p class="text-sm font-semibold text-primary-700">Ficha Clínica Odontológica</p>
                 </div>
             </div>
             <div class="text-right text-sm clinical-header-actions">
@@ -5576,18 +7527,33 @@ function renderClinicalHistory(patientId) {
                 <div class="clinical-info-summary">
                     <div><strong class="text-gray-600 uppercase text-xs">Obra Social / Plan</strong><div class="text-base font-semibold text-gray-800">${patient.obraSocial || '-'}</div></div>
                     <div><strong class="text-gray-600 uppercase text-xs">Credencial</strong><div class="text-base font-semibold text-gray-800">${patient.credencial || '-'}</div></div>
-                    <div><strong class="text-gray-600 uppercase text-xs">Ficha NÂ°</strong><div class="text-base font-semibold text-primary-700">${patient.fichaNumero || '-'}</div></div>
+                    <div><strong class="text-gray-600 uppercase text-xs">Ficha N°</strong><div class="text-base font-semibold text-primary-700">${patient.fichaNumero || '-'}</div></div>
                 </div>
                 <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Nacimiento</strong><div>${patient.fechaNacimiento ? patient.fechaNacimiento.split('-').reverse().join('/') : '-'}</div></div>
-                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Edad</strong><div>${age} aÃ±os</div></div>
-                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">TelÃ©fono</strong><div>${patient.phone || '-'}</div></div>
+                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Edad</strong><div>${age} años</div></div>
+                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Teléfono</strong><div>${patient.phone || '-'}</div></div>
                 <div class="clinical-info-item col-span-full"><strong class="text-gray-600 uppercase text-xs">Domicilio</strong><div>${patient.domicilio || '-'}</div></div>
             </div>
 
             <!-- ODONTOGRAMA -->
             <div class="mb-10 clinical-odontogram-block">
                 <div class="odontogram-header mb-4 clinical-odontogram-section">
-                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma Inicial</h3>
+                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma</h3>
+                    ${(() => {
+                        if (isSuperadmin()) {
+                            const profs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
+                            const selectedId = state.clinicalOdontoProfessionalId;
+                            return `<div class="odonto-prof-selector print-hidden">
+                                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Profesional:</label>
+                                <select id="odonto-prof-select" class="odonto-prof-select-input" onchange="window.changeOdontoProfessional(${patientId}, this.value)">
+                                    <option value="">— Seleccionar —</option>
+                                    ${profs.map(p => `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${p.name}${p.specialty ? ' · ' + p.specialty : ''}</option>`).join('')}
+                                </select>
+                            </div>`;
+                        }
+                        const profName = state.user?.assignedProfessionalName || '';
+                        return profName ? `<span class="text-xs text-gray-500 font-medium print-hidden">Dr/Dra. ${profName}</span>` : '';
+                    })()}
                 </div>
                 
                 <div class="odontogram-wrapper overflow-x-auto pb-4">
@@ -5595,28 +7561,41 @@ function renderClinicalHistory(patientId) {
                         <div class="w-full flex flex-col items-center gap-3">
                             <div class="text-[10px] md:text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Dentición Adulta</div>
                             <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma)} </div>
-                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([21,22,23,24,25,26,27,28], patient.odontograma)} </div>
+                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma, true)} </div>
+                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([21,22,23,24,25,26,27,28], patient.odontograma, true)} </div>
                             </div>
+                            <div class="odonto-jaw-gap"></div>
                             <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([48,47,46,45,44,43,42,41], patient.odontograma)} </div>
-                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([31,32,33,34,35,36,37,38], patient.odontograma)} </div>
+                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([48,47,46,45,44,43,42,41], patient.odontograma, false)} </div>
+                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([31,32,33,34,35,36,37,38], patient.odontograma, false)} </div>
                             </div>
                         </div>
 
-                        <div class="w-full max-w-4xl border-t border-dashed border-gray-300"></div>
-
-                        <div class="w-full flex flex-col items-center gap-3">
-                            <div class="text-[10px] md:text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Dentición Infantil</div>
+                        ${(() => { const _age = calcAge(patient.fechaNacimiento); const _show = _age !== null && _age < 13; return `
+                        <button class="odonto-infantil-toggle" onclick="window.toggleInfantilSection()">
+                            <span class="odonto-infantil-toggle-line"></span>
+                            <span>Dentición Infantil</span>
+                            <i id="odonto-infantil-icon" class="fa-solid ${_show ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+                            <span class="odonto-infantil-toggle-line"></span>
+                        </button>
+                        <div id="odonto-infantil-section" style="display:${_show ? 'flex' : 'none'};flex-direction:column;align-items:center;gap:12px;width:100%;">
                             <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma)} </div>
-                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma)} </div>
+                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma, true)} </div>
+                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma, true)} </div>
                             </div>
+                            <div class="odonto-jaw-gap"></div>
                             <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma)} </div>
-                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([71,72,73,74,75], patient.odontograma)} </div>
+                                <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma, false)} </div>
+                                <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([71,72,73,74,75], patient.odontograma, false)} </div>
                             </div>
-                        </div>
+                        </div>`; })()}
+                    </div>
+                </div>
+                <div class="odontogram-mobile-notice print-hidden">
+                    <i class="fa-solid fa-display"></i>
+                    <div>
+                        <strong>Odontograma no disponible</strong>
+                        <span>Accedé desde una tablet o computadora para ver y editar el odontograma.</span>
                     </div>
                 </div>
                 ${canEditClinical ? `
@@ -5630,26 +7609,33 @@ function renderClinicalHistory(patientId) {
                         </button>
                     </div>
                     <div class="odonto-treat-group">
-                        <button class="odonto-treat-btn is-active" data-treatment="" title="Libre">
-                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 16c-4 2.5-5.5 7-4 12.5.8 3.2 2.3 6.2 3.1 9.1.7 2.7 2.2 4.4 4.3 4.4 2.9 0 2.7-6.2 5.6-6.2s2.7 6.2 5.6 6.2c2.1 0 3.6-1.7 4.3-4.4.8-2.9 2.3-5.9 3.1-9.1 1.5-5.5 0-10-4-12.5-3.1-1.9-5.8 1.1-9 1.1S18.1 14.1 15 16z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M31 7l6 5M29 10l5-5 6 6-5 5z" fill="#f5eeeb" stroke="#c08080" stroke-width="1.8" stroke-linejoin="round"/><path d="M17 14c5-4 10-4.8 15-2" fill="none" stroke="#d44" stroke-width="2.2" stroke-linecap="round"/><path d="M18 24c3 1.4 8.8 1.4 12 0" fill="none" stroke="#d44" stroke-width="1.8" stroke-linecap="round"/></svg>
+                        <button class="odonto-treat-btn is-active" data-treatment="" title="Arreglo">
+                            <img src="/img/odonto/01-arreglo.jpg" alt="Arreglo" class="odonto-treat-img">
+                            <span class="odonto-treat-label">Arreglo</span>
                         </button>
-                        <button class="odonto-treat-btn" data-treatment="ausente" title="Extracción / Ausente">
-                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M17 17c-3.7 2.4-5 6.5-3.6 11.7.7 2.7 2 5.4 2.7 7.8.7 2.4 2 3.8 3.8 3.8 2.5 0 2.3-5.4 4.8-5.4s2.3 5.4 4.8 5.4c1.8 0 3.1-1.4 3.8-3.8.7-2.4 2-5.1 2.7-7.8 1.4-5.2.1-9.3-3.6-11.7-2.7-1.7-5.2.9-7.9.9S19.7 15.3 17 17z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M11 8c7 3.5 9.5 10 11.3 18M37 8c-7 3.5-9.5 10-11.3 18" fill="none" stroke="#c08080" stroke-width="2.4" stroke-linecap="round"/><path d="M19.8 25.8c1.2 2.4 7.2 2.4 8.4 0" fill="none" stroke="#d44" stroke-width="2.2" stroke-linecap="round"/><path d="M9 7c-1.6 5.7 1.1 11.2 6.7 13.2M39 7c1.6 5.7-1.1 11.2-6.7 13.2" fill="none" stroke="#d44" stroke-width="2.2" stroke-linecap="round"/></svg>
-                        </button>
-                        <button class="odonto-treat-btn" data-treatment="endodoncia" title="Endodoncia / Tratamiento de conducto">
-                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 16c-4 2.5-5.5 7-4 12.5.8 3.2 2.3 6.2 3.1 9.1.7 2.7 2.2 4.4 4.3 4.4 2.9 0 2.7-6.2 5.6-6.2s2.7 6.2 5.6 6.2c2.1 0 3.6-1.7 4.3-4.4.8-2.9 2.3-5.9 3.1-9.1 1.5-5.5 0-10-4-12.5-3.1-1.9-5.8 1.1-9 1.1S18.1 14.1 15 16z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M24 5v30" fill="none" stroke="#d44" stroke-width="2.1" stroke-linecap="round"/><path d="M21 8h6M21.5 12h5M22 16h4M22 20h4M22.5 24h3" fill="none" stroke="#d44" stroke-width="1.4" stroke-linecap="round"/><path d="M19 24c2.7 1.8 7.3 1.8 10 0" fill="none" stroke="#c08080" stroke-width="1.6" stroke-linecap="round"/></svg>
+                        <button class="odonto-treat-btn" data-treatment="ausente" title="Extracción">
+                            <img src="/img/odonto/02-extraccion.jpg" alt="Extracción" class="odonto-treat-img">
+                            <span class="odonto-treat-label">Extracción</span>
                         </button>
                         <button class="odonto-treat-btn" data-treatment="implante" title="Implante">
-                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M14 18c-3.2 2.7-4.2 7-2.9 11.8.8 3 2.2 5.8 2.9 8.4.6 2.2 1.8 3.7 3.5 3.7 2.4 0 2.3-5.8 6.5-5.8s4.1 5.8 6.5 5.8c1.7 0 2.9-1.5 3.5-3.7.7-2.6 2.1-5.4 2.9-8.4 1.3-4.8.3-9.1-2.9-11.8" fill="none" stroke="#c08080" stroke-width="1.8" stroke-linecap="round"/><path d="M19 9h10l3 4-3 4H19l-3-4z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M20 17h8l-1.2 21-2.8 4-2.8-4z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M20 22l8-3M20 27l7.5-3M20.5 32l7-3M21 37l5.5-2.2" fill="none" stroke="#d44" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            <img src="/img/odonto/03-implante.jpg" alt="Implante" class="odonto-treat-img">
+                            <span class="odonto-treat-label">Implante</span>
                         </button>
-                        <button class="odonto-treat-btn" data-treatment="corona" title="Corona">
-                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 21c-3.3 2.5-4.4 6.3-3.1 11 .8 2.7 2 5.1 2.7 7.2.6 1.8 1.8 3 3.5 3 2.6 0 2.7-4.9 5.9-4.9s3.3 4.9 5.9 4.9c1.7 0 2.9-1.2 3.5-3 .7-2.1 1.9-4.5 2.7-7.2 1.3-4.7.2-8.5-3.1-11" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M13 24c2.8-10 6.1-14.5 11-14.5S32.2 14 35 24c-1.7 2.8-5.5 4.4-11 4.4S14.7 26.8 13 24z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M16 23c2.6-2 3.8-5.6 5-8 1.2 2.4 2.2 4 3 4s1.8-1.6 3-4c1.2 2.4 2.4 6 5 8" fill="none" stroke="#d44" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <button class="odonto-treat-btn" data-treatment="corona" title="Corona sobre diente">
+                            <img src="/img/odonto/04-corona-sobre-diente.jpg" alt="Corona sobre diente" class="odonto-treat-img">
+                            <span class="odonto-treat-label">Corona sobre diente</span>
                         </button>
-                        <button class="odonto-treat-btn" data-treatment="ortodoncia" title="Ortodoncia / Brackets">
-                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 16c-4 2.5-5.5 7-4 12.5.8 3.2 2.3 6.2 3.1 9.1.7 2.7 2.2 4.4 4.3 4.4 2.9 0 2.7-6.2 5.6-6.2s2.7 6.2 5.6 6.2c2.1 0 3.6-1.7 4.3-4.4.8-2.9 2.3-5.9 3.1-9.1 1.5-5.5 0-10-4-12.5-3.1-1.9-5.8 1.1-9 1.1S18.1 14.1 15 16z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M10 27c8.8 2.6 19.2 2.6 28 0" fill="none" stroke="#d44" stroke-width="2.2" stroke-linecap="round"/><path d="M18 24h12v8H18z" fill="#f5eeeb" stroke="#d44" stroke-width="1.8" stroke-linejoin="round"/><path d="M24 24v8M18 28h12" fill="none" stroke="#d44" stroke-width="1.4" stroke-linecap="round"/></svg>
+                        <button class="odonto-treat-btn" data-treatment="corona-implante" title="Corona sobre implante">
+                            <img src="/img/odonto/05-corona-sobre-implante.jpg" alt="Corona sobre implante" class="odonto-treat-img">
+                            <span class="odonto-treat-label">Corona sobre implante</span>
                         </button>
-                        <button class="odonto-treat-btn" data-treatment="sello" title="Sellante / Restauración">
-                            <svg viewBox="0 0 48 48" width="36" height="36" aria-hidden="true"><path d="M15 16c-4 2.5-5.5 7-4 12.5.8 3.2 2.3 6.2 3.1 9.1.7 2.7 2.2 4.4 4.3 4.4 2.9 0 2.7-6.2 5.6-6.2s2.7 6.2 5.6 6.2c2.1 0 3.6-1.7 4.3-4.4.8-2.9 2.3-5.9 3.1-9.1 1.5-5.5 0-10-4-12.5-3.1-1.9-5.8 1.1-9 1.1S18.1 14.1 15 16z" fill="#f5eeeb" stroke="#c08080" stroke-width="2" stroke-linejoin="round"/><path d="M18 25c1.1-3 3.1-4.7 6-4.7s4.9 1.7 6 4.7c-.8 3.3-2.8 5-6 5s-5.2-1.7-6-5z" fill="#f5eeeb" stroke="#d44" stroke-width="2" stroke-linejoin="round"/><path d="M21 25c1.8 1.3 4.2 1.3 6 0" fill="none" stroke="#d44" stroke-width="1.7" stroke-linecap="round"/></svg>
+                        <button class="odonto-treat-btn" data-treatment="sello" title="Sellante">
+                            <img src="/img/odonto/06-sellante.jpg" alt="Sellante" class="odonto-treat-img">
+                            <span class="odonto-treat-label">Sellante</span>
+                        </button>
+                        <button class="odonto-treat-btn" data-treatment="endodoncia" title="Endodoncia">
+                            <img src="/img/odonto/07-endodoncia.jpg" alt="Endodoncia" class="odonto-treat-img">
+                            <span class="odonto-treat-label">Endodoncia</span>
                         </button>
                     </div>
                     <div class="odonto-action-group">
@@ -5665,35 +7651,55 @@ function renderClinicalHistory(patientId) {
             </div>
 
             <!-- TRATAMIENTOS -->
-            <div class="mb-4">
-                    <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
-                        <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Registro de Tratamientos</h3>
-                    ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap print-hidden" id="btn-add-treatment"><i class="fa-solid fa-plus"></i> AÃ±adir Fila</button>' : ''}
+            <div class="mb-6">
+                <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-3">
+                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Registro de Tratamientos</h3>
+                    ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap print-hidden" id="btn-add-treatment"><i class="fa-solid fa-plus"></i> Añadir</button>' : ''}
                 </div>
-                <div class="table-container shadow-sm border border-gray-300 overflow-visible">
-                    <table class="w-full text-left text-xs md:text-sm" id="treatments-table">
-                        <thead class="bg-gray-50 border-b border-gray-300"><tr>
-                            <th class="py-2 px-3">Diente</th><th class="py-2 px-3">Cara</th><th class="py-2 px-3">Sector</th>
-                            <th class="py-2 px-3">AutorizaciÃ³n</th><th class="py-2 px-3">CÃ³digo</th><th class="py-2 px-3">Fecha / Firma</th><th class="py-2 px-3">Observaciones</th><th class="py-2 px-3 print-hidden"></th>
-                        </tr></thead>
+                <div class="table-container overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                    <table class="w-full text-left text-xs md:text-sm table-nowrap" id="treatments-table">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Diente</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] col-hide-sm">Cara</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] col-hide-sm">Sector</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] col-hide-sm">Autorización</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Código</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Fecha</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] col-hide-xs">Observaciones</th>
+                                <th class="py-2.5 px-3 print-hidden"></th>
+                            </tr>
+                        </thead>
                         <tbody>
-                            ${(patient.treatments||[]).map((t, idx) => `
-                                <tr class="border-b border-gray-100 hover:bg-gray-50">
-                                    <td class="py-2 px-3 font-bold">${t.diente}</td>
-                                    <td class="py-2 px-3">${t.cara}</td>
-                                    <td class="py-2 px-3">${t.sector}</td>
-                                    <td class="py-2 px-3">${t.autorizacion}</td>
-                                    <td class="py-2 px-3 font-mono">${t.codigo}</td>
-                                    <td class="py-2 px-3">${t.fecha}<br><span class="text-[10px] text-gray-500 font-medium">${t.firma}</span></td>
-                                    <td class="py-2 px-3 text-gray-600">${t.observaciones}</td>
-                                    <td class="py-2 px-3 print-hidden">
-                                    ${canEditClinical ? `
-                                        <button class="btn-ghost text-red-400 hover:text-red-600 p-1" onclick="deleteTreatment(${patientId}, ${t.id ?? idx})"><i class="fa-solid fa-times"></i></button>
-                                    ` : ''}
+                            ${visibleTreatments.map((t, idx) => `
+                                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                    <td class="py-2.5 px-3 font-bold text-primary-700">${t.diente}</td>
+                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${t.cara || '-'}</td>
+                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${t.sector || '-'}</td>
+                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${t.autorizacion || '-'}</td>
+                                    <td class="py-2.5 px-3 font-mono text-primary-600 font-semibold">${t.codigo || '-'}</td>
+                                    <td class="py-2.5 px-3">
+                                        <div class="text-gray-800 font-medium">${t.fecha || '-'}</div>
+                                        ${t.firma ? `<div class="text-[10px] text-gray-400 mt-0.5">${t.firma}</div>` : ''}
+                                    </td>
+                                    <td class="py-2.5 px-3 text-gray-500 max-w-xs col-hide-xs">${t.observaciones || '-'}</td>
+                                    <td class="py-2 px-2 print-hidden">
+                                        ${canEditClinical ? `
+                                        <button class="btn-ghost text-gray-300 hover:text-red-500 p-1 transition-colors rounded" onclick="deleteTreatment(${patientId}, ${t.id ?? idx})" title="Eliminar">
+                                            <i class="fa-solid fa-trash-can text-xs"></i>
+                                        </button>` : ''}
                                     </td>
                                 </tr>
                             `).join('')}
-                            ${!(patient.treatments||[]).length ? '<tr><td colspan="8" class="text-center py-4 text-gray-400 italic">No hay tratamientos registrados en la ficha.</td></tr>' : ''}
+                            ${!visibleTreatments.length ? `
+                            <tr>
+                                <td colspan="8" class="text-center py-10 text-gray-400">
+                                    <div class="flex flex-col items-center gap-2">
+                                        <i class="fa-solid fa-clipboard text-2xl opacity-30"></i>
+                                        <span class="text-sm">No hay tratamientos registrados</span>
+                                    </div>
+                                </td>
+                            </tr>` : ''}
                         </tbody>
                     </table>
                 </div>
@@ -5701,7 +7707,7 @@ function renderClinicalHistory(patientId) {
 
             <div class="mb-4 print-hidden">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
-                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Imagenes Clinicas</h3>
+                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Imágenes Clínicas</h3>
                     ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Agregar Imagen</button>' : ''}
                 </div>
                 <div class="clinical-images-shell">
@@ -5723,7 +7729,7 @@ function renderClinicalHistory(patientId) {
                     ${clinicalImages.map((image, idx) => `
                         <article class="clinical-image-card">
                             <div class="clinical-image-actions">
-                                <button type="button" class="clinical-image-action-btn clinical-image-action-view" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
+                                <button type="button" class="clinical-image-action-btn clinical-image-action-view" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
                                     <i class="fa-solid fa-expand"></i>
                                     <span>Ver</span>
                                 </button>
@@ -5734,13 +7740,13 @@ function renderClinicalHistory(patientId) {
                                 </button>
                                 ` : ''}
                             </div>
-                            <button type="button" class="clinical-image-preview-button" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
+                            <button type="button" class="clinical-image-preview-button" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
                                 <img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.description || 'Imagen clínica')}" class="clinical-image-preview" onerror="this.style.display='none'; this.closest('.clinical-image-card')?.querySelector('.clinical-image-body')?.classList.add('clinical-image-body--error'); this.closest('.clinical-image-card')?.classList.add('clinical-image-card--broken');">
                             </button>
                             <div class="clinical-image-body">
                                 <div class="clinical-image-meta">
                                     <div class="clinical-image-date">${escapeHtml(formatClinicalImageDate(image.date))}</div>
-                                    <button type="button" class="clinical-image-inline-link" onclick="openClinicalImageViewer(${patientId}, ${image.id ?? idx})">
+                                    <button type="button" class="clinical-image-inline-link" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${image.id ?? idx})">
                                         Abrir
                                     </button>
                                 </div>
@@ -5803,11 +7809,9 @@ function bindClinicalToothEvents(patientId) {
             const toothState = draft.data.odontograma[tooth];
             const { color, treatment } = odontogramTool;
 
-            // LIMPIAR mode
+            // LIMPIAR mode — permanece activo hasta que se desactive explícitamente
             if (odontogramTool.clearing) {
                 delete draft.data.odontograma[tooth];
-                odontogramTool.clearing = false;
-                document.getElementById('btn-odonto-clear')?.classList.remove('is-clearing');
                 draft.isDirty = true;
                 renderClinicalOdontogram(patientId);
                 syncClinicalHistorySaveState();
@@ -5873,6 +7877,8 @@ function updateTreatBtnActiveStyle(btn) {
 function attachOdontogramToolbar(patientId) {
     const toolbar = document.getElementById('odontogram-toolbar');
     if (!toolbar) return;
+
+    odontogramTool.clearing = false;
 
     toolbar.querySelectorAll('.odonto-color-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -5961,28 +7967,34 @@ function renderClinicalOdontogram(patientId) {
             <div class="w-full flex flex-col items-center gap-3">
                 <div class="text-[10px] md:text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Dentición Adulta</div>
                 <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma)} </div>
-                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([21,22,23,24,25,26,27,28], patient.odontograma)} </div>
+                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma, true)} </div>
+                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([21,22,23,24,25,26,27,28], patient.odontograma, true)} </div>
                 </div>
+                <div class="odonto-jaw-gap"></div>
                 <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([48,47,46,45,44,43,42,41], patient.odontograma)} </div>
-                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([31,32,33,34,35,36,37,38], patient.odontograma)} </div>
+                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([48,47,46,45,44,43,42,41], patient.odontograma, false)} </div>
+                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([31,32,33,34,35,36,37,38], patient.odontograma, false)} </div>
                 </div>
             </div>
 
-            <div class="w-full max-w-4xl border-t border-dashed border-gray-300"></div>
-
-            <div class="w-full flex flex-col items-center gap-3">
-                <div class="text-[10px] md:text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Dentición Infantil</div>
+            ${(() => { const _age = calcAge(patient.fechaNacimiento); const _show = _age !== null && _age < 13; return `
+            <button class="odonto-infantil-toggle" onclick="window.toggleInfantilSection()">
+                <span class="odonto-infantil-toggle-line"></span>
+                <span>Dentición Infantil</span>
+                <i id="odonto-infantil-icon" class="fa-solid ${_show ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+                <span class="odonto-infantil-toggle-line"></span>
+            </button>
+            <div id="odonto-infantil-section" style="display:${_show ? 'flex' : 'none'};flex-direction:column;align-items:center;gap:12px;width:100%;">
                 <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma)} </div>
-                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma)} </div>
+                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma, true)} </div>
+                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma, true)} </div>
                 </div>
+                <div class="odonto-jaw-gap"></div>
                 <div class="flex gap-4 md:gap-8 justify-center min-w-max">
-                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma)} </div>
-                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([71,72,73,74,75], patient.odontograma)} </div>
+                    <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma, false)} </div>
+                    <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([71,72,73,74,75], patient.odontograma, false)} </div>
                 </div>
-            </div>
+            </div>`; })()}
         </div>
     `;
 
@@ -5999,6 +8011,19 @@ window.savePatientDetails = async function(patientId) {
         return;
     }
     return window.saveClinicalHistory(patientId);
+};
+
+window.changeOdontoProfessional = async function(patientId, professionalId) {
+    const profId = professionalId ? Number(professionalId) : null;
+    state.clinicalOdontoProfessionalId = profId;
+    if (!profId) return;
+    try {
+        await syncPatientClinicalData(patientId, profId);
+        setClinicalDraftFromPatient(DB.get('patients').find(p => p.id === patientId));
+        await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
+    } catch (error) {
+        showAlert(error.message || 'No se pudo cargar el odontograma.', { title: 'Odontograma', variant: 'error' });
+    }
 };
 
 window.saveClinicalHistory = async function(patientId) {
@@ -6023,6 +8048,8 @@ window.saveClinicalHistory = async function(patientId) {
         odontograma: deepClone(draft.data.odontograma || {})
     };
 
+    const odontoProfessionalId = getCurrentOdontoProfessionalId();
+
     try {
         await withAppLoading('Guardando historia clínica...', async () => {
             if (state.authToken) {
@@ -6033,13 +8060,14 @@ window.saveClinicalHistory = async function(patientId) {
                 await apiFetch(`/clinical-records/${patientId}`, {
                     method: 'PUT',
                     body: JSON.stringify({
+                        professionalId: odontoProfessionalId,
                         summaryNotes: mergedValues.notes || '',
                         allergies: mergedValues.allergies || null,
                         medicalNotes: mergedValues.medicalNotes || null,
                         odontogramEntries: legacyOdontogramToEntries(mergedValues.odontograma || {})
                     })
                 });
-                await syncPatientClinicalData(patientId);
+                await syncPatientClinicalData(patientId, odontoProfessionalId);
             } else {
                 DB.update('patients', patientId, mergedValues);
             }
@@ -6090,7 +8118,7 @@ window.deleteTreatment = async function(patientId, treatmentId) {
         try {
             if (state.authToken && Number.isInteger(Number(treatmentId))) {
                 await apiFetch(`/treatments/${treatmentId}`, { method: 'DELETE' });
-                await syncPatientClinicalData(patientId);
+                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
             } else {
                 const treatments = (p.treatments || []).filter((item, index) => (item.id ?? index) !== treatmentId);
                 DB.update('patients', patientId, { treatments });
@@ -6120,7 +8148,7 @@ window.deleteClinicalImage = async function(patientId, imageId) {
         try {
             if (state.authToken && Number.isInteger(Number(imageId))) {
                 await apiFetch(`/clinical-images/${imageId}`, { method: 'DELETE' });
-                await syncPatientClinicalData(patientId);
+                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
             } else {
                 const images = (p.clinicalImages || []).filter((item, index) => (item.id ?? index) !== imageId);
                 DB.update('patients', patientId, { clinicalImages: images });
@@ -6147,7 +8175,7 @@ function openTreatmentModal(patientId) {
         <div class="modal-overlay active">
             <div class="modal-content modal-content-treatment" onclick="event.stopPropagation()">
                 <div class="modal-header">
-                    <h3>AÃ±adir Tratamiento a Ficha</h3>
+                    <h3>Añadir Tratamiento a Ficha</h3>
                     <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
                 </div>
                 <form id="tx-history-form">
@@ -6158,20 +8186,27 @@ function openTreatmentModal(patientId) {
                             <div class="input-group flex-1"><label>Sector</label><input type="text" id="tx-sector" placeholder="1-6"></div>
                         </div>
                         <div class="treatment-form-row treatment-form-row-2">
-                            <div class="input-group flex-1"><label>AutorizaciÃ³n</label><input type="text" id="tx-auth" placeholder="NÂº Orden"></div>
-                            <div class="input-group flex-1"><label>CÃ³digo OS</label><input type="text" id="tx-codigo" placeholder="Ej: 01.01"></div>
+                            <div class="input-group flex-1"><label>Autorización</label><input type="text" id="tx-auth" placeholder="Nº Orden"></div>
+                            <div class="input-group flex-1"><label>Código OS</label><input type="text" id="tx-codigo" placeholder="Ej: 01.01"></div>
                         </div>
                         <div class="input-group"><label>Observaciones</label><input type="text" id="tx-obs" placeholder="Detalles del procedimiento..." required></div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">AÃ±adir a Tabla</button>
+                        <button type="submit" class="btn btn-primary">Añadir a Tabla</button>
                     </div>
                 </form>
             </div>
         </div>
     `;
-    
+
+    // ESC cierra el modal
+    const _escHandler = (e) => {
+        if (e.key !== 'Escape') return;
+        document.removeEventListener('keydown', _escHandler);
+        closeModal();
+    };
+    document.addEventListener('keydown', _escHandler);
     document.getElementById('tx-history-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const p = DB.get('patients').find(pt => pt.id === patientId);
@@ -6206,7 +8241,7 @@ function openTreatmentModal(patientId) {
                             performedAt: new Date().toISOString()
                         })
                     });
-                    await syncPatientClinicalData(patientId);
+                    await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
                 } else {
                     p.treatments.push(treatment);
                     DB.update('patients', patientId, { treatments: p.treatments });
@@ -6234,7 +8269,7 @@ function openClinicalImageModal(patientId) {
         <div class="modal-overlay active">
             <div class="modal-content modal-content-patient" onclick="event.stopPropagation()">
                 <div class="modal-header">
-                    <h3>Agregar Imagen Clinica</h3>
+                    <h3>Agregar Imagen Clínica</h3>
                     <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
                 </div>
                 <form id="clinical-image-form">
@@ -6244,23 +8279,30 @@ function openClinicalImageModal(patientId) {
                             <input type="date" id="clinical-image-date" value="${getTodayIsoLocal()}" required>
                         </div>
                         <div class="input-group">
-                            <label>Descripcion</label>
-                            <input type="text" id="clinical-image-description" placeholder="Ej: Radiografia panoramica inicial" required>
+                            <label>Descripción</label>
+                            <input type="text" id="clinical-image-description" placeholder="Ej: Radiografía panorámica inicial" required>
                         </div>
                         <div class="input-group">
-                            <label>Imagenes</label>
+                            <label>Imágenes</label>
                             <input type="file" id="clinical-image-file" accept="image/*" multiple required>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Guardar Imagenes</button>
+                        <button type="submit" class="btn btn-primary">Guardar Imágenes</button>
                     </div>
                 </form>
             </div>
         </div>
     `;
 
+    // ESC cierra el modal
+    const _escHandler = (e) => {
+        if (e.key !== 'Escape') return;
+        document.removeEventListener('keydown', _escHandler);
+        closeModal();
+    };
+    document.addEventListener('keydown', _escHandler);
     document.getElementById('clinical-image-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fileInput = document.getElementById('clinical-image-file');
@@ -6312,11 +8354,11 @@ function openClinicalImageModal(patientId) {
                             images: newImages.map((image) => ({
                                 imageUrl: image.dataUrl,
                                 description: image.description,
-                                takenAt: image.date
+                                takenAt: image.date ? image.date + 'T12:00:00' : null
                             }))
                         })
                     });
-                    await syncPatientClinicalData(patientId);
+                    await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
                 } else if (p) {
                     const images = (p.clinicalImages || []).slice();
                     images.push(...newImages);
