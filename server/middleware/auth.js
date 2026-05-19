@@ -45,12 +45,20 @@ async function requireAuth(req, res, next) {
 
       // Si el request viene de un subdominio específico, verificar que el token
       // pertenece a esa clínica. Evita usar el token de clínica-A en clínica-B.
+      // Solo se bloquea si el slug corresponde a una clínica real en la DB;
+      // dominios genéricos de hosting (ej: preview.hostinger.app) se ignoran.
       if (clinicSlug && clinic.slug !== clinicSlug) {
-        return res.status(403).json({
-          ok: false,
-          error: "Token no válido para esta clínica.",
-          code: "CLINIC_MISMATCH",
+        const slugClinic = await prisma.clinic.findUnique({
+          where: { slug: clinicSlug },
+          select: { id: true },
         });
+        if (slugClinic) {
+          return res.status(403).json({
+            ok: false,
+            error: "Token no válido para esta clínica.",
+            code: "CLINIC_MISMATCH",
+          });
+        }
       }
     }
 
