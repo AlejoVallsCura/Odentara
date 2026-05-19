@@ -56,8 +56,8 @@ router.get("/:patientId", requireAuth, async (req, res) => {
 
     // Buscar el registro clínico del profesional para este paciente
     const record = professionalId
-      ? await prisma.clinicalRecord.findUnique({
-          where: { patientId_professionalId: { patientId, professionalId } },
+      ? await prisma.clinicalRecord.findFirst({
+          where: { patientId, professionalId },
           include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
         })
       : null;
@@ -69,7 +69,8 @@ router.get("/:patientId", requireAuth, async (req, res) => {
       record: record ? serializeRecord(record) : null,
     });
   } catch (_error) {
-    return res.status(500).json({ ok: false, error: "No se pudo obtener la historia clínica." });
+    console.error("[clinical-records GET] error:", _error?.message, "| code:", _error?.code);
+    return res.status(500).json({ ok: false, error: "No se pudo obtener la historia clínica.", debug: _error?.code || _error?.message });
   }
 });
 
@@ -115,10 +116,12 @@ router.put("/:patientId", requireAuth, async (req, res) => {
       }));
 
     // Usar transacción explícita en lugar de upsert para evitar problemas de
-    // compatibilidad con Prisma + MariaDB en operaciones anidadas deleteMany/create
+    // compatibilidad con Prisma + MariaDB en operaciones anidadas deleteMany/create.
+    // findFirst en lugar de findUnique para no depender de que el índice compuesto
+    // esté correctamente configurado en la DB de producción.
     const record = await prisma.$transaction(async (tx) => {
-      const existing = await tx.clinicalRecord.findUnique({
-        where: { patientId_professionalId: { patientId, professionalId } },
+      const existing = await tx.clinicalRecord.findFirst({
+        where: { patientId, professionalId },
         select: { id: true },
       });
 
