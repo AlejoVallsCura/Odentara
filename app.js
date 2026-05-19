@@ -7886,6 +7886,10 @@ function attachOdontogramToolbar(patientId) {
 
     odontogramTool.clearing = false;
 
+    // Sincronizar estado interno con el botón activo del HTML (siempre arranca en rojo)
+    const activeColorBtn = toolbar.querySelector('.odonto-color-btn.is-active');
+    odontogramTool.color = activeColorBtn?.dataset.color || 'rojo';
+
     toolbar.querySelectorAll('.odonto-color-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             toolbar.querySelectorAll('.odonto-color-btn').forEach(b => b.classList.remove('is-active'));
