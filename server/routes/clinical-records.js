@@ -115,48 +115,58 @@ router.put("/:patientId", requireAuth, async (req, res) => {
         status: e.status,
       }));
 
-    // Usar transacción explícita en lugar de upsert para evitar problemas de
-    // compatibilidad con Prisma + MariaDB en operaciones anidadas deleteMany/create.
-    // findFirst en lugar de findUnique para no depender de que el índice compuesto
-    // esté correctamente configurado en la DB de producción.
-    const record = await prisma.$transaction(async (tx) => {
-      const existing = await tx.clinicalRecord.findFirst({
-        where: { patientId, professionalId },
-        select: { id: true },
-      });
+    // Operaciones separadas (sin transacción anidada) para evitar problemas de
+    // InnoDB/MariaDB con DELETE+INSERT en la misma TX sobre índices únicos con NULL.
+    const textData = {
+      summaryNotes: req.body.summaryNotes ?? null,
+      allergies:    req.body.allergies    ?? null,
+      medicalNotes: req.body.medicalNotes ?? null,
+    };
 
-      if (existing) {
-        // Actualizar notas + reemplazar odontograma completo
-        await tx.odontogramEntry.deleteMany({ where: { clinicalRecordId: existing.id } });
+    let existing = await prisma.clinicalRecord.findFirst({
+      where: { patientId, professionalId },
+      select: { id: true },
+    });
 
-        return tx.clinicalRecord.update({
-          where: { id: existing.id },
-          data: {
-            summaryNotes: req.body.summaryNotes ?? null,
-            allergies: req.body.allergies ?? null,
-            medicalNotes: req.body.medicalNotes ?? null,
-            odontogramEntries: {
-              create: odontogramEntries,
-            },
-          },
-          include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
+    if (!existing) {
+      // Crear el registro clínico base (sin entradas de odontograma aún)
+      try {
+        existing = await prisma.clinicalRecord.create({
+          data: { patientId, professionalId, ...textData },
+          select: { id: true },
         });
+      } catch (createErr) {
+        if (createErr?.code === "P2002") {
+          // Carrera: otro request lo creó entre el findFirst y el create
+          existing = await prisma.clinicalRecord.findFirst({
+            where: { patientId, professionalId },
+            select: { id: true },
+          });
+        } else {
+          throw createErr;
+        }
       }
-
-      // Crear nuevo registro clínico
-      return tx.clinicalRecord.create({
-        data: {
-          patientId,
-          professionalId,
-          summaryNotes: req.body.summaryNotes ?? null,
-          allergies: req.body.allergies ?? null,
-          medicalNotes: req.body.medicalNotes ?? null,
-          odontogramEntries: {
-            create: odontogramEntries,
-          },
-        },
-        include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
+    } else {
+      // Actualizar solo los campos de texto
+      await prisma.clinicalRecord.update({
+        where: { id: existing.id },
+        data: textData,
       });
+    }
+
+    // Reemplazar entradas de odontograma: borrar y recrear por separado
+    await prisma.odontogramEntry.deleteMany({ where: { clinicalRecordId: existing.id } });
+
+    if (odontogramEntries.length > 0) {
+      await prisma.odontogramEntry.createMany({
+        data: odontogramEntries.map((e) => ({ ...e, clinicalRecordId: existing.id })),
+        skipDuplicates: true,
+      });
+    }
+
+    const record = await prisma.clinicalRecord.findFirst({
+      where: { id: existing.id },
+      include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
     });
 
     return res.json({ ok: true, record: serializeRecord(record) });
