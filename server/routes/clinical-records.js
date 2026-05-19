@@ -137,11 +137,18 @@ router.put("/:patientId", requireAuth, async (req, res) => {
         });
       } catch (createErr) {
         if (createErr?.code === "P2002") {
-          // Carrera: otro request lo creó entre el findFirst y el create
+          // Carrera o constraint duplicado: intentar encontrar el registro
+          console.warn("[clinical-records PUT] P2002 al crear. meta:", JSON.stringify(createErr?.meta), "patientId:", patientId, "professionalId:", professionalId);
           existing = await prisma.clinicalRecord.findFirst({
             where: { patientId, professionalId },
             select: { id: true },
           });
+          if (!existing) {
+            // El P2002 vino de un constraint diferente a (patientId, professionalId)
+            // Buscar cualquier registro de ese paciente para dar contexto
+            const anyRecord = await prisma.clinicalRecord.findFirst({ where: { patientId }, select: { id: true, professionalId: true } });
+            console.error("[clinical-records PUT] findFirst post-P2002 devolvió null. anyRecord:", anyRecord);
+          }
         } else {
           throw createErr;
         }
@@ -152,6 +159,12 @@ router.put("/:patientId", requireAuth, async (req, res) => {
         where: { id: existing.id },
         data: textData,
       });
+    }
+
+    // Guardia: si por alguna race condition extrema el registro sigue sin resolverse, abortar limpio
+    if (!existing?.id) {
+      console.error("[clinical-records PUT] existing es null después de create/update. patientId:", patientId, "professionalId:", professionalId);
+      return res.status(500).json({ ok: false, error: "No se pudo resolver el registro clínico. Intentá de nuevo." });
     }
 
     // Reemplazar entradas de odontograma: borrar y recrear por separado
@@ -169,7 +182,7 @@ router.put("/:patientId", requireAuth, async (req, res) => {
       include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
     });
 
-    return res.json({ ok: true, record: serializeRecord(record) });
+    return res.json({ ok: true, record: record ? serializeRecord(record) : null });
   } catch (_error) {
     console.error("[clinical-records PUT] error:", _error?.message, "| code:", _error?.code, "| meta:", JSON.stringify(_error?.meta));
     return res.status(500).json({ ok: false, error: "No se pudo actualizar la historia clínica.", debug: _error?.code || _error?.message });

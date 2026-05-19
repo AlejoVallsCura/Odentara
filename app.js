@@ -1741,12 +1741,13 @@ function mapApiUserToSettings(user = {}) {
 }
 
 async function syncBackendSnapshotToLocalDb() {
+    const canManageUsers = (state.user?.roles || []).some(r => r === 'superadmin' || r === 'admin');
     const [professionalsRes, patientsRes, appointmentsRes, billingRes, usersRes] = await Promise.allSettled([
         apiFetch('/professionals'),
         apiFetch('/patients'),
         apiFetch('/appointments'),
         apiFetch('/billing'),
-        apiFetch('/users')
+        canManageUsers ? apiFetch('/users') : Promise.resolve({ users: [] })
     ]);
 
     if (professionalsRes.status === 'fulfilled') {
