@@ -21,9 +21,11 @@
 
 ![Dashboard](/.github/screenshots/dashboard.png)
 
-![Agenda de turnos](/.github/screenshots/turnos.png)
+![Agenda de turnos](/.github/screenshots/turnos-calendario.png)
 
-![Registro de pacientes](/.github/screenshots/pacientes.png)
+![Facturación y caja](/.github/screenshots/facturacion.png)
+
+![Historia clínica y odontograma](/.github/screenshots/historia-clinica.png)
 
 </div>
 
