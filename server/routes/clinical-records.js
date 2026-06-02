@@ -1,15 +1,14 @@
 const express = require("express");
 
-const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
-const { canEditClinicalData, canViewClinicalData } = require("../lib/permissions");
+const { canEditClinicalData, canViewClinicalData, canAccessWholeClinic } = require("../lib/permissions");
 
 const router = express.Router();
 
 function getProfessionalId(permissions, overrideId) {
-  // Superadmin puede ver/editar el registro de cualquier profesional
-  if (permissions.isSuperadmin) {
+  // Admin con acceso total puede ver/editar el registro de cualquier profesional
+  if (canAccessWholeClinic(permissions)) {
     return overrideId ? Number(overrideId) : null;
   }
   // Vínculo directo: Professional.userId = user.id
@@ -46,6 +45,7 @@ function serializeRecord(record) {
 
 router.get("/:patientId", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canViewClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para ver historia clínica." });
     }
@@ -79,12 +79,13 @@ router.get("/:patientId", requireAuth, async (req, res) => {
     });
   } catch (_error) {
     console.error("[clinical-records GET] error:", _error?.message, "| code:", _error?.code);
-    return res.status(500).json({ ok: false, error: "No se pudo obtener la historia clínica.", debug: _error?.code || _error?.message });
+    return res.status(500).json({ ok: false, error: "No se pudo obtener la historia clínica.", ...(process.env.NODE_ENV !== 'production' ? { debug: _error?.code || _error?.message } : {}) });
   }
 });
 
 router.put("/:patientId", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para editar historia clínica." });
     }
@@ -194,7 +195,7 @@ router.put("/:patientId", requireAuth, async (req, res) => {
     return res.json({ ok: true, record: record ? serializeRecord(record) : null });
   } catch (_error) {
     console.error("[clinical-records PUT] error:", _error?.message, "| code:", _error?.code, "| meta:", JSON.stringify(_error?.meta));
-    return res.status(500).json({ ok: false, error: "No se pudo actualizar la historia clínica.", debug: _error?.code || _error?.message });
+    return res.status(500).json({ ok: false, error: "No se pudo actualizar la historia clínica.", ...(process.env.NODE_ENV !== 'production' ? { debug: _error?.code || _error?.message } : {}) });
   }
 });
 

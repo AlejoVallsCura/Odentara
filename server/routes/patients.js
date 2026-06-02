@@ -1,6 +1,5 @@
 const express = require("express");
 
-const prisma = require("../lib/prisma");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
@@ -9,6 +8,7 @@ const {
   canEditPatient,
   canDeletePatient,
 } = require("../lib/permissions");
+const { sensitiveLimiter } = require("../middleware/rate-limit");
 
 const router = express.Router();
 
@@ -69,7 +69,7 @@ function getPatientPayload(body = {}) {
   };
 }
 
-async function validatePatientUniqueness(payload, clinicId, currentPatientId = null) {
+async function validatePatientUniqueness(prisma, payload, clinicId, currentPatientId = null) {
   const conflicts = [];
 
   const existingByDni = await prisma.patient.findFirst({
@@ -105,6 +105,7 @@ async function validatePatientUniqueness(payload, clinicId, currentPatientId = n
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     const search = String(req.query.q || "").trim();
     const accessWhere = buildPatientAccessWhere(req.permissions, req.user.clinicId);
 
@@ -150,6 +151,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.get("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     const patientId = Number(req.params.id);
 
     const patient = await prisma.patient.findFirst({
@@ -189,6 +191,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManagePatients(req.permissions)) {
       return res.status(403).json({
         ok: false,
@@ -205,7 +208,7 @@ router.post("/", requireAuth, async (req, res) => {
       });
     }
 
-    const conflicts = await validatePatientUniqueness(payload, req.user.clinicId);
+    const conflicts = await validatePatientUniqueness(prisma, payload, req.user.clinicId);
 
     if (conflicts.length > 0) {
       return res.status(409).json({
@@ -256,8 +259,9 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // ── POST /api/patients/import ─────────────────────────────────────────────────
-router.post("/import", requireAuth, async (req, res) => {
+router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManagePatients(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para crear pacientes." });
     }
@@ -266,8 +270,8 @@ router.post("/import", requireAuth, async (req, res) => {
     if (rows.length === 0) {
       return res.status(400).json({ ok: false, error: "No se recibieron filas para importar." });
     }
-    if (rows.length > 1000) {
-      return res.status(400).json({ ok: false, error: "Máximo 1000 pacientes por importación." });
+    if (rows.length > 500) {
+      return res.status(400).json({ ok: false, error: "Máximo 500 pacientes por importación." });
     }
 
     const clinicId = req.user.clinicId;
@@ -375,6 +379,7 @@ router.post("/import", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditPatient(req.permissions)) {
       return res.status(403).json({
         ok: false,
@@ -407,7 +412,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       });
     }
 
-    const conflicts = await validatePatientUniqueness(payload, req.user.clinicId, patientId);
+    const conflicts = await validatePatientUniqueness(prisma, payload, req.user.clinicId, patientId);
 
     if (conflicts.length > 0) {
       return res.status(409).json({
@@ -460,6 +465,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canDeletePatient(req.permissions)) {
       return res.status(403).json({
         ok: false,

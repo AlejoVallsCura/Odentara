@@ -1,6 +1,5 @@
 const express = require("express");
 
-const prisma = require("../lib/prisma");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
@@ -82,6 +81,7 @@ function normalizeExceptions(exceptions = []) {
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canViewProfessionals(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para ver profesionales." });
     }
@@ -133,6 +133,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.get("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canViewProfessionals(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para ver profesionales." });
     }
@@ -177,6 +178,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManageProfessionals(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para crear profesionales." });
     }
@@ -254,6 +256,7 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     const professionalId = Number(req.params.id);
 
     // Professionals can edit their own schedule only
@@ -356,6 +359,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManageProfessionals(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar profesionales." });
     }

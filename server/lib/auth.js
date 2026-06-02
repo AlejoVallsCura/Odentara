@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
 function normalizeEmail(email = "") {
@@ -12,8 +13,9 @@ function getJwtSecret() {
   return process.env.JWT_SECRET || "odentara-dev-secret-change-me";
 }
 
-function signToken(payload) {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: "7d" });
+function signToken(payload, options = {}) {
+  const jti = crypto.randomBytes(16).toString("hex");
+  return jwt.sign({ ...payload, jti }, getJwtSecret(), { expiresIn: "7d", ...options });
 }
 
 function verifyToken(token) {
@@ -73,10 +75,49 @@ function buildPermissionSummary(user) {
   };
 }
 
+/**
+ * Crea un token de intercambio de corta vida (2 min) que encapsula el JWT real.
+ * Se usa para pasar el token al subdominio de clínica via URL sin exponer el JWT principal.
+ * No requiere estado en el servidor — es auto-validante por firma.
+ */
+function signExchangeToken(rawJwt) {
+  return jwt.sign({ xjwt: rawJwt }, getJwtSecret(), { expiresIn: "2m" });
+}
+
+/**
+ * Verifica el token de intercambio y devuelve el JWT original.
+ * Lanza error si el token es inválido o expiró.
+ */
+function verifyExchangeToken(exchangeToken) {
+  const payload = jwt.verify(exchangeToken, getJwtSecret());
+  if (!payload.xjwt) throw new Error("Exchange token sin JWT embebido");
+  return payload.xjwt;
+}
+
+/**
+ * Token de corta vida (10 min) que acredita que el usuario verificó su contraseña
+ * y puede elegir entre las clínicas listadas en `userIds`.
+ */
+function signClinicSelectionToken(userIds) {
+  return jwt.sign({ type: "clinic-selection", userIds }, getJwtSecret(), { expiresIn: "10m" });
+}
+
+function verifyClinicSelectionToken(token) {
+  const payload = jwt.verify(token, getJwtSecret());
+  if (payload.type !== "clinic-selection" || !Array.isArray(payload.userIds)) {
+    throw new Error("Token de selección inválido");
+  }
+  return payload;
+}
+
 module.exports = {
   normalizeEmail,
   signToken,
   verifyToken,
+  signExchangeToken,
+  verifyExchangeToken,
+  signClinicSelectionToken,
+  verifyClinicSelectionToken,
   serializeUser,
   buildPermissionSummary,
 };

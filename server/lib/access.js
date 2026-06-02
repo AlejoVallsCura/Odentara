@@ -29,16 +29,17 @@ function buildPatientAccessWhere(permissions, clinicId) {
 
 function buildAppointmentAccessWhere(permissions, clinicId) {
   if (canAccessWholeClinic(permissions)) {
-    return { clinicId };
+    return { clinicId, deletedAt: null };
   }
 
   const ids = getAccessibleProfessionalIds(permissions);
   if (ids.length === 0) {
-    return { id: -1, clinicId };
+    return { id: -1, clinicId, deletedAt: null };
   }
 
   return {
     clinicId,
+    deletedAt: null,
     professionalId: { in: ids },
   };
 }

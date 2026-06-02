@@ -4,6 +4,7 @@ const bcrypt = require("bcrypt");
 const prisma = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { signToken } = require("../lib/auth");
+const { invalidateClinicPrisma } = require("../lib/clinic-prisma");
 
 const router = express.Router();
 
@@ -183,6 +184,11 @@ router.put("/clinics/:id", requireAuth, requirePlatformAdmin, async (req, res) =
       include: { _count: { select: { users: true, professionals: true, patients: true, appointments: true } } },
     });
 
+    // Invalidar el cache de Prisma si se modificó la databaseUrl
+    if (databaseUrl !== undefined) {
+      invalidateClinicPrisma(clinicId);
+    }
+
     return res.json({ ok: true, clinic: serializeClinic(clinic) });
   } catch (e) {
     if (e.code === "P2025") return res.status(404).json({ ok: false, error: "Clínica no encontrada." });
@@ -324,7 +330,24 @@ router.post("/login-as-clinic", requireAuth, requirePlatformAdmin, async (req, r
     }
 
     const { serializeUser } = require("../lib/auth");
-    const token = signToken({ userId: adminUser.id });
+    const token = signToken({ userId: adminUser.id, impersonatedBy: req.user.id }, { expiresIn: "2h" });
+
+    // Registrar en AuditLog
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId:     req.user.id,
+          entityType: "User",
+          entityId:   String(adminUser.id),
+          action:     "login",
+          beforeData: null,
+          afterData:  { impersonation: true, clinicId: Number(clinicId), impersonatedBy: req.user.id },
+        },
+      });
+    } catch (_e) {
+      // Audit no debe bloquear la operación
+    }
+
     return res.json({ ok: true, token, user: serializeUser(adminUser) });
   } catch (e) {
     console.error(e);
@@ -469,9 +492,9 @@ function serializeClinic(clinic) {
     active:      clinic.active,
     plan:        clinic.plan,
     notes:       clinic.notes,
-    dbType:      clinic.dbType || 'shared',
-    databaseUrl: clinic.databaseUrl || null,
-    createdAt:   clinic.createdAt,
+    dbType:         clinic.dbType || 'shared',
+    hasDedicatedDb: !!clinic.databaseUrl,
+    createdAt:      clinic.createdAt,
     updatedAt:   clinic.updatedAt,
     stats: {
       users:         clinic._count?.users         || 0,

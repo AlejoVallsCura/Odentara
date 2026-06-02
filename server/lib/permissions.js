@@ -19,6 +19,7 @@ function getAccessibleProfessionalIds(permissions) {
 function canManagePatients(permissions) {
   return (
     hasRole(permissions, "superadmin") ||
+    hasRole(permissions, "admin") ||
     hasRole(permissions, "secretary")
   );
 }

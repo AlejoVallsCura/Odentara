@@ -80,4 +80,21 @@ const sensitiveLimiter = rateLimit({
   },
 });
 
-module.exports = { apiLimiter, authLimiter, sensitiveLimiter, forgotPasswordLimiter };
+// Formulario de contacto landing: 5 envíos / hora por IP
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipLocalhost,
+  message: {
+    ok: false,
+    error: "Demasiados envios. Intentá de nuevo en 1 hora.",
+  },
+  handler(req, res, _next, options) {
+    logSecurityEvent("RATE_LIMIT_EXCEEDED", req, { limit: "contact-form" });
+    res.status(options.statusCode).json(options.message);
+  },
+});
+
+module.exports = { apiLimiter, authLimiter, sensitiveLimiter, forgotPasswordLimiter, contactLimiter };

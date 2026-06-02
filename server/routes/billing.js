@@ -1,6 +1,5 @@
 const express = require("express");
 
-const prisma = require("../lib/prisma");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
@@ -65,7 +64,7 @@ function canUseProfessional(permissions, professionalId) {
   return getAccessibleProfessionalIds(permissions).includes(Number(professionalId));
 }
 
-async function ensureAccessibleAppointment(permissions, appointmentId, patientId) {
+async function ensureAccessibleAppointment(prisma, permissions, appointmentId, patientId) {
   if (!appointmentId) return true;
 
   const appointment = await prisma.appointment.findFirst({
@@ -84,6 +83,7 @@ async function ensureAccessibleAppointment(permissions, appointmentId, patientId
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canViewBilling(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para ver facturacion." });
     }
@@ -114,6 +114,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManageBilling(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para crear movimientos." });
     }
@@ -151,8 +152,13 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes acceso al profesional indicado." });
     }
 
-    if (!(await ensureAccessibleAppointment(req.permissions, appointmentId, patientId))) {
+    if (!(await ensureAccessibleAppointment(prisma, req.permissions, appointmentId, patientId))) {
       return res.status(403).json({ ok: false, error: "No tenes acceso al turno indicado." });
+    }
+
+    const parsedAmount = parseFloat(req.body.amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ ok: false, error: "El monto debe ser un número válido no negativo." });
     }
 
     const created = await prisma.billingEntry.create({
@@ -162,7 +168,7 @@ router.post("/", requireAuth, async (req, res) => {
         appointmentId,
         createdByUserId: req.user.id,
         type,
-        amount: req.body.amount,
+        amount: parsedAmount,
         currency: req.body.currency ? String(req.body.currency).trim().toUpperCase() : "ARS",
         description: req.body.description ? String(req.body.description).trim() : null,
         date: parseDateOnlyInput(req.body.date),
@@ -182,6 +188,7 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManageBilling(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para editar movimientos." });
     }
@@ -219,8 +226,17 @@ router.put("/:id", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: "Debes asignar un profesional al movimiento." });
     }
 
-    if (!(await ensureAccessibleAppointment(req.permissions, appointmentId, existing.patientId))) {
+    if (!(await ensureAccessibleAppointment(prisma, req.permissions, appointmentId, existing.patientId))) {
       return res.status(403).json({ ok: false, error: "No tenes acceso al turno indicado." });
+    }
+
+    let updatedAmount = existing.amount;
+    if (req.body.amount !== undefined) {
+      const parsedAmount = parseFloat(req.body.amount);
+      if (isNaN(parsedAmount) || parsedAmount < 0) {
+        return res.status(400).json({ ok: false, error: "El monto debe ser un número válido no negativo." });
+      }
+      updatedAmount = parsedAmount;
     }
 
     const updated = await prisma.billingEntry.update({
@@ -229,7 +245,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         professionalId,
         appointmentId,
         type: req.body.type && VALID_TYPES.has(req.body.type) ? req.body.type : existing.type,
-        amount: req.body.amount !== undefined ? req.body.amount : existing.amount,
+        amount: updatedAmount,
         currency: req.body.currency ? String(req.body.currency).trim().toUpperCase() : existing.currency,
         description: req.body.description !== undefined ? (req.body.description ? String(req.body.description).trim() : null) : existing.description,
         date: req.body.date ? parseDateOnlyInput(req.body.date) : existing.date,
@@ -249,6 +265,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManageBilling(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar movimientos." });
     }

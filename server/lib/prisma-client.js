@@ -1,22 +1,18 @@
 const { PrismaClient } = require("@prisma/client");
 const { PrismaMariaDb } = require("@prisma/adapter-mariadb");
 
-function getDatabaseUrl() {
-  const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+function buildMariaDbAdapter(databaseUrl) {
+  const url = databaseUrl || String(process.env.DATABASE_URL || "").trim();
 
-  if (!databaseUrl) {
+  if (!url) {
     throw new Error("DATABASE_URL no está configurada.");
   }
 
-  return databaseUrl;
-}
-
-function buildMariaDbAdapter() {
-  const parsedUrl = new URL(getDatabaseUrl());
+  const parsedUrl = new URL(url);
   const database = parsedUrl.pathname.replace(/^\//, "");
 
   if (!database) {
-    throw new Error("DATABASE_URL no incluye el nombre de la base de datos.");
+    throw new Error("La URL de base de datos no incluye el nombre de la base de datos.");
   }
 
   return new PrismaMariaDb({
@@ -28,13 +24,11 @@ function buildMariaDbAdapter() {
   });
 }
 
-function createPrismaClient() {
+function createPrismaClient(databaseUrl) {
   return new PrismaClient({
-    adapter: buildMariaDbAdapter(),
+    adapter: buildMariaDbAdapter(databaseUrl),
     log: ["warn", "error"],
   });
 }
 
-module.exports = {
-  createPrismaClient,
-};
+module.exports = { createPrismaClient };

@@ -25,17 +25,28 @@ const appointmentRoutes = require("./routes/appointments");
 const billingRoutes = require("./routes/billing");
 const clinicalImageRoutes = require("./routes/clinical-images");
 const clinicalRecordRoutes = require("./routes/clinical-records");
+const contactRoutes = require("./routes/contact");
 const patientRoutes = require("./routes/patients");
 const professionalRoutes = require("./routes/professionals");
 const treatmentRoutes = require("./routes/treatments");
 const userRoutes = require("./routes/users");
 const platformRoutes = require("./routes/platform");
+const { startReminderScheduler, sendPendingReminders } = require("./lib/reminder-scheduler");
 
 const app = express();
 app.set("trust proxy", 1); // necesario para rate-limit detrás de reverse proxy (Hostinger, nginx)
 const PORT = Number(process.env.PORT || 3001);
 const HOST = "0.0.0.0";
 const WEB_ROOT = path.resolve(__dirname, "..");
+const LANDING_ROOT = path.resolve(__dirname, "..", "landing");
+
+// Hostnames que sirven la landing pública (odentara.com)
+const LANDING_HOSTNAMES = new Set(["odentara.com", "www.odentara.com"]);
+
+function isLandingHost(req) {
+  const host = (req.hostname || req.headers.host || "").split(":")[0].toLowerCase();
+  return LANDING_HOSTNAMES.has(host);
+}
 
 function getDatabaseDebugInfo() {
   try {
@@ -84,15 +95,29 @@ app.use(
   })
 );
 
+const ALLOWED_ORIGIN_RE = /^https?:\/\/(localhost(:\d+)?|127\.0\.0\.1(:\d+)?|(.+\.)?odentara\.com)$/;
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Las peticiones sin Origin (same-origin, Postman en dev, curl) se permiten siempre
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGIN_RE.test(origin)) return callback(null, true);
+      callback(new Error("CORS: origen no permitido"));
+    },
     credentials: true,
   })
 );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(WEB_ROOT, { extensions: ["html"] }));
+
+// Servir assets estáticos según hostname:
+// odentara.com → landing/   |   app/clinic → WEB_ROOT
+app.use((req, res, next) => {
+  if (isLandingHost(req)) {
+    return express.static(LANDING_ROOT)(req, res, next);
+  }
+  express.static(WEB_ROOT, { extensions: ["html"] })(req, res, next);
+});
 
 // --- Resolución de subdominio de clínica ---
 app.use(clinicResolver);
@@ -146,17 +171,51 @@ app.use("/api/appointments", appointmentRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/clinical-images", clinicalImageRoutes);
 app.use("/api/clinical-records", clinicalRecordRoutes);
+app.use("/api/contact", contactRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/professionals", professionalRoutes);
 app.use("/api/treatments", treatmentRoutes);
 app.use("/api/users", sensitiveLimiter, userRoutes); // usuarios: límite estricto
 app.use("/api/platform", platformRoutes);             // panel de plataforma (solo platform admin)
 
-app.get("/", (_req, res) => {
+// Rutas de dev/debug — solo en desarrollo
+if (process.env.NODE_ENV !== "production") {
+  // Preview de landing desde localhost sin necesitar el dominio odentara.com
+  app.use("/landing-preview", express.static(LANDING_ROOT));
+  app.get("/landing-preview", (_req, res) => res.sendFile(path.join(LANDING_ROOT, "index.html")));
+
+  app.post("/api/debug/send-reminders", async (_req, res) => {
+    try {
+      await sendPendingReminders();
+      res.json({ ok: true, message: "Recordatorios procesados. Revisá la consola." });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+}
+
+// ── Rutas HTML ────────────────────────────────────────────────────────────────
+// Landing (odentara.com): sirve index.html y terminos.html desde landing/
+// App/clínicas (app.odentara.com, clinica.odentara.com): sirve SPA desde WEB_ROOT
+
+app.get("/", (req, res) => {
+  if (isLandingHost(req)) {
+    return res.sendFile(path.join(LANDING_ROOT, "index.html"));
+  }
   res.sendFile(path.join(WEB_ROOT, "index.html"));
 });
 
-app.get(/^\/(?!api\/).*/, (_req, res) => {
+app.get("/terminos", (req, res) => {
+  if (isLandingHost(req)) {
+    return res.sendFile(path.join(LANDING_ROOT, "terminos.html"));
+  }
+  res.sendFile(path.join(WEB_ROOT, "index.html"));
+});
+
+app.get(/^\/(?!api\/).*/, (req, res) => {
+  if (isLandingHost(req)) {
+    return res.sendFile(path.join(LANDING_ROOT, "index.html"));
+  }
   res.sendFile(path.join(WEB_ROOT, "index.html"));
 });
 
@@ -169,4 +228,5 @@ app.use((req, res) => {
 
 app.listen(PORT, HOST, () => {
   console.log(`Odentara escuchando en http://${HOST}:${PORT}`);
+  startReminderScheduler();
 });

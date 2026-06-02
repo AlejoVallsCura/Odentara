@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Odentara | Software odontologico para consultorios</title>
+  <meta name="description" content="Odentara es un SaaS para consultorios odontologicos que centraliza agenda, pacientes, historias clinicas, odontograma, finanzas y equipos." />
+  <link rel="icon" type="image/svg+xml" href="assets/odentara-logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="odentara.css?v=20260601" />
+</head>
+<body>
+  <header class="site-header is-hero" data-site-header>
+    <a class="brand" href="#inicio" aria-label="Ir al inicio de Odentara">
+      <img src="assets/odentara-logo.svg" alt="" class="brand__mark" />
+      <span class="brand__name">Odentara</span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" data-nav-toggle>
+      <i class="fa-solid fa-bars"></i>
+    </button>
+
+    <nav class="site-nav" data-site-nav aria-label="Navegacion principal">
+      <a href="#producto">Producto</a>
+      <a href="#modulos">Modulos</a>
+      <a href="#secretaria-ia">Secretar-IA</a>
+      <a href="#planes">Planes</a>
+      <a href="#contacto">Demo</a>
+    </nav>
+
+    <div class="header-actions">
+      <a class="header-link" href="https://app.odentara.com" target="_self" rel="noopener">Iniciar sesion</a>
+      <a class="button button--small" href="#contacto"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i> Solicitar demo</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- ═══ HERO ═══════════════════════════════════════════════════════ -->
+    <section class="hero" id="inicio">
+      <div class="hero__bg" aria-hidden="true">
+        <div class="hero__orb hero__orb--1"></div>
+        <div class="hero__orb hero__orb--2"></div>
+        <div class="hero__orb hero__orb--3"></div>
+        <div class="hero__grid-pattern"></div>
+      </div>
+
+      <div class="hero__content">
+        <p class="eyebrow">SaaS para consultorios odontologicos</p>
+        <h1>Odentara</h1>
+        <p class="hero__lead">El software para gestionar agenda, pacientes, historias clinicas, odontograma, finanzas y equipos. Todo en un solo lugar, para cada persona del equipo.</p>
+        <div class="hero__actions" aria-label="Acciones principales">
+          <a class="button" href="#contacto"><i class="fa-solid fa-play" aria-hidden="true"></i> Ver demo comercial</a>
+          <a class="button button--ghost" href="#producto"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Explorar plataforma</a>
+        </div>
+        <div class="hero__proof" aria-label="Indicadores de producto">
+          <span><i class="fa-solid fa-check-circle" aria-hidden="true"></i> Gestion completa del consultorio</span>
+          <span><i class="fa-solid fa-check-circle" aria-hidden="true"></i> Roles para cada equipo</span>
+          <span><i class="fa-solid fa-check-circle" aria-hidden="true"></i> Secretar-IA opcional</span>
+        </div>
+      </div>
+
+      <div class="product-preview" aria-label="Vista previa del software Odentara">
+        <div class="preview-glow" aria-hidden="true"></div>
+        <div class="preview-shell">
+          <div class="preview-topbar">
+            <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            <span data-preview-title>Dashboard</span>
+            <strong>Odentara.app</strong>
+          </div>
+          <div class="preview-body">
+            <aside class="preview-sidebar" aria-label="Vistas de producto">
+              <div class="preview-logo"><img src="assets/odentara-logo.svg" alt="" /></div>
+              <button class="is-active" type="button" data-preview-view="dashboard" aria-pressed="true"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> Dashboard</button>
+              <button type="button" data-preview-view="appointments" aria-pressed="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i> Turnos</button>
+              <button type="button" data-preview-view="patients" aria-pressed="false"><i class="fa-regular fa-user" aria-hidden="true"></i> Pacientes</button>
+              <button type="button" data-preview-view="records" aria-pressed="false"><i class="fa-solid fa-tooth" aria-hidden="true"></i> Historias</button>
+              <button type="button" data-preview-view="billing" aria-pressed="false"><i class="fa-solid fa-cash-register" aria-hidden="true"></i> Caja</button>
+              <button type="button" data-preview-view="settings" aria-pressed="false"><i class="fa-solid fa-gear" aria-hidden="true"></i> Config.</button>
+              <div class="preview-autoplay-bar"><div class="preview-autoplay-fill" id="preview-autoplay-fill"></div></div>
+            </aside>
+            <div class="preview-main" data-preview-panel aria-live="polite">
+              <div class="metric-row">
+                <article><span>Turnos</span><strong>28</strong></article>
+                <article><span>Confirmados</span><strong>21</strong></article>
+                <article><span>Finanzas</span><strong>$1.2M</strong></article>
+              </div>
+              <div class="agenda-card">
+                <div class="agenda-head"><strong>Agenda profesional</strong><span>Martes</span></div>
+                <div class="appointment confirmed"><time>09:00</time><div><strong>Sofia Martinez</strong><span>Control + limpieza</span></div></div>
+                <div class="appointment current"><time>10:30</time><div><strong>Juan Perez</strong><span>Endodoncia pieza 36</span></div></div>
+                <div class="appointment pending"><time>12:00</time><div><strong>Carla Nunez</strong><span>Primera consulta</span></div></div>
+              </div>
+              <div class="clinical-strip">
+                <div><span>Odontograma</span><strong>18 piezas revisadas</strong></div>
+                <div class="teeth-row" aria-hidden="true"><span></span><span></span><span class="filled"></span><span></span><span class="alert"></span><span></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ TRUST BAND ════════════════════════════════════════════════ -->
+    <section class="trust-band" aria-label="Resumen de beneficios">
+      <div class="trust-item">
+        <div class="trust-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></div>
+        <div><strong>Menos planillas sueltas</strong><span>La informacion importante vive en un solo lugar.</span></div>
+      </div>
+      <div class="trust-item">
+        <div class="trust-icon"><i class="fa-solid fa-bolt" aria-hidden="true"></i></div>
+        <div><strong>Recepcion mas agil</strong><span>Turnos, pacientes y pagos se resuelven sin saltos.</span></div>
+      </div>
+      <div class="trust-item">
+        <div class="trust-icon"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i></div>
+        <div><strong>Clinica trazable</strong><span>Registros, imagenes y auditoria para decidir mejor.</span></div>
+      </div>
+    </section>
+
+    <!-- ═══ PRODUCTO ══════════════════════════════════════════════════ -->
+    <section class="section split" id="producto">
+      <div class="section-copy reveal">
+        <p class="eyebrow">Producto</p>
+        <h2>Todo el consultorio trabajando sobre la misma informacion.</h2>
+        <p>Odentara conecta recepcion, profesionales y administracion para que cada turno, paciente, tratamiento y movimiento financiero quede ordenado en un solo lugar.</p>
+      </div>
+      <div class="workflow">
+        <article class="reveal"><i class="fa-solid fa-user-plus" aria-hidden="true"></i><strong>Pacientes</strong><span>Fichas claras, datos de contacto, antecedentes y seguimiento accesibles antes de cada consulta.</span></article>
+        <article class="reveal"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i><strong>Agenda</strong><span>Turnos por profesional, estados, cambios y confirmaciones para que recepcion trabaje con menos interrupciones.</span></article>
+        <article class="reveal"><i class="fa-solid fa-tooth" aria-hidden="true"></i><strong>Clinica</strong><span>Historia clinica, odontograma, imagenes y tratamientos conectados al recorrido del paciente.</span></article>
+        <article class="reveal"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i><strong>Finanzas</strong><span>Caja, cobros, facturas y saldos separados para entender mejor la administracion del consultorio.</span></article>
+      </div>
+    </section>
+
+    <!-- ═══ MODULOS ════════════════════════════════════════════════════ -->
+    <section class="section section--dark" id="modulos">
+      <div class="section-heading reveal">
+        <p class="eyebrow">Modulos</p>
+        <h2>Todo lo que un equipo odontologico espera encontrar.</h2>
+      </div>
+      <div class="module-grid">
+        <article class="module-card reveal"><i class="fa-regular fa-calendar-check" aria-hidden="true"></i><h3>Agenda inteligente</h3><p>Turnos por profesional, duracion, estados y cambios de fecha para que recepcion trabaje con claridad.</p></article>
+        <article class="module-card reveal"><i class="fa-regular fa-address-card" aria-hidden="true"></i><h3>Pacientes</h3><p>Ficha completa, historial, contacto y contexto administrativo antes de cada atencion.</p></article>
+        <article class="module-card reveal"><i class="fa-solid fa-notes-medical" aria-hidden="true"></i><h3>Historias clinicas</h3><p>Evoluciones, tratamientos, odontograma y registros por pieza dental para el equipo clinico.</p></article>
+        <article class="module-card reveal"><i class="fa-regular fa-images" aria-hidden="true"></i><h3>Imagenes clinicas</h3><p>Archivo visual del paciente asociado al seguimiento odontologico y a sus consultas.</p></article>
+        <article class="module-card reveal"><i class="fa-solid fa-cash-register" aria-hidden="true"></i><h3>Finanzas</h3><p>Control de cobros, facturas, movimientos y tratamientos para mirar el negocio con datos.</p></article>
+        <article class="module-card reveal"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><h3>Roles y auditoria</h3><p>Permisos para administradores, secretarias y profesionales, con registro de actividad.</p></article>
+      </div>
+    </section>
+
+    <!-- ═══ OUTCOMES ══════════════════════════════════════════════════ -->
+    <section class="section section--dark outcomes">
+      <div class="outcome-panel reveal">
+        <div>
+          <p class="eyebrow">Resultados</p>
+          <h2>Mas control para crecer sin sumar desorden.</h2>
+        </div>
+        <div class="outcome-list">
+          <span><i class="fa-solid fa-check" aria-hidden="true"></i> Menos doble carga entre agenda, caja e historia clinica.</span>
+          <span><i class="fa-solid fa-check" aria-hidden="true"></i> Mejor continuidad de atencion entre profesionales.</span>
+          <span><i class="fa-solid fa-check" aria-hidden="true"></i> Informacion lista para administrar consultorios con multiples roles.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ SECRETAR-IA ════════════════════════════════════════════════ -->
+    <section class="section ai-secretary" id="secretaria-ia">
+      <!-- Decorative background -->
+      <div class="ais-bg" aria-hidden="true">
+        <div class="ais-orb"></div>
+        <div class="ais-pattern"></div>
+      </div>
+
+      <!-- Centered eyebrow + hero headline -->
+      <div class="ais-heading reveal">
+        <p class="eyebrow">Servicio adicional</p>
+        <h2 class="ais-h2">Secretar<span class="ais-ia">-IA</span></h2>
+        <p class="ais-tagline">Atencion por WhatsApp automatizada y a medida para tu consultorio.</p>
+      </div>
+
+      <!-- Three-column stage: copy | phone | features -->
+      <div class="ais-stage">
+
+        <!-- Left column: copy + CTA -->
+        <div class="ai-secretary-copy reveal">
+          <p>Odentara es el sistema principal de gestion. La Secretar-IA es un servicio extra y opcional para consultorios que quieren automatizar consultas, turnos, recordatorios y derivaciones por WhatsApp.</p>
+          <p>Se configura a medida segun tus horarios, profesionales, tratamientos, reglas de agenda y tono de atencion.</p>
+          <div class="ai-secretary-actions">
+            <a class="button button--violet" href="#contacto"><i class="fa-solid fa-comments" aria-hidden="true"></i> Cotizar Secretar-IA</a>
+            <span>No esta incluido por defecto en los planes del software. Se cotiza segun alcance, volumen y nivel de automatizacion.</span>
+          </div>
+        </div>
+
+        <!-- Center column: phone mockup -->
+        <div class="ais-phone-wrap reveal">
+          <div class="ais-phone">
+            <div class="ais-phone-notch"></div>
+            <div class="ais-phone-statusbar">
+              <time class="ais-time">9:41</time>
+              <span class="ais-status-icons">
+                <i class="fa-solid fa-signal" aria-hidden="true"></i>
+                <i class="fa-solid fa-wifi" aria-hidden="true"></i>
+                <i class="fa-solid fa-battery-full" aria-hidden="true"></i>
+              </span>
+            </div>
+            <div class="chat-preview" aria-label="Ejemplo de Secretar-IA por WhatsApp">
+              <div class="chat-top">
+                <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+                <div><strong>Secretar-IA</strong><span>Odentara conectado</span></div>
+              </div>
+              <div class="chat-bubble incoming">Hola, quiero pedir un turno para limpieza.</div>
+              <div class="chat-bubble outgoing">Claro. Tengo disponibilidad el martes 10:30 o jueves 16:00. ¿Cual preferis?</div>
+              <div class="chat-bubble incoming">Jueves 16:00.</div>
+              <div class="chat-bubble outgoing">Perfecto. Te reservo con Dra. Molina el jueves a las 16:00. Te enviaremos un recordatorio. <span class="chat-check">✓✓</span></div>
+            </div>
+            <div class="ais-phone-home"></div>
+          </div>
+          <div class="ais-float-badge" aria-hidden="true">
+            <span class="ais-float-dot"></span>
+            <span>Responde al momento</span>
+          </div>
+        </div>
+
+        <!-- Right column: feature grid -->
+        <div class="ai-feature-grid">
+          <article><i class="fa-solid fa-calendar-check" aria-hidden="true"></i><strong>Turnos</strong><span>Toma, confirma, reprograma o cancela segun tus reglas.</span></article>
+          <article><i class="fa-solid fa-clock" aria-hidden="true"></i><strong>Horarios</strong><span>Respeta disponibilidad, duraciones y profesionales.</span></article>
+          <article><i class="fa-solid fa-route" aria-hidden="true"></i><strong>Derivacion</strong><span>Pasa a una persona cuando el caso necesita criterio humano.</span></article>
+          <article><i class="fa-solid fa-sliders" aria-hidden="true"></i><strong>Personalizacion</strong><span>Flujos, mensajes y tono adaptados a cada clinica.</span></article>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ═══ PLANES ════════════════════════════════════════════════════ -->
+    <section class="section section--white" id="planes">
+      <div class="section-heading reveal">
+        <p class="eyebrow">Planes</p>
+        <h2>El plan que acompaña a tu consultorio.</h2>
+        <p class="section-lead">Cada plan incluye lo que el consultorio necesita segun su tamaño y equipo. Los precios se consultan directamente.</p>
+      </div>
+      <div class="pricing-grid">
+        <article class="price-card reveal">
+          <div class="plan-tier">Inicial</div>
+          <h3>Para el profesional independiente</h3>
+          <p>Ideal para arrancar sin papel ni planillas, con todo centralizado desde el primer dia.</p>
+          <ul class="price-features">
+            <li>1 profesional</li>
+            <li>Agenda y gestion de turnos</li>
+            <li>Pacientes e historia clinica</li>
+            <li>Odontograma completo</li>
+            <li>Soporte por email</li>
+          </ul>
+          <a class="button button--outline" href="#contacto">Consultar precio</a>
+        </article>
+
+        <article class="price-card price-card--featured reveal">
+          <span class="badge">Mas elegido</span>
+          <div class="plan-tier">Clinica</div>
+          <h3>Para el equipo completo</h3>
+          <p>Agenda, recepcion, clinica y administracion conectadas en un solo flujo de trabajo.</p>
+          <ul class="price-features">
+            <li>Hasta 3 profesionales</li>
+            <li>Usuarios administrativos</li>
+            <li>Historias clinicas y odontograma</li>
+            <li>Imagenes clinicas y tratamientos</li>
+            <li>Finanzas, caja y roles de acceso</li>
+          </ul>
+          <a class="button" href="#contacto">Solicitar demo</a>
+        </article>
+
+        <article class="price-card reveal">
+          <div class="plan-tier">Pro</div>
+          <h3>Para clinicas con mayor volumen</h3>
+          <p>Mas profesionales, mayor almacenamiento y control operativo para escalar sin desorden.</p>
+          <ul class="price-features">
+            <li>Profesionales sin limite</li>
+            <li>Auditoria y reportes avanzados</li>
+            <li>Soporte prioritario</li>
+            <li>Mayor almacenamiento de imagenes</li>
+            <li>Implementacion personalizada</li>
+          </ul>
+          <a class="button button--outline" href="#contacto">Hablar con ventas</a>
+        </article>
+      </div>
+
+      <div class="plan-addon reveal">
+        <div class="plan-addon-icon"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></div>
+        <div class="plan-addon-body">
+          <strong>Secretar-IA — servicio adicional opcional</strong>
+          <p>Bot de WhatsApp para atender consultas, confirmar turnos y enviar recordatorios en automatico. Se integra a cualquier plan y se cotiza segun alcance.</p>
+        </div>
+        <a class="button button--violet" href="#secretaria-ia"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Ver Secretar-IA</a>
+      </div>
+    </section>
+
+    <!-- ═══ CONTACTO ══════════════════════════════════════════════════ -->
+    <section class="section contact" id="contacto">
+      <div class="contact-copy reveal">
+        <p class="eyebrow">Demo comercial</p>
+        <h2>Mostrale a tu equipo como se veria Odentara en su rutina diaria.</h2>
+        <p>Contanos el tamaño del consultorio y que modulo te interesa priorizar. Te devolvemos una demo enfocada en tu flujo real de trabajo.</p>
+      </div>
+      <form class="contact-form reveal" action="/api/contact" method="post" data-contact-form>
+        <label class="form-honeypot" aria-hidden="true">Sitio web<input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+        <label>Nombre<input type="text" name="name" autocomplete="name" required placeholder="Tu nombre" /></label>
+        <label>Email<input type="email" name="email" autocomplete="email" required placeholder="tu@email.com" /></label>
+        <label>Teléfono<input type="tel" name="phone" autocomplete="tel" placeholder="+54 9 351 000-0000" /></label>
+        <label>Consultorio<input type="text" name="clinic" autocomplete="organization" required placeholder="Nombre del consultorio" /></label>
+        <label>Mensaje<textarea name="message" rows="4" placeholder="Quiero una demo para un equipo de..."></textarea></label>
+        <button class="button" type="submit"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Enviar solicitud</button>
+        <p class="form-note" data-form-note>Te respondemos por email para coordinar la demo.</p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a class="brand" href="#inicio" aria-label="Volver al inicio">
+      <img src="assets/odentara-logo.svg" alt="" class="brand__mark" />
+      <span class="brand__name">Odentara</span>
+    </a>
+    <span>Software odontologico para equipos que quieren trabajar con mas claridad.</span>
+    <nav class="footer-legal" aria-label="Legal">
+      <a href="/terminos">Terminos y condiciones</a>
+    </nav>
+  </footer>
+
+  <!-- Animation libraries (local copies) -->
+  <script src="vendor/gsap.min.js"></script>
+  <script src="vendor/ScrollTrigger.min.js"></script>
+  <script src="vendor/lenis.min.js"></script>
+  <script src="odentara.js?v=20260601"></script>
+</body>
+</html>

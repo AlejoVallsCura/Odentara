@@ -8,7 +8,7 @@
  */
 
 const PLATFORM_HOSTNAMES = new Set(['odentara.com', 'www.odentara.com', 'localhost', '127.0.0.1']);
-const PLATFORM_SUBDOMAINS = new Set(['www', 'admin', 'platform', 'api']);
+const PLATFORM_SUBDOMAINS = new Set(['www', 'admin', 'platform', 'api', 'app']);
 
 function extractClinicSlug(hostname = '') {
   // Quitar puerto

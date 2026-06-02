@@ -9,49 +9,123 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 
 <body class="bg-gray-50 text-gray-800 font-inter">
 
         <div id="login-view" class="view-section active">
-        <div class="login-container">
-            <div class="login-card">
-                <div class="login-theme-toggle-wrap">
+
+        <!-- LEFT: Brand panel (hidden on mobile) -->
+        <div class="login-brand-side">
+            <div class="login-brand-inner">
+                <div class="login-brand-logo-wrap">
+                    <img src="favicon.svg" alt="Odentara" class="login-brand-logo-img">
+                </div>
+                <h1 class="login-brand-name">Odentara</h1>
+                <p class="login-brand-tagline">El sistema de gestión diseñado para tu clínica odontológica.</p>
+                <div class="login-feature-list">
+                    <div class="login-feature-item">
+                        <div class="login-feature-icon"><i class="fa-solid fa-calendar-check"></i></div>
+                        <div>
+                            <strong>Agenda inteligente</strong>
+                            <span>Turnos, recordatorios y disponibilidad</span>
+                        </div>
+                    </div>
+                    <div class="login-feature-item">
+                        <div class="login-feature-icon"><i class="fa-solid fa-tooth"></i></div>
+                        <div>
+                            <strong>Historia clínica</strong>
+                            <span>Odontograma, tratamientos y seguimiento</span>
+                        </div>
+                    </div>
+                    <div class="login-feature-item">
+                        <div class="login-feature-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                        <div>
+                            <strong>Cuentas corrientes</strong>
+                            <span>Facturación y control de pagos</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Decorative orbs -->
+            <div class="login-orb login-orb-1"></div>
+            <div class="login-orb login-orb-2"></div>
+            <div class="login-orb login-orb-3"></div>
+        </div>
+
+        <!-- RIGHT: Form panel -->
+        <div class="login-form-side">
+            <div class="login-form-inner">
+
+                <!-- Theme toggle -->
+                <div class="login-form-topbar">
+                    <!-- Mobile: logo -->
+                    <div class="login-mobile-logo">
+                        <div class="login-mobile-logo-mark">
+                            <img src="favicon.svg" alt="Odentara" class="login-brand-logo-img">
+                        </div>
+                        <span>Odentara</span>
+                    </div>
                     <button type="button" class="theme-toggle-btn" data-theme-toggle aria-label="Cambiar tema" title="Cambiar tema">
                         <i class="fa-solid fa-moon"></i>
                     </button>
                 </div>
-                <div class="logo-container">
-                    <img src="favicon.svg" alt="Odentara" class="brand-logo-img logo-icon">
-                    <h2>Odentara.app</h2>
-                </div>
+
                 <!-- Panel: Login -->
                 <div id="login-panel">
-                    <p class="login-subtitle">Ingresa a tu cuenta</p>
+                    <div class="login-form-header">
+                        <h2>Bienvenido de nuevo</h2>
+                        <p>Ingresá tus credenciales para acceder</p>
+                    </div>
                     <form id="login-form">
                         <div class="input-group">
                             <label for="email">Email</label>
-                            <input type="email" id="email" required placeholder="tu@email.com">
+                            <input type="email" id="email" required placeholder="tu@email.com" autocomplete="email">
                         </div>
                         <div class="input-group">
                             <label for="password">Contraseña</label>
-                            <input type="password" id="password" placeholder="tu contraseña">
+                            <div class="pwd-wrap">
+                                <input type="password" id="password" placeholder="tu contraseña" style="padding-right:40px;" autocomplete="current-password">
+                                <button type="button" class="login-pwd-toggle" tabindex="-1"
+                                    onclick="const i=document.getElementById('password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
                         </div>
-                        <button type="submit" class="btn btn-primary w-full">Ingresar</button>
-                        <div style="text-align:center;margin-top:14px;">
+                        <div class="login-forgot-row">
                             <button type="button" id="forgot-password-link" class="login-link-btn">¿Olvidaste tu contraseña?</button>
+                        </div>
+                        <div id="login-error-msg" class="login-error-msg hidden"></div>
+                        <div id="turnstile-container"></div>
+                        <div class="login-submit-wrap">
+                            <button type="submit" id="login-submit-btn" class="btn btn-primary w-full" disabled>Ingresar</button>
                         </div>
                     </form>
                 </div>
 
+                <!-- Panel: Clinic selector (multi-clinic login) -->
+                <div id="clinic-picker-panel" class="hidden">
+                    <div class="login-form-header">
+                        <h2>Elegí tu clínica</h2>
+                        <p>Tu cuenta está registrada en varias clínicas. ¿A cuál querés ingresar?</p>
+                    </div>
+                    <div id="clinic-picker-list" class="clinic-picker-list"></div>
+                    <div style="text-align:center;margin-top:18px;">
+                        <button type="button" id="clinic-picker-back-btn" class="login-link-btn">← Volver al login</button>
+                    </div>
+                </div>
+
                 <!-- Panel: Forgot password -->
                 <div id="forgot-panel" class="hidden">
-                    <p class="login-subtitle">Recuperar contraseña</p>
-                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:20px;line-height:1.5;">Ingresá tu email y te enviamos un enlace para crear una nueva contraseña.</p>
+                    <div class="login-form-header">
+                        <h2>Recuperar contraseña</h2>
+                        <p>Ingresá tu email y te enviamos un enlace para crear una nueva contraseña.</p>
+                    </div>
                     <form id="forgot-form">
                         <div class="input-group">
                             <label for="forgot-email">Email</label>
-                            <input type="email" id="forgot-email" required placeholder="tu@email.com">
+                            <input type="email" id="forgot-email" required placeholder="tu@email.com" autocomplete="email">
                         </div>
                         <button type="submit" id="forgot-submit-btn" class="btn btn-primary w-full">Enviar enlace</button>
                         <div style="text-align:center;margin-top:14px;">
@@ -59,48 +133,58 @@
                         </div>
                     </form>
                     <div id="forgot-success" class="hidden" style="text-align:center;padding:12px 0;">
-                        <div style="font-size:32px;margin-bottom:12px;">📧</div>
-                        <p style="font-weight:600;color:var(--gray-800);margin-bottom:6px;">¡Listo! Revisá tu email</p>
-                        <p style="font-size:13px;color:var(--gray-500);line-height:1.5;">Si el email existe en el sistema, vas a recibir un enlace para restablecer tu contraseña en los próximos minutos.</p>
-                        <button type="button" id="forgot-back-btn" class="btn btn-ghost w-full" style="margin-top:18px;">Volver al login</button>
+                        <div style="font-size:36px;margin-bottom:14px;">📧</div>
+                        <p style="font-weight:700;color:var(--gray-800);margin-bottom:8px;font-size:1.05rem;">¡Revisá tu email!</p>
+                        <p style="font-size:13px;color:var(--gray-500);line-height:1.6;">Si el email existe en el sistema, vas a recibir un enlace para restablecer tu contraseña en los próximos minutos.</p>
+                        <button type="button" id="forgot-back-btn" class="btn btn-ghost w-full" style="margin-top:20px;">Volver al login</button>
                     </div>
                 </div>
 
-                <!-- Panel: Reset password (cuando llegan desde el link del email) -->
+                <!-- Panel: Reset password -->
                 <div id="reset-panel" class="hidden">
-                    <p class="login-subtitle">Nueva contraseña</p>
+                    <div class="login-form-header">
+                        <h2>Nueva contraseña</h2>
+                        <p>Elegí una contraseña segura de al menos 8 caracteres.</p>
+                    </div>
                     <form id="reset-form">
-                        <div class="input-group" style="position:relative;">
+                        <div class="input-group">
                             <label for="reset-password">Nueva contraseña</label>
-                            <input type="password" id="reset-password" required placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:40px;">
-                            <button type="button" class="login-pwd-toggle" tabindex="-1"
-                                onclick="const i=document.getElementById('reset-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
-                                <i class="fa-solid fa-eye"></i>
-                            </button>
+                            <div class="pwd-wrap">
+                                <input type="password" id="reset-password" required placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:40px;" autocomplete="new-password">
+                                <button type="button" class="login-pwd-toggle" tabindex="-1"
+                                    onclick="const i=document.getElementById('reset-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="input-group" style="position:relative;">
+                        <div class="input-group">
                             <label for="reset-password2">Confirmar contraseña</label>
-                            <input type="password" id="reset-password2" required placeholder="Repetí la contraseña" style="padding-right:40px;">
-                            <button type="button" class="login-pwd-toggle" tabindex="-1"
-                                onclick="const i=document.getElementById('reset-password2');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
-                                <i class="fa-solid fa-eye"></i>
-                            </button>
+                            <div class="pwd-wrap">
+                                <input type="password" id="reset-password2" required placeholder="Repetí la contraseña" style="padding-right:40px;" autocomplete="new-password">
+                                <button type="button" class="login-pwd-toggle" tabindex="-1"
+                                    onclick="const i=document.getElementById('reset-password2');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
                         </div>
                         <button type="submit" id="reset-submit-btn" class="btn btn-primary w-full">Guardar contraseña</button>
                     </form>
                     <div id="reset-success" class="hidden" style="text-align:center;padding:12px 0;">
-                        <div style="font-size:32px;margin-bottom:12px;">✅</div>
-                        <p style="font-weight:600;color:var(--gray-800);margin-bottom:6px;">¡Contraseña actualizada!</p>
-                        <p style="font-size:13px;color:var(--gray-500);line-height:1.5;">Ya podés ingresar con tu nueva contraseña.</p>
-                        <button type="button" id="reset-goto-login-btn" class="btn btn-primary w-full" style="margin-top:18px;">Ir al login</button>
+                        <div style="font-size:36px;margin-bottom:14px;">✅</div>
+                        <p style="font-weight:700;color:var(--gray-800);margin-bottom:8px;font-size:1.05rem;">¡Contraseña actualizada!</p>
+                        <p style="font-size:13px;color:var(--gray-500);line-height:1.6;">Ya podés ingresar con tu nueva contraseña.</p>
+                        <button type="button" id="reset-goto-login-btn" class="btn btn-primary w-full" style="margin-top:20px;">Ir al login</button>
                     </div>
                 </div>
-            </div>
-            <div class="login-decoration">
-                <div class="blob shape-1"></div>
-                <div class="blob shape-2"></div>
+
+                <!-- Footer -->
+                <div class="login-form-footer">
+                    <span>Odentara &copy; 2025</span>
+                </div>
+
             </div>
         </div>
+
     </div>
 
     <div id="app-view" class="view-section hidden flex h-screen overflow-hidden">

@@ -1,6 +1,20 @@
 node_modules
-# Keep environment variables out of version control
+
+# Environment variables
 .env
 .env.local
 
 /generated/prisma
+
+# Claude Code internal files
+CLAUDE.md
+AGENTS.md
+.claude/
+
+# Deployment artifacts
+*.zip
+make_zip.ps1
+deploy-temp/
+
+# Test/local data
+pacientes_test.csv

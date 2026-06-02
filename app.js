@@ -32,6 +32,35 @@ function getApiBaseUrl() {
 }
 
 const API_BASE_URL = getApiBaseUrl();
+
+/** Devuelve el slug de clínica del subdominio actual, o null si es dominio raíz/plataforma */
+function _getCurrentClinicSlug() {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return null;
+    const PLATFORM_SUBS = new Set(['www', 'admin', 'platform', 'api', 'app']);
+    const parts = hostname.split('.');
+    if (parts.length < 3) return null; // odentara.com — sin subdominio
+    const sub = parts[0];
+    return PLATFORM_SUBS.has(sub) ? null : sub;
+}
+
+/**
+ * Devuelve la URL del portal de login (app.odentara.com).
+ * Retorna null en localhost/dev para no redirigir durante desarrollo.
+ */
+function getAppLoginUrl() {
+    const hostname = window.location.hostname;
+    // Dev: nunca redirigir
+    if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return null;
+    const parts = hostname.split('.');
+    if (parts.length < 2) return null;
+    // Si ya estamos en app.*, no hace falta redirigir
+    if (parts.length >= 3 && parts[0] === 'app') return null;
+    const baseDomain = parts.slice(-2).join('.');
+    const proto = window.location.protocol;
+    const port  = window.location.port ? `:${window.location.port}` : '';
+    return `${proto}//app.${baseDomain}${port}`;
+}
 const AUTH_STORAGE_KEY = 'odentara_auth_v1';
 const THEME_STORAGE_KEY = 'odentara_theme_v1';
 const BUSINESS_TIME_ZONE = 'America/Buenos_Aires';
@@ -686,7 +715,7 @@ const DB = {
         return this.getRaw(table).filter(item => !item?.deletedAt);
     },
     save(table, items) {
-        const db = JSON.parse(localStorage.getItem('odentara_db_v6'));
+        const db = JSON.parse(localStorage.getItem('odentara_db_v6')) || {};
         db[table] = items;
         localStorage.setItem('odentara_db_v6', JSON.stringify(db));
     },
@@ -823,39 +852,39 @@ const roleConfig = {
     superadmin: {
         name: 'Superadmin',
         navItems: [
-            { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
-            { id: 'appointments', icon: 'fa-calendar-check', label: 'Turnos' },
-            { id: 'professionals', icon: 'fa-user-md', label: 'Horarios Médicos' },
-            { id: 'patients', icon: 'fa-users', label: 'Pacientes & Historia' },
-            { id: 'billing', icon: 'fa-file-invoice-dollar', label: 'Facturación' },
-            { id: 'settings', icon: 'fa-cog', label: 'Configuración' }
+            { id: 'dashboard',     icon: 'fa-chart-pie',           label: 'Dashboard' },
+            { id: 'appointments',  icon: 'fa-calendar-check',      label: 'Turnos' },
+            { id: 'patients',      icon: 'fa-users',               label: 'Pacientes & Historia Clínica' },
+            { id: 'professionals', icon: 'fa-user-md',             label: 'Horarios Médicos' },
+            { id: 'billing',       icon: 'fa-file-invoice-dollar', label: 'Facturación' },
+            { id: 'settings',      icon: 'fa-cog',                 label: 'Configuración' }
         ]
     },
     admin: {
         name: 'Administrador',
         navItems: [
-            { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
-            { id: 'patients', icon: 'fa-users', label: 'Directorio Pacientes' },
-            { id: 'billing', icon: 'fa-file-invoice-dollar', label: 'Cuentas Corrientes' },
-            { id: 'settings', icon: 'fa-cog', label: 'Configuración' }
+            { id: 'patients',  icon: 'fa-users',               label: 'Pacientes' },
+            { id: 'billing',   icon: 'fa-file-invoice-dollar', label: 'Cuentas Corrientes' },
+            { id: 'settings',  icon: 'fa-cog',                 label: 'Configuración' }
         ]
     },
     professional: {
         name: 'Profesional',
         navItems: [
-            { id: 'dashboard', icon: 'fa-chart-pie', label: 'Mi Panel' },
-            { id: 'appointments', icon: 'fa-calendar-check', label: 'Mis Turnos' },
-            { id: 'professionals', icon: 'fa-clock', label: 'Mis Horarios' },
-            { id: 'patients', icon: 'fa-notes-medical', label: 'Historias Clínicas' }
+            { id: 'dashboard',     icon: 'fa-chart-pie',      label: 'Mi Panel' },
+            { id: 'appointments',  icon: 'fa-calendar-check', label: 'Mis Turnos' },
+            { id: 'patients',      icon: 'fa-notes-medical',  label: 'Pacientes & Historia Clínica' },
+            { id: 'professionals', icon: 'fa-clock',          label: 'Mis Horarios' }
         ]
     },
     secretary: {
         name: 'Secretaría',
         navItems: [
-            { id: 'dashboard', icon: 'fa-chart-pie', label: 'Recepción' },
-            { id: 'appointments', icon: 'fa-calendar-check', label: 'Gestión de Turnos' },
-            { id: 'professionals', icon: 'fa-user-md', label: 'Agendas Médicas' },
-            { id: 'patients', icon: 'fa-users', label: 'Registro de Pacientes' },
+            { id: 'dashboard',     icon: 'fa-chart-pie',      label: 'Recepción' },
+            { id: 'appointments',  icon: 'fa-calendar-check', label: 'Gestión de Turnos' },
+            { id: 'patients',      icon: 'fa-users',          label: 'Pacientes' },
+            { id: 'professionals', icon: 'fa-user-md',        label: 'Agendas Médicas' },
+            { id: 'settings',      icon: 'fa-cog',            label: 'Configuración' }
         ]
     }
 };
@@ -1269,6 +1298,9 @@ function applyAuthenticatedUiState() {
 
     if (isSelfPlatformAdmin()) {
         loadView('platform-clinics', 'Panel de Plataforma', { skipSync: true });
+    } else if (state.user?.roles?.includes('admin') && !state.user?.roles?.includes('superadmin') && !state.user?.roles?.includes('secretary')) {
+        // Admin puro: aterriza directo en Pacientes (no tiene dashboard)
+        loadView('patients', 'Pacientes', { skipSync: true });
     } else {
         // skipSync: true porque tryRestoreSession/login ya hizo syncBackendSnapshotToLocalDb justo antes
         loadView('dashboard', 'Dashboard', { skipSync: true });
@@ -1295,6 +1327,7 @@ function mapApiProfessionalToLegacy(professional = {}) {
         color: professional.color || '#6366f1',
         status: professional.active ? 'activo' : 'inactivo',
         active: professional.active,
+        userId: professional.userId ?? null,
         schedule
     };
 }
@@ -1736,7 +1769,8 @@ function mapApiUserToSettings(user = {}) {
         email: user.email,
         type: user.roles?.[0] || 'user',
         roles: user.roles || [],
-        allowedProfessionals: user.allowedProfessionalIds || []
+        allowedProfessionals: user.allowedProfessionalIds || [],
+        linkedProfessionalId: user.assignedProfessionalId || null
     };
 }
 
@@ -1772,20 +1806,138 @@ async function syncBackendSnapshotToLocalDb() {
 }
 
 async function tryRestoreSession() {
+    // ── Token exchange al redirigir entre subdominios (?__exchange=CODE) ───
+    const urlParams = new URLSearchParams(window.location.search);
+    const exchangeCode = urlParams.get('__exchange');
+    if (exchangeCode) {
+        // Limpiar el código de la URL inmediatamente (no queda en historial)
+        urlParams.delete('__exchange');
+        const cleanSearch = urlParams.toString();
+        const cleanUrl = window.location.pathname + (cleanSearch ? '?' + cleanSearch : '');
+        window.history.replaceState({}, '', cleanUrl);
+
+        try {
+            // Consumir el exchange token (JWT firmado de 2 min) y obtener el JWT real
+            const exRes = await fetch(`${API_BASE_URL}/auth/exchange?code=${encodeURIComponent(exchangeCode)}`).then(r => r.json());
+            if (exRes.ok && exRes.token) {
+                state.authToken = exRes.token;
+                const me = await apiFetch('/auth/me');
+                saveAuthSession(exRes.token, me.user);
+                applyAuthenticatedUiState();
+                syncBackendSnapshotToLocalDb()
+                    .then(() => refreshCurrentView())
+                    .catch(e => console.error('[exchange] Sync error:', e));
+                return;
+            }
+            console.error('[exchange] Falló el intercambio de token:', exRes);
+        } catch (exchangeErr) {
+            console.error('[exchange] Error al consumir el código:', exchangeErr?.message || exchangeErr);
+        }
+        clearAuthSession();
+    }
+
+    // ── Fallback legacy: token directo en URL (?__t=...) ─────────────────
+    // Mantenido por compatibilidad; en producción ya no se genera
+    const urlToken = urlParams.get('__t');
+    if (urlToken) {
+        urlParams.delete('__t');
+        const cleanSearch = urlParams.toString();
+        const cleanUrl = window.location.pathname + (cleanSearch ? '?' + cleanSearch : '');
+        window.history.replaceState({}, '', cleanUrl);
+
+        state.authToken = urlToken;
+        try {
+            const me = await apiFetch('/auth/me');
+            saveAuthSession(urlToken, me.user);
+            applyAuthenticatedUiState();
+            syncBackendSnapshotToLocalDb()
+                .then(() => refreshCurrentView())
+                .catch(e => console.error('[token] Sync error:', e));
+            return;
+        } catch (_error) {
+            clearAuthSession();
+        }
+    }
+
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) {
+        // Sin sesión en subdominio de clínica → redirigir al portal de login
+        const loginUrl = getAppLoginUrl();
+        if (_getCurrentClinicSlug() && loginUrl) {
+            window.location.href = loginUrl;
+        }
+        return;
+    }
 
     try {
         const saved = JSON.parse(raw);
-        if (!saved?.token) return;
+        if (!saved?.token || !saved?.user) {
+            const loginUrl = getAppLoginUrl();
+            if (_getCurrentClinicSlug() && loginUrl) {
+                window.location.href = loginUrl;
+            }
+            return;
+        }
+
+        // ── Mostrar UI inmediatamente con datos cacheados ──────────────────
+        // No esperamos la red: usamos el usuario y los datos guardados en
+        // localStorage para mostrar la app al instante. La validación del
+        // token y la sincronización ocurren en background.
         state.authToken = saved.token;
-        const me = await apiFetch('/auth/me');
-        saveAuthSession(saved.token, me.user);
-        await syncBackendSnapshotToLocalDb();
+        state.user = mapApiUserToLegacyUser(saved.user);
         applyAuthenticatedUiState();
+
+        // ── Validar token + sincronizar en background ──────────────────────
+        apiFetch('/auth/me')
+            .then(me => {
+                saveAuthSession(saved.token, me.user);
+                return syncBackendSnapshotToLocalDb();
+            })
+            .then(() => refreshCurrentView())
+            .catch(() => {
+                // Token expirado o inválido → cerrar sesión y volver al login
+                clearAuthSession();
+                views.app.classList.remove('active');
+                views.app.classList.add('hidden');
+                views.login.classList.remove('hidden');
+                views.login.classList.add('active');
+                const loginUrl = getAppLoginUrl();
+                if (_getCurrentClinicSlug() && loginUrl) window.location.href = loginUrl;
+            });
+        return;
     } catch (_error) {
         clearAuthSession();
+        // Sesión inválida en subdominio de clínica → redirigir al portal de login
+        const loginUrl = getAppLoginUrl();
+        if (_getCurrentClinicSlug() && loginUrl) {
+            window.location.href = loginUrl;
+        }
     }
+}
+
+/**
+ * Calcula la URL de redirección al subdominio de la clínica.
+ * Devuelve null si ya estamos en el subdominio correcto o en modo dev.
+ */
+function buildSubdomainRedirectUrl(clinicSlug, exchangeCode) {
+    const hostname = window.location.hostname;
+    // Dev/localhost: no redirigir
+    if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+        return null;
+    }
+    const parts = hostname.split('.');
+    if (parts.length < 2) return null;
+
+    // Extraer dominio base (últimos 2 segmentos: odentara.com)
+    const baseDomain = parts.slice(-2).join('.');
+    const currentSubdomain = parts.length > 2 ? parts.slice(0, -2).join('.') : null;
+
+    if (currentSubdomain === clinicSlug) return null; // ya en el subdominio correcto
+
+    const proto = window.location.protocol;
+    const port  = window.location.port ? `:${window.location.port}` : '';
+    // Usa un código de intercambio de corta vida en lugar del JWT completo
+    return `${proto}//${clinicSlug}.${baseDomain}${port}?__exchange=${encodeURIComponent(exchangeCode)}`;
 }
 
 function getPatientOptionLabel(patient) {
@@ -1870,25 +2022,118 @@ document.addEventListener('DOMContentLoaded', () => {
         loginForm.requestSubmit();
     });
 
+    // Renderizar Turnstile solo en app.odentara.com
+    const isTurnstileHost = /^app\.odentara\.com$/i.test(location.hostname);
+    const submitBtn = document.getElementById('login-submit-btn');
+
+    function showLoginError(msg) {
+        const el = document.getElementById('login-error-msg');
+        if (!el) return;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+    function clearLoginError() {
+        const el = document.getElementById('login-error-msg');
+        if (el) el.classList.add('hidden');
+    }
+
+    // Limpiar error al escribir en los campos
+    document.getElementById('email')?.addEventListener('input', clearLoginError);
+    document.getElementById('password')?.addEventListener('input', clearLoginError);
+
+    // Cloudflare Access exchange: cuando la URL tiene ?__exchange=, Cloudflare
+    // está procesando el token en background. Deshabilitar el botón hasta que termine.
+    let cloudflareReady = true;
+    if (new URLSearchParams(location.search).has('__exchange')) {
+        cloudflareReady = false;
+        if (submitBtn) submitBtn.disabled = true;
+        const exchangePoll = setInterval(() => {
+            if (!new URLSearchParams(location.search).has('__exchange')) {
+                clearInterval(exchangePoll);
+                cloudflareReady = true;
+                if (!isTurnstileHost) {
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+                clearLoginError();
+            }
+        }, 300);
+    }
+
+    if (isTurnstileHost) {
+        // Botón deshabilitado hasta que Turnstile confirme
+        if (submitBtn) submitBtn.disabled = true;
+
+        window._onTurnstileSuccess = function() {
+            if (submitBtn) submitBtn.disabled = false;
+            clearLoginError();
+        };
+        window._onTurnstileExpired = function() {
+            if (submitBtn) submitBtn.disabled = true;
+        };
+
+        const container = document.getElementById('turnstile-container');
+        if (container) {
+            container.innerHTML = '<div class="cf-turnstile" data-sitekey="0x4AAAAAADXSH3_I07gUFeOy" data-theme="auto" data-callback="_onTurnstileSuccess" data-expired-callback="_onTurnstileExpired" style="margin-bottom:12px;"></div>';
+        }
+    } else {
+        if (submitBtn && cloudflareReady) submitBtn.disabled = false;
+    }
+
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (isAppLoading()) return;
+
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
-        const submitBtn = e.target.querySelector('button[type="submit"]');
+
+        // Validaciones con mensajes inline
+        if (!email && !password) {
+            showLoginError('Ingresá tu email y contraseña.');
+            return;
+        }
+        if (!email) {
+            showLoginError('Ingresá tu email.');
+            return;
+        }
+        if (!password) {
+            showLoginError('Ingresá tu contraseña.');
+            return;
+        }
+        if (!cloudflareReady) {
+            showLoginError('Cloudflare aún está verificando tu sesión. Esperá un momento e intentá de nuevo.');
+            return;
+        }
+        if (isTurnstileHost && !(document.querySelector('[name="cf-turnstile-response"]') || {}).value) {
+            showLoginError('Completá la verificación de seguridad antes de continuar.');
+            return;
+        }
+
+        clearLoginError();
+
+        // Leer token de Turnstile solo si estamos en app.odentara.com
+        const turnstileToken = isTurnstileHost
+            ? (document.querySelector('[name="cf-turnstile-response"]') || {}).value || ''
+            : '';
+
         if (submitBtn) submitBtn.disabled = true;
         try {
             await withAppLoading('Iniciando sesión...', async () => {
-                await login(email, password);
+                await login(email, password, turnstileToken);
             });
         } finally {
-            if (submitBtn) submitBtn.disabled = false;
+            // Resetear widget — el botón vuelve a deshabilitarse hasta nueva verificación
+            if (isTurnstileHost && window.turnstile) {
+                window.turnstile.reset();
+                if (submitBtn) submitBtn.disabled = true;
+            } else {
+                if (submitBtn) submitBtn.disabled = false;
+            }
         }
     });
 
     // ── Forgot / Reset password ──────────────────────────────────────────────────
     function showLoginPanel(panelId) {
-        ['login-panel', 'forgot-panel', 'reset-panel'].forEach(id => {
+        ['login-panel', 'forgot-panel', 'reset-panel', 'clinic-picker-panel'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.toggle('hidden', id !== panelId);
         });
@@ -1919,6 +2164,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('forgot-back-btn')?.addEventListener('click', () => {
         document.getElementById('forgot-form')?.classList.remove('hidden');
         document.getElementById('forgot-success')?.classList.add('hidden');
+        showLoginPanel('login-panel');
+    });
+
+    // Botón "← Volver al login" desde el clinic picker
+    document.getElementById('clinic-picker-back-btn')?.addEventListener('click', () => {
         showLoginPanel('login-panel');
     });
 
@@ -2016,7 +2266,7 @@ document.addEventListener('DOMContentLoaded', () => {
             toggleTheme();
             return;
         }
-        
+
         // CRUD Routes
         if (e.target.closest('#btn-add-apt')) openAppointmentModal();
         if (e.target.closest('.btn-edit-apt')) openAppointmentModal(parseInt(e.target.closest('.btn-edit-apt').dataset.id));
@@ -2330,7 +2580,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const profNodes = Array.from(document.querySelectorAll('input[name="u-profs"]:checked'));
             const selectedProfessionals = profNodes.map(p => parseInt(p.value));
-            const payload = { fullName: name, email, type, roles, allowedProfessionalIds: selectedProfessionals };
+            const hasProfRole = roles.includes('profesional') || roles.includes('professional');
+            const linkedProfessionalId = hasProfRole && selectedProfessionals.length > 0 ? selectedProfessionals[0] : null;
+            const payload = { fullName: name, email, type, roles, allowedProfessionalIds: selectedProfessionals, linkedProfessionalId };
             if (password) payload.password = password;
 
             try {
@@ -2351,7 +2603,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.target.reset();
                 showToast(isEditing ? 'Usuario actualizado correctamente.' : 'Usuario creado correctamente.', { type: 'success' });
             } catch (error) {
-                alert(error.message || (isEditing ? 'No se pudo actualizar el usuario.' : 'No se pudo crear el usuario.'));
+                const detail = error.payload?.detail ? `\n\nDetalle: ${error.payload.detail}` : '';
+                alert((error.message || (isEditing ? 'No se pudo actualizar el usuario.' : 'No se pudo crear el usuario.')) + detail);
             }
             refreshCurrentView();
         }
@@ -2403,16 +2656,98 @@ document.addEventListener('DOMContentLoaded', () => {
         event.returnValue = '';
     });
 
+    // Si viene con ?__exchange=, ocultar el login inmediatamente para evitar
+    // el flash del formulario mientras el loading overlay todavía no cargó.
+    if (new URLSearchParams(location.search).has('__exchange')) {
+        views.login?.classList.add('hidden');
+        views.login?.classList.remove('active');
+    }
+
     withAppLoading('Iniciando sesión...', async () => {
         await tryRestoreSession();
     });
 });
 
 // --- Auth ---
-async function login(email, password) {
+const ROLE_LABELS_ES = { superadmin: 'Superadmin', admin: 'Administrador', secretary: 'Secretario', professional: 'Profesional' };
+
+function renderClinicPicker(clinics, sessionToken) {
+    const list = document.getElementById('clinic-picker-list');
+    if (!list) return;
+    list.innerHTML = '';
+    clinics.forEach(clinic => {
+        const roleLabels = (clinic.roles || []).map(r => ROLE_LABELS_ES[r] || r).join(', ');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'clinic-picker-card';
+        btn.innerHTML = `
+            <div class="clinic-picker-icon"><i class="fa-solid fa-hospital"></i></div>
+            <div class="clinic-picker-info">
+                <div class="clinic-picker-name">${escapeHtml(clinic.clinicName)}</div>
+                <div class="clinic-picker-roles">${escapeHtml(roleLabels)}</div>
+            </div>
+            <i class="fa-solid fa-chevron-right clinic-picker-arrow"></i>`;
+        btn.addEventListener('click', () => selectClinic(clinic.userId, sessionToken, clinic.clinicSlug));
+        list.appendChild(btn);
+    });
+    // Mostrar el panel picker
+    ['login-panel', 'forgot-panel', 'reset-panel'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
+    });
+    document.getElementById('clinic-picker-panel')?.classList.remove('hidden');
+}
+
+async function selectClinic(userId, sessionToken, clinicSlug) {
+    try {
+        // Deshabilitar todas las tarjetas mientras carga
+        document.querySelectorAll('.clinic-picker-card').forEach(c => { c.disabled = true; c.style.opacity = '0.6'; });
+
+        const result = await apiFetch('/auth/select-clinic', {
+            method: 'POST',
+            body: JSON.stringify({ sessionToken, userId })
+        });
+
+        localStorage.removeItem('odentara_platform_auth_backup');
+
+        if (result.clinicSlug) {
+            state.authToken = result.token;
+            let exchangeCode = null;
+            try {
+                const exRes = await apiFetch('/auth/exchange', { method: 'POST' });
+                if (exRes.ok) exchangeCode = exRes.code;
+            } catch (_) {}
+            const redirectUrl = exchangeCode ? buildSubdomainRedirectUrl(result.clinicSlug, exchangeCode) : null;
+            if (redirectUrl) { window.location.href = redirectUrl; return; }
+            const currentClinicSlug = _getCurrentClinicSlug();
+            if (currentClinicSlug && currentClinicSlug !== result.clinicSlug) {
+                const parts = window.location.hostname.split('.');
+                const baseDomain = parts.slice(-2).join('.');
+                const proto = window.location.protocol;
+                const port = window.location.port ? `:${window.location.port}` : '';
+                window.location.href = `${proto}//${result.clinicSlug}.${baseDomain}${port}`;
+                return;
+            }
+        }
+
+        saveAuthSession(result.token, result.user);
+        applyAuthenticatedUiState();
+        syncBackendSnapshotToLocalDb()
+            .then(() => refreshCurrentView())
+            .catch(e => console.error('[selectClinic] Sync error:', e));
+    } catch (error) {
+        document.querySelectorAll('.clinic-picker-card').forEach(c => { c.disabled = false; c.style.opacity = ''; });
+        const message = error.status === 0
+            ? 'No se pudo conectar con el servidor.'
+            : (error.payload?.error || error.message || 'No se pudo ingresar a esa clínica.');
+        showAlert(message, { title: 'Error', variant: 'error' });
+    }
+}
+
+async function login(email, password, turnstileToken = '') {
     const normalizedEmail = normalizeIdentityEmail(email);
     if (!normalizedEmail || !password) {
-        alert('Completa email y contraseña.');
+        const el = document.getElementById('login-error-msg');
+        if (el) { el.textContent = 'Ingresá tu email y contraseña.'; el.classList.remove('hidden'); }
         return;
     }
 
@@ -2421,16 +2756,76 @@ async function login(email, password) {
             method: 'POST',
             body: JSON.stringify({
                 email: normalizedEmail,
-                password
+                password,
+                ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {})
             })
         });
 
         // Limpiar cualquier backup de plataforma previo para evitar que se muestre
         // el banner "Modo vista clínica" cuando el usuario inicia sesión directamente
         localStorage.removeItem('odentara_platform_auth_backup');
+
+        // ── Selector de clínica (email en múltiples clínicas) ────────────────
+        if (result.requiresClinicSelection) {
+            renderClinicPicker(result.clinics, result.sessionToken);
+            return;
+        }
+
+        // ── Redirección a subdominio de clínica ──────────────────────────────
+        if (result.clinicSlug) {
+            // Guardar token temporalmente para poder llamar al exchange endpoint
+            state.authToken = result.token;
+            let exchangeCode = null;
+            try {
+                const exRes = await apiFetch('/auth/exchange', { method: 'POST' });
+                if (exRes.ok) exchangeCode = exRes.code;
+            } catch (_) { /* ignorar — si falla no redirigimos */ }
+
+            const redirectUrl = exchangeCode
+                ? buildSubdomainRedirectUrl(result.clinicSlug, exchangeCode)
+                : null;
+
+            if (redirectUrl) {
+                window.location.href = redirectUrl;
+                return; // la página se recarga; no hacer más nada
+            }
+
+            // Si no hay redirectUrl significa que ya estamos en el subdominio correcto
+            // o que el exchange falló (probablemente estamos en el subdominio equivocado).
+            // Verificar que estemos en el dominio correcto antes de guardar la sesión.
+            const currentClinicSlug = _getCurrentClinicSlug();
+            if (currentClinicSlug && currentClinicSlug !== result.clinicSlug) {
+                // Estamos en la clínica equivocada — redirigir directamente
+                // (el exchange falló, pero podemos intentar la URL sin código de intercambio)
+                const hostname = window.location.hostname;
+                const parts = hostname.split('.');
+                const baseDomain = parts.slice(-2).join('.');
+                const proto = window.location.protocol;
+                const port = window.location.port ? `:${window.location.port}` : '';
+                window.location.href = `${proto}//${result.clinicSlug}.${baseDomain}${port}`;
+                return;
+            }
+        } else {
+            // Usuario sin clínica (superadmin de seed, plataforma, etc.)
+            // Si estamos en un subdominio de clínica, redirigir al dominio raíz
+            const currentClinicSlug = _getCurrentClinicSlug();
+            if (currentClinicSlug) {
+                const hostname = window.location.hostname;
+                const parts = hostname.split('.');
+                const baseDomain = parts.slice(-2).join('.');
+                const proto = window.location.protocol;
+                const port = window.location.port ? `:${window.location.port}` : '';
+                window.location.href = `${proto}//${baseDomain}${port}`;
+                return;
+            }
+        }
+
         saveAuthSession(result.token, result.user);
-        await syncBackendSnapshotToLocalDb();
         applyAuthenticatedUiState();
+        // Sync en background para no bloquear la UI durante el login
+        syncBackendSnapshotToLocalDb()
+            .then(() => refreshCurrentView())
+            .catch(e => console.error('[login] Sync error:', e));
     } catch (error) {
         const message = error.status === 0
             ? 'No se pudo conectar con el servidor de Odentara. Verifica que el sitio y la API esten publicados correctamente e intenta nuevamente.'
@@ -2439,9 +2834,22 @@ async function login(email, password) {
     }
 }
 
-function logout() {
+async function logout() {
+    // Revocar el token server-side (fire-and-forget; no bloquea el logout local)
+    if (state.authToken) {
+        try { await apiFetch('/auth/logout', { method: 'POST' }); } catch (_) {}
+    }
     clearAuthSession();
     state.dashboardDate = null;
+
+    // En subdominio de clínica → redirigir al portal de login (app.odentara.com)
+    const loginUrl = getAppLoginUrl();
+    if (_getCurrentClinicSlug() && loginUrl) {
+        window.location.href = loginUrl;
+        return;
+    }
+
+    // En app.odentara.com o localhost → mostrar pantalla de login en el lugar
     setSidebarOpen(false);
     views.app.classList.remove('active');
     setTimeout(() => {
@@ -2504,16 +2912,26 @@ function renderSidebar() {
     ];
 
     // Collect unique navItems from all user roles
+    // Orden maestro fijo + label del rol con mayor privilegio
+    const NAV_ORDER = ['dashboard', 'appointments', 'patients', 'professionals', 'billing', 'settings'];
+    const ROLE_PRIORITY = ['superadmin', 'admin', 'secretary', 'professional'];
     const navItems = new Map();
-    state.user.roles.forEach(role => {
+    // Procesar de menor a mayor privilegio para que el de mayor privilego sobreescriba el label
+    [...ROLE_PRIORITY].reverse().forEach(role => {
+        if (!state.user.roles.includes(role)) return;
         if (roleConfig[role]) {
             roleConfig[role].navItems.forEach(item => {
                 navItems.set(item.id, item);
             });
         }
     });
+    // Reordenar según orden maestro
+    const sortedNavItems = NAV_ORDER
+        .filter(id => navItems.has(id))
+        .map(id => navItems.get(id))
+        .concat(Array.from(navItems.values()).filter(item => !NAV_ORDER.includes(item.id)));
 
-    Array.from(navItems.values()).forEach(item => {
+    sortedNavItems.forEach(item => {
         const link = document.createElement('a');
         link.className = `nav-item ${item.id === state.currentView ? 'active' : ''}`;
         link.dataset.view = item.id;
@@ -2582,17 +3000,22 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     }
 
     // Guard: bloquear vistas no permitidas para el rol actual
+    const isAdminOnly = () => state.user?.roles?.includes('admin') &&
+        !state.user?.roles?.includes('superadmin') &&
+        !state.user?.roles?.includes('secretary');
     const viewGuards = {
-        appointments: () => canViewAppointmentsUi(),
-        professionals: () => state.user && state.user.roles.some(r => ['superadmin', 'secretary', 'professional'].includes(r)),
-        billing: () => canViewBillingUi() || canViewPatientBillingUi(),
-        settings: () => canAccessSettingsUi(),
+        dashboard:      () => !isAdminOnly(), // admin puro no tiene dashboard
+        appointments:   () => canViewAppointmentsUi(),
+        professionals:  () => state.user && state.user.roles.some(r => ['superadmin', 'secretary', 'professional'].includes(r)),
+        billing:        () => canViewBillingUi() || canViewPatientBillingUi(),
+        settings:       () => canAccessSettingsUi(),
         'patient-history': () => canViewClinicalHistoryUi()
     };
     if (viewGuards[viewId] && !viewGuards[viewId]()) {
         showAlert('No tenés permisos para acceder a esta sección.', { title: 'Acceso denegado', variant: 'error' });
-        viewId = 'dashboard';
-        title = 'Dashboard';
+        // Admin puro: fallback a pacientes; resto: fallback a dashboard
+        viewId = isAdminOnly() ? 'patients' : 'dashboard';
+        title  = isAdminOnly() ? 'Pacientes' : 'Dashboard';
     }
 
     state.currentView = viewId;
@@ -2616,6 +3039,21 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     content.className = 'animate-fade-in';
 
     if (viewId === 'platform-clinics') {
+        // Si hay backup de sesión de plataforma pendiente de restaurar, restaurarlo antes
+        if (!isSelfPlatformAdmin()) {
+            const backup = localStorage.getItem('odentara_platform_auth_backup');
+            if (backup) {
+                try {
+                    const auth = JSON.parse(backup);
+                    if (auth?.token && auth?.user?.isPlatformAdmin) {
+                        localStorage.setItem('odentara_auth_v1', backup);
+                        state.user = mapApiUserToLegacyUser(auth.user);
+                        state.authToken = auth.token;
+                        localStorage.removeItem('odentara_platform_auth_backup');
+                    }
+                } catch(_) {}
+            }
+        }
         applyPlatformTheme(true);
         content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
         mainContent.appendChild(content);
@@ -3020,7 +3458,7 @@ async function renderPlatformSubscriptions(container) {
             <td style="font-size:12px;font-weight:600;color:#34d399">USD ${Number(p.amount).toLocaleString()}</td>
             <td style="font-size:11px;color:#94a3b8">${p.paymentMethod}</td>
             <td style="font-size:11px;color:#475569">${new Date(p.paidAt).toLocaleDateString('es-AR')}</td>
-            <td style="font-size:11px;color:#475569">${p.notes || '—'}</td>
+            <td style="font-size:11px;color:#475569">${escapeHtml(p.notes || '—')}</td>
             <td style="text-align:right">
                 <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Eliminar" style="color:#f87171" onclick="window.platformDeletePayment(${p.id})"><i class="fa-solid fa-trash"></i></button>
             </td>
@@ -3137,11 +3575,19 @@ async function renderPlatformSubscriptions(container) {
     </div>`;
 }
 
-window.platformOpenPaymentModal = function(clinicId, clinicName, plan) {
+window.platformOpenPaymentModal = async function(clinicId, clinicName, plan) {
     const modal = document.getElementById('pa-payment-modal');
     if (!modal) return;
 
-    // Poblar el select con las clínicas activas (siempre fresco)
+    // Si no hay datos en memoria, hacer fetch fresco
+    if (!window._platformSubClinics || window._platformSubClinics.length === 0) {
+        try {
+            const res = await apiFetch('/platform/subscriptions');
+            if (res.ok) window._platformSubClinics = res.clinics || [];
+        } catch(e) { console.error('[platformOpenPaymentModal] fetch failed', e); }
+    }
+
+    // Poblar el select con las clínicas activas
     const sel = document.getElementById('ppf-clinic');
     if (sel) {
         const clinics = (window._platformSubClinics || []).filter(c => c.active);
@@ -3529,6 +3975,38 @@ window.platformDeleteClinic = function() {
 };
 
 window.platformLoginAsClinic = async function(clinicId, clinicName) {
+    // Verificar contra el servidor que el token actual pertenece a un platform admin
+    try {
+        const me = await apiFetch('/auth/me');
+        if (!me?.permissions?.isPlatformAdmin) {
+            // El token actual no es de platform admin — intentar restaurar desde backup
+            const backup = localStorage.getItem('odentara_platform_auth_backup');
+            if (backup) {
+                const backupAuth = JSON.parse(backup);
+                if (backupAuth?.token) {
+                    state.authToken = backupAuth.token;
+                    const me2 = await apiFetch('/auth/me');
+                    if (me2?.permissions?.isPlatformAdmin) {
+                        saveAuthSession(backupAuth.token, me2.user);
+                        localStorage.removeItem('odentara_platform_auth_backup');
+                    } else {
+                        showPlatformAlert('No tenés permisos de administrador de plataforma. Iniciá sesión con tu cuenta de plataforma.', 'error');
+                        return;
+                    }
+                } else {
+                    showPlatformAlert('No tenés permisos de administrador de plataforma.', 'error');
+                    return;
+                }
+            } else {
+                showPlatformAlert(`Esta cuenta (${me?.user?.email || ''}) no es administrador de plataforma. Cerrá sesión e ingresá con la cuenta correcta.`, 'error');
+                return;
+            }
+        }
+    } catch(verifyErr) {
+        showPlatformAlert('No se pudo verificar la sesión: ' + (verifyErr.message || 'error'), 'error');
+        return;
+    }
+
     // Buscar el superadmin de la clínica para mostrarlo en el confirm
     let adminLabel = 'el superadmin';
     try {
@@ -3555,6 +4033,9 @@ window.platformLoginAsClinic = async function(clinicId, clinicName) {
         localStorage.setItem('odentara_auth_v1', JSON.stringify(auth));
         state.user = res.user;
         state.authToken = res.token;
+        // Limpiar snapshot de localStorage de la clínica anterior y cargar el de la nueva
+        localStorage.removeItem('odentara_db_v6');
+        await syncBackendSnapshotToLocalDb();
         applyPlatformTheme(false);
         await loadView('dashboard');
         showToast(`Ingresaste como ${res.user.fullName || res.user.email} en ${clinicName}`, 'success');
@@ -3563,13 +4044,38 @@ window.platformLoginAsClinic = async function(clinicId, clinicName) {
     }
 };
 
-window.returnToPlatform = function() {
+window.returnToPlatform = async function() {
     const backup = localStorage.getItem('odentara_platform_auth_backup');
     if (!backup) return;
+
+    // Revocar el token de clínica actual
+    if (state.authToken) {
+        try { await apiFetch('/auth/logout', { method: 'POST' }); } catch (_) {}
+    }
+
     const auth = JSON.parse(backup);
-    localStorage.setItem('odentara_auth_v1', backup);
     localStorage.removeItem('odentara_platform_auth_backup');
-    state.user = auth.user;
+    localStorage.removeItem('odentara_db_v6');
+
+    // Si estamos en subdominio de clínica → redirigir a app.odentara.com con exchange code
+    const loginUrl = getAppLoginUrl();
+    if (_getCurrentClinicSlug() && loginUrl) {
+        state.authToken = auth.token;
+        try {
+            const exRes = await apiFetch('/auth/exchange', { method: 'POST' });
+            if (exRes.ok && exRes.code) {
+                window.location.href = `${loginUrl}?__exchange=${encodeURIComponent(exRes.code)}`;
+                return;
+            }
+        } catch (_) {}
+        // Fallback: ir a app sin exchange (tendrá que loguearse de nuevo)
+        window.location.href = loginUrl;
+        return;
+    }
+
+    // En app.odentara.com → restaurar sesión directamente
+    localStorage.setItem('odentara_auth_v1', backup);
+    state.user = mapApiUserToLegacyUser(auth.user);
     state.authToken = auth.token;
     loadView('platform-clinics', 'Clínicas', { skipSync: true });
 };
@@ -3627,8 +4133,8 @@ window.platformViewUsers = async function(clinicId, clinicName) {
                         : users.map(u => `
                             <div class="pa-user-row">
                                 <div>
-                                    <div class="pa-user-name">${u.fullName}</div>
-                                    <div class="pa-user-email">${u.email}</div>
+                                    <div class="pa-user-name">${escapeHtml(u.fullName)}</div>
+                                    <div class="pa-user-email">${escapeHtml(u.email)}</div>
                                 </div>
                                 <div style="display:flex;gap:6px;align-items:center">
                                     ${u.roles.map(r => `<span class="pa-badge pa-badge-shared">${r}</span>`).join('')}
@@ -3672,7 +4178,7 @@ function getProfName(id) {
 }
 
 function getPatientByAppointment(apt) {
-    return DB.get('patients').find(p => p.name === apt.patient) || null;
+    return DB.get('patients').find(p => p.id === apt.patientId) || null;
 }
 
 function isSuperadmin() {
@@ -3908,7 +4414,10 @@ function canViewClinicalHistoryUi() {
 }
 
 function getCurrentOdontoProfessionalId() {
-    if (isSuperadmin()) return state.clinicalOdontoProfessionalId || null;
+    // Superadmin o usuario con múltiples profesionales en scope: usa el selector
+    if (isSuperadmin() || (state.user?.allowedProfessionals || []).length > 1) {
+        return state.clinicalOdontoProfessionalId || null;
+    }
     // Vínculo directo (Professional.userId = user.id)
     if (state.user?.assignedProfessionalId) return state.user.assignedProfessionalId;
     // Fallback: exactamente un profesional en el scope (mismo criterio que el backend)
@@ -4480,22 +4989,23 @@ function openAppointmentViewModal(aptId) {
             <div class="modal-content" onclick="event.stopPropagation()">
                 <div class="modal-header">
                     <h3>Detalles del Turno</h3>
+                    <button type="button" class="modal-close-x" onclick="closeModal()" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="modal-body">
                     <div class="apt-view-info-grid">
-                        <div class="apt-view-row"><strong>Paciente</strong><span>${apt.patient}</span></div>
-                        <div class="apt-view-row"><strong>Teléfono</strong><span>${patient?.phone || '—'}</span></div>
-                        <div class="apt-view-row"><strong>Profesional</strong><span>${prof?.name || '—'}</span></div>
+                        <div class="apt-view-row"><strong>Paciente</strong><span>${escapeHtml(apt.patient)}</span></div>
+                        <div class="apt-view-row"><strong>Teléfono</strong><span>${escapeHtml(patient?.phone || '—')}</span></div>
+                        <div class="apt-view-row"><strong>Profesional</strong><span>${escapeHtml(prof?.name || '—')}</span></div>
                         <div class="apt-view-row"><strong>Fecha</strong><span>${normalizeDateLabel(parseLocalIsoDate(apt.date).toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }))}</span></div>
                         <div class="apt-view-row"><strong>Hora</strong><span>${apt.time} · ${apt.duration} min</span></div>
                         <div class="apt-view-row"><strong>Estado</strong><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></div>
-                        ${apt.notes ? `<div class="apt-view-row apt-view-row-full"><strong>Motivo</strong><span>${apt.notes}</span></div>` : ''}
+                        ${apt.notes ? `<div class="apt-view-row apt-view-row-full"><strong>Motivo</strong><span>${escapeHtml(apt.notes)}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-ghost" onclick="closeModal()">Cerrar</button>
                     ${patient && canViewClinicalHistoryUi() ? `<button type="button" class="btn btn-secondary" onclick="closeModal(); loadClinicalHistory(${patient.id})">Historia Clínica</button>` : ''}
-                    <button type="button" class="btn btn-primary" onclick="openAppointmentModal(${aptId})">Editar turno</button>
+                    ${canEditCalendar() && apt.status !== 'cancelled' ? `<button type="button" class="btn btn-cancel-apt" onclick="closeModal(); _confirmCancelApt(${aptId})"><i class="fa-solid fa-ban"></i> Cancelar turno</button>` : ''}
+                    ${canEditCalendar() ? `<button type="button" class="btn btn-primary" onclick="openAppointmentModal(${aptId})">Editar turno</button>` : ''}
                 </div>
             </div>
         </div>
@@ -4586,7 +5096,7 @@ function openAppointmentModal(editId = null) {
                             <label>Profesional *</label>
                             <select id="apt-professional" required>
                                 ${!apt ? '<option value="">— Seleccionar profesional —</option>' : ''}
-                                ${professionals.map(p => `<option value="${p.id}" ${apt && apt.professionalId === p.id ? 'selected':''}>${p.name}</option>`).join('')}
+                                ${professionals.map(p => `<option value="${p.id}" ${apt && apt.professionalId === p.id ? 'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
                             </select>
                         </div>
                         <div class="appointment-form-row">
@@ -4624,10 +5134,9 @@ function openAppointmentModal(editId = null) {
     // ESC cierra el modal de turno
     const _aptEscHandler = (e) => {
         if (e.key !== 'Escape') return;
-        document.removeEventListener('keydown', _aptEscHandler);
         closeModal();
     };
-    document.addEventListener('keydown', _aptEscHandler);
+    document.addEventListener('keydown', _aptEscHandler, { once: true });
 
     const profSelect = document.getElementById('apt-professional');
     const timeSelect = document.getElementById('apt-time');
@@ -4949,7 +5458,7 @@ function openScheduleModal(profId) {
         <div class="modal-overlay active">
             <div class="modal-content modal-content-schedule w-auto max-w-2xl" onclick="event.stopPropagation()">
                 <div class="modal-header">
-                    <h3>Horarios Diarios de ${prof.name}</h3>
+                    <h3>Horarios Diarios de ${escapeHtml(prof.name)}</h3>
                 </div>
                 <form id="schedule-form">
                     <div class="modal-body max-h-[60vh] overflow-y-auto">
@@ -4972,10 +5481,9 @@ function openScheduleModal(profId) {
     // ESC cierra el modal
     const _escHandler = (e) => {
         if (e.key !== 'Escape') return;
-        document.removeEventListener('keydown', _escHandler);
         closeModal();
     };
-    document.addEventListener('keydown', _escHandler);
+    document.addEventListener('keydown', _escHandler, { once: true });
     document.getElementById('schedule-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const newSched = {};
@@ -5037,6 +5545,43 @@ function openScheduleModal(profId) {
             alert(error.message || 'No se pudieron guardar los horarios.');
         }
     });
+}
+
+// ── Exportación de pacientes a Excel ──────────────────────────────────────────
+function exportPatients() {
+    if (typeof XLSX === 'undefined') {
+        const script = document.createElement('script');
+        script.src = '/xlsx.full.min.js';
+        script.onload = () => exportPatients();
+        script.onerror = () => showAlert('No se pudo cargar la librería para generar Excel.', { title: 'Error', variant: 'error' });
+        document.head.appendChild(script);
+        return;
+    }
+    const patients = DB.get('patients') || [];
+    if (patients.length === 0) {
+        showAlert('No hay pacientes para exportar.', { title: 'Sin datos', variant: 'warning' });
+        return;
+    }
+    const rows = patients.map(p => ({
+        'Nombre completo':  p.name || p.fullName || '',
+        'DNI':              p.dni || '',
+        'Teléfono':         p.phone || '',
+        'Email':            p.email || '',
+        'Dirección':        p.domicilio || p.address || '',
+        'Obra social':      p.obraSocial || p.insuranceName || '',
+        'Plan':             p.insurancePlan || '',
+        'Credencial':       p.credencial || p.credentialNumber || '',
+        'Historia':         p.fichaNumero || p.chartNumber || '',
+        'Fecha nacimiento': p.fechaNacimiento || p.birthDate || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Pacientes');
+    // Ancho de columnas automático
+    const colWidths = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length, 16) }));
+    ws['!cols'] = colWidths;
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `pacientes_odentara_${fecha}.xlsx`);
 }
 
 // ── Importación de pacientes desde Excel ──────────────────────────────────────
@@ -5317,22 +5862,22 @@ function openPatientModal(editId = null) {
                 <form id="patient-form">
                     <div class="modal-body">
                         <div class="form-feedback" id="patient-form-feedback" hidden></div>
-                        <div class="input-group"><label>Nombre y Apellido *</label><input type="text" id="p-name" value="${p?p.name:''}" required></div>
+                        <div class="input-group"><label>Nombre y Apellido *</label><input type="text" id="p-name" value="${p?escapeHtml(p.name):''}" required></div>
                         <div class="patient-form-row patient-form-row-2">
-                            <div class="input-group flex-1"><label>DNI *</label><input type="text" id="p-dni" value="${p?p.dni||'':''}" required></div>
-                            <div class="input-group flex-1"><label>Teléfono (Celular) *</label><input type="text" id="p-phone" value="${p?p.phone||'':''}" required></div>
+                            <div class="input-group flex-1"><label>DNI *</label><input type="text" id="p-dni" value="${p?escapeHtml(p.dni||''):''}" required></div>
+                            <div class="input-group flex-1"><label>Teléfono (Celular) *</label><input type="text" id="p-phone" value="${p?escapeHtml(p.phone||''):''}" required></div>
                         </div>
                         <div class="patient-form-row patient-form-row-2">
-                            <div class="input-group flex-1"><label>Fecha de Nacimiento</label><input type="date" id="p-nacimiento" value="${p?p.fechaNacimiento||'':''}"></div>
-                            <div class="input-group flex-1"><label>Email</label><input type="email" id="p-email" value="${p?p.email||'':''}"></div>
+                            <div class="input-group flex-1"><label>Fecha de Nacimiento</label><input type="date" id="p-nacimiento" value="${p?escapeHtml(p.fechaNacimiento||''):''}"></div>
+                            <div class="input-group flex-1"><label>Email</label><input type="email" id="p-email" value="${p?escapeHtml(p.email||''):''}"></div>
                         </div>
-                        <div class="input-group"><label>Domicilio</label><input type="text" id="p-domicilio" value="${p?p.domicilio||'':''}"></div>
+                        <div class="input-group"><label>Domicilio</label><input type="text" id="p-domicilio" value="${p?escapeHtml(p.domicilio||''):''}"></div>
                         <div class="patient-form-row patient-form-row-3">
-                            <div class="input-group flex-1"><label>Obra Social / Plan</label><input type="text" id="p-obrasocial" value="${p?p.obraSocial||'':''}"></div>
-                            <div class="input-group flex-1"><label>Credencial</label><input type="text" id="p-credencial" value="${p?p.credencial||'':''}"></div>
-                            <div class="input-group flex-1"><label>Ficha N°</label><input type="text" id="p-ficha" value="${p?p.fichaNumero||'':''}"></div>
+                            <div class="input-group flex-1"><label>Obra Social / Plan</label><input type="text" id="p-obrasocial" value="${p?escapeHtml(p.obraSocial||''):''}"></div>
+                            <div class="input-group flex-1"><label>Credencial</label><input type="text" id="p-credencial" value="${p?escapeHtml(p.credencial||''):''}"></div>
+                            <div class="input-group flex-1"><label>Ficha N°</label><input type="text" id="p-ficha" value="${p?escapeHtml(p.fichaNumero||''):''}"></div>
                         </div>
-                        <div class="input-group"><label>Observaciones Médicas / Alergias</label><input type="text" id="p-notes" value="${p?p.notes||'':''}"></div>
+                        <div class="input-group"><label>Observaciones Médicas / Alergias</label><input type="text" id="p-notes" value="${p?escapeHtml(p.notes||''):''}"></div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -5346,10 +5891,9 @@ function openPatientModal(editId = null) {
     // ESC cierra el modal
     const _escHandler = (e) => {
         if (e.key !== 'Escape') return;
-        document.removeEventListener('keydown', _escHandler);
         closeModal();
     };
-    document.addEventListener('keydown', _escHandler);
+    document.addEventListener('keydown', _escHandler, { once: true });
     const patientForm = document.getElementById('patient-form');
 
     // Al editar, cargar las notas desde el ClinicalRecord
@@ -5457,16 +6001,17 @@ function openBillingModal(preselectedPatientId = null) {
                 </div>
                 <form id="tx-form">
                     <div class="modal-body">
-                        <div class="input-group">
+                        <div class="input-group" style="position:relative;">
                             <label>Paciente</label>
-                            <select id="tx-patient" required>
-                                ${patients.map(p => `<option value="${p.id}" ${preselectedPatientId && p.id === preselectedPatientId ? 'selected' : ''}>${p.name} (DNI ${p.dni})</option>`).join('')}
-                            </select>
+                            <input type="text" id="tx-patient-search" autocomplete="off" placeholder="Buscar por nombre o DNI..." style="width:100%;"
+                                value="${preselectedPatientId ? (patients.find(p => p.id === preselectedPatientId)?.name + ' (DNI ' + patients.find(p => p.id === preselectedPatientId)?.dni + ')') : ''}">
+                            <input type="hidden" id="tx-patient" value="${preselectedPatientId || ''}">
+                            <div id="tx-patient-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:0.5rem;box-shadow:var(--shadow-lg);z-index:100;max-height:200px;overflow-y:auto;"></div>
                         </div>
                         <div class="input-group">
                             <label>Profesional Asignado a la Transacción</label>
                             <select id="tx-prof" required>
-                                ${professionals.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                                ${professionals.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
                             </select>
                         </div>
                         <div class="input-group"><label>Tipo de Registro</label><select id="tx-type" required><option value="income">Abono / Pago recibido (Ingreso)</option><option value="debt">Cargo por Tratamiento (Deuda)</option></select></div>
@@ -5485,12 +6030,49 @@ function openBillingModal(preselectedPatientId = null) {
     // ESC cierra el modal
     const _escHandler = (e) => {
         if (e.key !== 'Escape') return;
-        document.removeEventListener('keydown', _escHandler);
         closeModal();
     };
-    document.addEventListener('keydown', _escHandler);
+    document.addEventListener('keydown', _escHandler, { once: true });
+    // Autocomplete paciente
+    const txSearch = document.getElementById('tx-patient-search');
+    const txHidden = document.getElementById('tx-patient');
+    const txResults = document.getElementById('tx-patient-results');
+    txSearch.addEventListener('input', () => {
+        const q = txSearch.value.trim().toLowerCase();
+        txHidden.value = '';
+        if (!q) { txResults.style.display = 'none'; return; }
+        const matches = patients.filter(p =>
+            p.name.toLowerCase().includes(q) || String(p.dni).includes(q)
+        ).slice(0, 8);
+        if (!matches.length) { txResults.style.display = 'none'; return; }
+        txResults.innerHTML = matches.map(p =>
+            `<div class="tx-patient-option" data-id="${p.id}" data-label="${escapeHtml(p.name)} (DNI ${p.dni})"
+                style="padding:0.6rem 1rem;cursor:pointer;font-size:0.875rem;border-bottom:1px solid var(--border);">
+                <strong>${escapeHtml(p.name)}</strong> <span style="color:var(--text-muted);">DNI ${p.dni}</span>
+            </div>`
+        ).join('');
+        txResults.style.display = 'block';
+        txResults.querySelectorAll('.tx-patient-option').forEach(opt => {
+            opt.addEventListener('mousedown', (ev) => {
+                ev.preventDefault();
+                txHidden.value = opt.dataset.id;
+                txSearch.value = opt.dataset.label;
+                txResults.style.display = 'none';
+            });
+            opt.addEventListener('mouseover', () => opt.style.background = 'var(--surface-hover, #f3f4f6)');
+            opt.addEventListener('mouseout', () => opt.style.background = '');
+        });
+    });
+    txSearch.addEventListener('blur', () => setTimeout(() => { txResults.style.display = 'none'; }, 150));
+    txSearch.addEventListener('focus', () => { if (txSearch.value) txSearch.dispatchEvent(new Event('input')); });
+
     document.getElementById('tx-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!document.getElementById('tx-patient').value) {
+            showAlert('Seleccioná un paciente de la lista.', { title: 'Transacción', variant: 'warning' });
+            document.getElementById('tx-patient-search').focus();
+            return;
+        }
         const data = {
             patientId: parseInt(document.getElementById('tx-patient').value),
             professionalId: parseInt(document.getElementById('tx-prof').value),
@@ -5696,7 +6278,7 @@ function renderDashboard() {
                         ${apts.sort((a,b)=>a.time.localeCompare(b.time)).slice(0, 5).map(apt => `
                             <tr class="${apt.isOverbook?'tr-sobreturno':''}">
                                 <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
-                                <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
+                                <td>${escapeHtml(apt.patient)} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
                                 <td><span class="badge ${getAppointmentStatusMeta(apt.status).badge}">${getAppointmentStatusMeta(apt.status).label}</span></td>
                             </tr>
                         `).join('')}
@@ -5747,6 +6329,21 @@ const PROF_COLORS = [
     { bg: '#10b981', text: '#ffffff' },
 ];
 
+/**
+ * Devuelve '#111827' (negro) o '#ffffff' (blanco) según la luminancia del color
+ * de fondo, usando la fórmula WCAG para garantizar contraste legible.
+ */
+function getContrastTextColor(hex) {
+    const h = String(hex || '').replace('#', '');
+    if (h.length < 6) return '#ffffff';
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+    const toLinear = c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    const L = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+    return L > 0.179 ? '#111827' : '#ffffff';
+}
+
 function getProfColor(profId) {
     const profs = DB.get('professionals');
     const clinicSettings = getClinicSettings();
@@ -5756,10 +6353,9 @@ function getProfColor(profId) {
     // Solo usar color personalizado si fue explícitamente asignado en configuración
     const customColor = customColorMap[String(profId)];
     const bg = customColor ? normalizeHexColor(customColor, paletteColor.bg) : paletteColor.bg;
-    return {
-        bg,
-        text: paletteColor.text
-    };
+    // Calcular texto con contraste automático para colores personalizados
+    const text = customColor ? getContrastTextColor(bg) : paletteColor.text;
+    return { bg, text };
 }
 
 function getAppointmentVisual(apt) {
@@ -5768,9 +6364,9 @@ function getAppointmentVisual(apt) {
 
     if (status === 'cancelled') {
         return {
-            bg: 'repeating-linear-gradient(135deg, #fee2e2 0px, #fee2e2 6px, #fecaca 6px, #fecaca 12px)',
-            text: '#991b1b',
-            border: '#ef4444',
+            bg: '#fef2f2',
+            text: '#b91c1c',
+            border: '#fca5a5',
             accent: '#ef4444',
             cancelled: true
         };
@@ -5824,7 +6420,7 @@ function renderCalendarFilterLegend(professionals, options = {}) {
                 ${professionals.map(p => {
                     const color = getProfColor(p.id);
                     return `<button type="button" class="cal-legend-item cal-prof-select ${selectedId === p.id ? 'is-active' : ''}" data-id="${p.id}">
-                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${p.name}</span>
+                        <span class="cal-legend-chip" style="background:${color.bg}; color:${color.text};">${escapeHtml(p.name)}</span>
                     </button>`;
                 }).join('')}
             </div>
@@ -5874,7 +6470,7 @@ function renderAppointmentCompactCard(apt) {
                     ${apt.isOverbook ? '<span class="badge badge-purple">Sobreturno</span>' : ''}
                 </div>
             </div>
-            <div class="cal-mobile-card-name ${visual.cancelled ? 'cal-apt-name-cancelled' : ''}">${apt.patient}</div>
+            <div class="cal-mobile-card-name ${visual.cancelled ? 'cal-apt-name-cancelled' : ''}">${escapeHtml(apt.patient)}</div>
             <div class="cal-mobile-card-prof">${getProfName(apt.professionalId)}</div>
             <div class="cal-mobile-card-actions">
                 ${patient && canViewClinicalHistoryUi() ? `<button class="btn btn-ghost btn-sm" onclick="loadClinicalHistory(${patient.id})">Historia</button>` : ''}
@@ -5907,7 +6503,7 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
                 .sort((a, b) => a.time.localeCompare(b.time));
             return `
                 <section class="cal-mobile-section">
-                    <header class="cal-mobile-section-header">${prof.name}</header>
+                    <header class="cal-mobile-section-header">${escapeHtml(prof.name)}</header>
                     <div class="cal-mobile-list">
                         ${profApts.length ? profApts.map(renderAppointmentCompactCard).join('') : '<div class="cal-mobile-empty">Sin turnos para este profesional.</div>'}
                     </div>
@@ -5977,6 +6573,143 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
     `;
 }
 
+function canEditCalendar() {
+    return state.user?.roles?.some(r => ['secretary', 'superadmin', 'admin'].includes(r)) ?? false;
+}
+
+// ── Acciones de turno: toggle al hacer clic ────────────────────────────────
+function toggleAptActions(event, aptId) {
+    event.stopPropagation();
+
+    // Si hay popup abierto (mismo u otro turno) → cerrarlo
+    const existing = document.getElementById('cal-apt-popup');
+    if (existing) {
+        existing.remove();
+        // Si era el mismo turno → solo cerrar (toggle)
+        if (existing.dataset.aptId === String(aptId)) return;
+    }
+
+    const block = event.currentTarget;
+    const apt = getAccessibleAppointments().find(a => a.id === aptId);
+    if (!apt) return;
+
+    const patient = getPatientByAppointment(apt);
+    const canEdit = canEditCalendar();
+
+    const prof = DB.get('professionals').find(p => p.id === apt.professionalId);
+    const profName = prof ? prof.name : null;
+    const isCancelled = apt.status === 'cancelled';
+    const duration = apt.isOverbook ? 15 : apt.duration;
+
+    // Calcular hora de fin
+    const [ah, am] = apt.time.split(':').map(Number);
+    const endMin = ah * 60 + am + duration;
+    const endTime = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+
+    const statusBadge = isCancelled
+        ? `<span class="cal-apt-popup-badge cal-apt-popup-badge-cancelled"><i class="fa-solid fa-ban"></i> Cancelado</span>`
+        : apt.isOverbook
+            ? `<span class="cal-apt-popup-badge cal-apt-popup-badge-overbook"><i class="fa-solid fa-bolt"></i> Sobreturno</span>`
+            : '';
+
+    const popup = document.createElement('div');
+    popup.id = 'cal-apt-popup';
+    popup.className = 'cal-apt-popup';
+    popup.dataset.aptId = aptId;
+    popup.setAttribute('role', 'menu');
+    popup.innerHTML = `
+        <div class="cal-apt-popup-info">
+            <div class="cal-apt-popup-patient">${escapeHtml(apt.patient)}</div>
+            ${statusBadge}
+            <div class="cal-apt-popup-row"><i class="fa-solid fa-clock"></i> ${apt.time} – ${endTime} <span class="cal-apt-popup-dur">${duration} min</span></div>
+            ${profName ? `<div class="cal-apt-popup-row"><i class="fa-solid fa-user-doctor"></i> ${escapeHtml(profName)}</div>` : ''}
+            ${apt.notes ? `<div class="cal-apt-popup-notes"><i class="fa-solid fa-note-sticky"></i> ${escapeHtml(apt.notes)}</div>` : ''}
+        </div>
+        <div class="cal-apt-popup-divider"></div>
+        <button class="cal-apt-popup-btn" onclick="closeCalAptPopup()">
+            <i class="fa-solid fa-xmark"></i> Cerrar
+        </button>
+        ${patient && canViewClinicalHistoryUi() ? `
+        <button class="cal-apt-popup-btn" onclick="closeCalAptPopup(); loadClinicalHistory(${patient.id})">
+            <i class="fa-solid fa-notes-medical"></i> Historia Clínica
+        </button>` : ''}
+        ${canEdit && !isCancelled ? `
+        <button class="cal-apt-popup-btn" onclick="closeCalAptPopup(); openAppointmentModal(${aptId})">
+            <i class="fa-solid fa-pen"></i> Editar turno
+        </button>
+        <button class="cal-apt-popup-btn cal-apt-popup-btn-danger" onclick="closeCalAptPopup(); _confirmCancelApt(${aptId})">
+            <i class="fa-solid fa-ban"></i> Cancelar turno
+        </button>` : ''}
+    `;
+
+    // Insertar off-screen para medir
+    popup.style.visibility = 'hidden';
+    document.body.appendChild(popup);
+
+    const rect = block.getBoundingClientRect();
+    const pw = popup.offsetWidth || 190;
+    const ph = popup.offsetHeight || 160;
+    const gap = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Preferir a la derecha del bloque, alineado arriba
+    let left = rect.right + gap;
+    let top  = rect.top;
+
+    // Si se va de pantalla a la derecha → mostrar a la izquierda
+    if (left + pw > vw - gap) left = rect.left - pw - gap;
+    left = Math.max(gap, left);
+    // Si se va de pantalla abajo → subir
+    if (top + ph > vh - gap) top = vh - ph - gap;
+    top = Math.max(gap, top);
+
+    popup.style.left        = `${left}px`;
+    popup.style.top         = `${top}px`;
+    popup.style.visibility  = '';
+
+    // Cerrar al hacer click fuera
+    const onOutside = (e) => {
+        if (!document.getElementById('cal-apt-popup')?.contains(e.target)) {
+            closeCalAptPopup();
+            document.removeEventListener('click', onOutside);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', onOutside), 0);
+}
+
+function closeCalAptPopup() {
+    const popup = document.getElementById('cal-apt-popup');
+    if (popup) { popup.remove(); return true; }
+    return false;
+}
+
+// Mantener por compatibilidad (ya no se usa activamente)
+function closeAptActions() { closeCalAptPopup(); }
+
+async function _confirmCancelApt(aptId) {
+    const apt = getAccessibleAppointments().find(a => a.id === aptId);
+    if (!apt) return;
+    if (await showConfirm('¿Cancelar este turno?', { title: 'Cancelar turno', confirmText: 'Sí, cancelar' })) {
+        try {
+            if (state.authToken) {
+                // PATCH status → 'cancelled' (el turno queda visible en rojo en el calendario)
+                await apiFetch(`/appointments/${aptId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: 'cancelled' }),
+                });
+                await syncBackendSnapshotToLocalDb();
+            } else {
+                // Offline: actualizar en la base local
+                DB.update('appointments', aptId, { status: 'cancelled' });
+            }
+            refreshCurrentView();
+        } catch (err) {
+            alert(err.message || 'No se pudo cancelar el turno.');
+        }
+    }
+}
+
 // Calendar constants
 const CAL_START_HOUR = 8;   // 8:00
 const CAL_END_HOUR   = 20;  // 20:00
@@ -5989,6 +6722,7 @@ function renderCalendarViewSwitcher() {
 }
 
 function renderAppointments() {
+    closeCalAptPopup(); // cerrar popup si quedó abierto de una vista anterior
     const professionals = getAccessibleProfessionals();
     const selectedProfessionalId = ensureSingleCalendarProfessional(professionals);
 
@@ -6100,17 +6834,9 @@ function renderAppointments() {
                     style="${blockStyle}"
                     onclick="openAppointmentViewModal(${apt.id})">
                     <div class="cal-apt-content">
-                        <span class="cal-apt-name ${visual.cancelled ? 'cal-apt-name-cancelled' : ''}">${apt.patient}</span>
-                        <span class="cal-apt-meta">${apt.time} - ${duration}min</span>
-                        ${visual.cancelled ? '<span class="cal-apt-tag cal-apt-tag-cancelled">Cancelado</span>' : apt.isOverbook ? '<span class="cal-apt-tag">Sobreturno</span>' : ''}
+                        <span class="cal-apt-name ${visual.cancelled ? 'cal-apt-name-cancelled' : ''}">${escapeHtml(apt.patient)}</span>
+                        <span class="cal-apt-meta">${apt.time} · ${duration}min${visual.cancelled ? ' · Cancelado' : apt.isOverbook ? ' · Sobreturno' : ''}</span>
                     </div>
-                    ${canEdit ? `<div class="cal-apt-actions">
-                        ${patient && canViewClinicalHistoryUi() ? `<button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia Clínica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>` : ''}
-                        <button class="cal-apt-btn btn-edit-apt" data-id="${apt.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
-                        <button class="cal-apt-btn btn-delete-apt" data-id="${apt.id}" title="Cancelar"><i class="fa-solid fa-times"></i></button>
-                    </div>` : `${patient && canViewClinicalHistoryUi() ? `<div class="cal-apt-actions cal-apt-actions-readonly">
-                        <button class="cal-apt-btn btn-view-history-inline" data-id="${patient.id}" title="Historia Clínica" onclick="event.stopPropagation(); loadClinicalHistory(${patient.id})"><i class="fa-solid fa-notes-medical"></i></button>
-                    </div>` : ''}`}
                 </div>`;
             }).join('');
 
@@ -6118,7 +6844,7 @@ function renderAppointments() {
             <div class="cal-prof-col">
                 <div class="cal-prof-header">
                     <div style="display:flex;flex-direction:column;align-items:center;gap:0.15rem;">
-                        <span class="cal-prof-name">${p.name}</span>
+                        <span class="cal-prof-name">${escapeHtml(p.name)}</span>
                         <span class="cal-prof-schedule-badge">${daySchedule.start} – ${daySchedule.end}</span>
                     </div>
                 </div>
@@ -6179,27 +6905,27 @@ function renderAppointments() {
             const dayApts = allApts.filter(a => a.date === iso && calendarState.visibleProfs[a.professionalId]);
             const countLabel = formatAppointmentCountLabel(dayApts.length);
 
-            let summaryCard;
+            let summaryContent;
             if (!profWorksDay && weekSelectedProf) {
-                summaryCard = `<div class="cal-day-no-work"><i class="fa-solid fa-moon"></i><span>No trabaja</span></div>`;
+                summaryContent = `<div class="cal-month-no-work"><i class="fa-solid fa-moon"></i><span>No trabaja</span></div>`;
             } else if (dayApts.length) {
-                summaryCard = `<button type="button" class="cal-day-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
-                        <span class="cal-day-summary-label">${countLabel}</span>
+                summaryContent = `<button type="button" class="cal-month-summary-card" data-calendar-date="${iso}" style="background:${selectedProfessionalColor.bg}; color:${selectedProfessionalColor.text}; border-color:${selectedProfessionalColor.bg};">
+                        <span class="cal-month-summary-label">${countLabel}</span>
                    </button>`;
             } else {
-                summaryCard = `<div class="cal-day-summary-empty">Sin turnos</div>`;
+                summaryContent = `<div class="cal-month-dayempty">Sin turnos</div>`;
             }
 
-            const schedLabel = profScheduleDay ? `<span class="cal-day-sched-badge">${profScheduleDay.start}–${profScheduleDay.end}</span>` : '';
+            const schedLabel = profScheduleDay ? `<div class="cal-week-sched-line">${profScheduleDay.start}–${profScheduleDay.end}</div>` : '';
             dayCols += `
-            <div class="cal-day-col ${!profWorksDay && weekSelectedProf ? 'cal-day-col-no-work' : ''}" data-calendar-date="${iso}" style="cursor:pointer;">
-                <button type="button" class="cal-day-header ${isToday ? 'cal-today-header' : ''}" data-calendar-date="${iso}">
-                    <span class="cal-day-name">${dayName}</span>
-                    <span class="cal-day-number ${isToday ? 'cal-today-badge' : ''}">${dayNum}</span>
-                    ${schedLabel}
+            <div class="cal-month-cell${!profWorksDay && weekSelectedProf ? ' cal-month-cell-no-work' : ''}" data-calendar-date="${iso}" style="cursor:pointer;">
+                <button type="button" class="cal-month-dayhead cal-week-dayhead ${isToday ? 'is-today' : ''}" data-calendar-date="${iso}">
+                    <span class="cal-week-dayname">${dayName}</span>
+                    <span class="cal-month-daynum">${dayNum}</span>
                 </button>
-                <div class="cal-day-body" style="height:min(600px,calc(100dvh - 220px)); padding:0.9rem 0.5rem 0.5rem; overflow-y:auto;">
-                    ${summaryCard}
+                <div class="cal-month-daybody">
+                    ${schedLabel}
+                    ${summaryContent}
                 </div>
             </div>`;
         });
@@ -6212,9 +6938,11 @@ function renderAppointments() {
 
             <div class="cal-month-layout">
                 ${legendHtml}
-                <div class="cal-scroll-wrap">
-                    <div class="cal-grid-v2">
-                        ${dayCols}
+                <div class="cal-scroll-wrap cal-scroll-wrap-month">
+                    <div class="cal-month-board">
+                        <div class="cal-month-grid cal-week-grid">
+                            ${dayCols}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -6332,11 +7060,11 @@ function renderProfessionals() {
                         ${initials || '<i class="fa-solid fa-user-doctor"></i>'}
                     </div>
                     <div class="prof-schedule-info">
-                        <span class="prof-schedule-name">${p.name}</span>
-                        ${p.specialty ? `<span class="prof-schedule-specialty">${p.specialty}</span>` : ''}
+                        <span class="prof-schedule-name">${escapeHtml(p.name)}</span>
+                        ${p.specialty ? `<span class="prof-schedule-specialty">${escapeHtml(p.specialty)}</span>` : ''}
                     </div>
                     ${canAccessProfessional(p.id) ? `
-                    <button class="btn btn-secondary btn-sm btn-edit-schedule prof-schedule-btn" data-id="${p.id}" aria-label="Configurar horarios de ${p.name}" title="Configurar horarios">
+                    <button class="btn btn-secondary btn-sm btn-edit-schedule prof-schedule-btn" data-id="${p.id}" aria-label="Configurar horarios de ${escapeHtml(p.name)}" title="Configurar horarios">
                         <i class="fa-solid fa-clock"></i>
                         <span>Horarios</span>
                     </button>` : ''}
@@ -6360,38 +7088,41 @@ function renderPatients() {
             <div class="flex gap-2 flex-wrap">
                 <button class="btn btn-primary" id="btn-add-patient"><i class="fa-solid fa-user-plus"></i> Nuevo Paciente</button>
                 <button class="btn btn-secondary" id="btn-import-patients"><i class="fa-solid fa-file-excel"></i> Importar Excel</button>
+                <button class="btn btn-secondary" id="btn-export-patients" onclick="exportPatients()"><i class="fa-solid fa-file-arrow-down"></i> Exportar Excel</button>
             </div>` : ''}
         </div>
         <div class="patient-search-shell mb-4">
             <input type="search" id="search-patient" placeholder="Buscar pacientes por nombre o DNI..." class="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
         </div>
         <div class="table-container table-container-patients shadow-sm">
-            <table class="w-full text-left" id="patients-table">
-                <thead><tr><th>Paciente</th><th>Contacto</th><th>DNI</th><th>Acciones</th></tr></thead>
-                <tbody>
-                    ${patients.map(p => `
-                        <tr>
-                            <td class="font-medium flex items-center gap-3" data-label="Paciente">
-                                <div class="patient-list-avatar">${p.name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}</div>
-                                ${p.name}
-                            </td>
-                            <td data-label="Contacto">
-                                <span class="block text-sm text-gray-600" style="margin-bottom:4px;"><i class="fa-solid fa-phone mr-1"></i> ${p.phone}</span>
-                                <span class="block text-xs text-gray-400"><i class="fa-solid fa-envelope mr-1"></i> ${p.email || 'Sin email'}</span>
-                            </td>
-                            <td class="text-sm font-semibold" data-label="DNI">${p.dni}</td>
-                            <td data-label="Acciones" class="table-actions-cell">
-                                <div class="flex gap-2 patient-actions">
-                                    ${canViewClinicalHistoryUi() ? `<button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia Clínica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>` : ''}
-                                    ${canEditPatientUi() ? `<button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}" title="Editar"><i class="fa-solid fa-pen text-primary-600"></i></button>` : ''}
-                                    ${isSuperadmin() ? `<button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}" title="Eliminar"><i class="fa-solid fa-trash text-danger"></i></button>` : ''}
-                                    ${canViewPatientBillingUi() ? `<button class="btn btn-ghost p-1 btn-view-patient-billing" data-id="${p.id}" title="Cuenta Corriente"><i class="fa-solid fa-wallet text-emerald-600"></i></button>` : ''}
-                                </div>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+            <div class="patients-scroll-inner">
+                <table class="w-full text-left" id="patients-table">
+                    <thead><tr><th>Paciente</th><th>Contacto</th><th>DNI</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                        ${patients.map((p, i) => `
+                            <tr style="animation-delay:${Math.min(i * 35, 350)}ms">
+                                <td class="font-medium flex items-center gap-3" data-label="Paciente">
+                                    <div class="patient-list-avatar">${p.name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}</div>
+                                    ${escapeHtml(p.name)}
+                                </td>
+                                <td data-label="Contacto">
+                                    <span class="block text-sm text-gray-600" style="margin-bottom:4px;"><i class="fa-solid fa-phone mr-1"></i> ${escapeHtml(p.phone)}</span>
+                                    <span class="block text-xs text-gray-400"><i class="fa-solid fa-envelope mr-1"></i> ${escapeHtml(p.email || 'Sin email')}</span>
+                                </td>
+                                <td class="text-sm font-semibold" data-label="DNI">${p.dni}</td>
+                                <td data-label="Acciones" class="table-actions-cell">
+                                    <div class="flex gap-2 patient-actions">
+                                        ${canViewClinicalHistoryUi() ? `<button class="btn btn-ghost p-1 btn-view-history" data-id="${p.id}" title="Historia Clínica"><i class="fa-solid fa-file-medical text-purple-600"></i></button>` : ''}
+                                        ${canEditPatientUi() ? `<button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}" title="Editar"><i class="fa-solid fa-pen text-primary-600"></i></button>` : ''}
+                                        ${isSuperadmin() ? `<button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}" title="Eliminar"><i class="fa-solid fa-trash text-danger"></i></button>` : ''}
+                                        ${canViewPatientBillingUi() ? `<button class="btn btn-ghost p-1 btn-view-patient-billing" data-id="${p.id}" title="Cuenta Corriente"><i class="fa-solid fa-wallet text-emerald-600"></i></button>` : ''}
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
 }
@@ -6592,10 +7323,10 @@ function renderBilling() {
                 </div>
             </div>
             <div class="card metric-card">
-                <div class="metric-icon ${cajaBalance >= 0 ? 'metric-blue' : 'metric-red'}"><i class="fa-solid fa-scale-balanced"></i></div>
+                <div class="metric-icon metric-purple"><i class="fa-solid fa-scale-balanced"></i></div>
                 <div class="metric-info">
                     <h3>Balance neto</h3>
-                    <p class="${cajaBalance >= 0 ? 'text-success' : 'text-warning'}">$${Math.abs(cajaBalance).toLocaleString()}</p>
+                    <p>$${Math.abs(cajaBalance).toLocaleString()}</p>
                     <small class="text-xs text-gray-400">${cajaPeriodLabel}</small>
                 </div>
             </div>
@@ -6785,7 +7516,7 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                         <col>
                         <col>
                     </colgroup>
-                    <thead><tr><th class="col-sticky-left">Hora</th><th>Paciente</th><th class="col-hide-xs">Profesional</th><th class="col-hide-sm">Sala</th><th class="col-hide-lg">Confirmación</th><th class="col-show-lg">Estado</th><th class="col-hide-lg">Whatsapp</th></tr></thead>
+                    <thead><tr><th class="col-sticky-left">Hora</th><th>Paciente</th><th class="col-hide-xs">Profesional</th><th class="col-hide-sm">Sala</th><th class="col-hide-lg">Confirmación</th><th class="col-show-lg">Estado</th>${canUseWhatsapp ? '<th class="col-hide-lg">Whatsapp</th>' : ''}</tr></thead>
                     <tbody>
                         ${pendingApts.map(apt => {
                             const patient = getPatientByAppointment(apt);
@@ -6803,17 +7534,27 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                             return `
                                 <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}" style="${rowStyle}">
                                     <td class="col-sticky-left" style="background:${_rowBg}"><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
-                                    <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
-                                    <td class="col-hide-xs"><span class="dash-prof-chip" style="background:${profColor.bg}; color:${profColor.text};">${getProfName(apt.professionalId)}</span></td>
+                                    <td>${escapeHtml(apt.patient)} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
+                                    <td class="col-hide-xs"><span class="dash-prof-chip" style="background:${profColor.bg}; color:${profColor.text};">${escapeHtml(getProfName(apt.professionalId))}</span></td>
                                     <td class="col-hide-sm">${renderPresenceBtnHtml(apt.id)}</td>
                                     <td class="col-hide-lg">${canManageStatus ? renderStatusDropdownHtml(apt.id, statusMeta) : `<span class="badge ${statusMeta.badge}">${statusMeta.label}</span>`}</td>
-                                    <td class="col-show-lg"><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></td>
-                                    <td class="col-hide-lg">${canUseWhatsapp ? (whatsappLink ? (() => {
+                                    <td class="col-show-lg">
+                                        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+                                            <span class="badge ${statusMeta.badge}">${statusMeta.label}</span>
+                                            ${canUseWhatsapp ? (whatsappLink ? (() => {
+                                                const alreadySent = ['sent', 'confirmed', 'rescheduled', 'cancelled'].includes(statusMeta.key);
+                                                return alreadySent
+                                                    ? `<span class="wa-sent-badge"><i class="fa-brands fa-whatsapp"></i> Enviado</span>`
+                                                    : `<button type="button" class="btn btn-secondary btn-sm dashboard-wa-btn" onclick="sendWhatsAppMessage(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</button>`;
+                                            })() : '') : ''}
+                                        </div>
+                                    </td>
+                                    ${canUseWhatsapp ? `<td class="col-hide-lg">${whatsappLink ? (() => {
                                             const alreadySent = ['sent', 'confirmed', 'rescheduled', 'cancelled'].includes(statusMeta.key);
                                             return alreadySent
                                                 ? `<span class="wa-sent-badge"><i class="fa-brands fa-whatsapp"></i> Enviado</span>`
                                                 : `<button type="button" class="btn btn-secondary btn-sm dashboard-wa-btn" onclick="sendWhatsAppMessage(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</button>`;
-                                        })() : '<span class="text-xs text-gray-400">Sin teléfono</span>') : '<span class="text-xs text-gray-400">Sin acceso</span>'}</td>
+                                        })() : '<span class="text-xs text-gray-400">Sin teléfono</span>'}</td>` : ''}
                                 </tr>
                             `;
                         }).join('')}
@@ -6839,8 +7580,8 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                 return `
                                     <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}">
                                         <td><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-400">(${apt.duration}m)</span></td>
-                                        <td>${apt.patient} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
-                                        <td class="col-hide-xs">${getProfName(apt.professionalId)}</td>
+                                        <td>${escapeHtml(apt.patient)} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
+                                        <td class="col-hide-xs">${escapeHtml(getProfName(apt.professionalId))}</td>
                                         <td><span class="badge ${statusMeta.badge}">${statusMeta.label}</span></td>
                                     </tr>
                                 `;
@@ -6860,13 +7601,17 @@ function renderSettingsSubpages() {
     const clinicSettings = getClinicSettings();
     const clinicName = String(clinicSettings.name || DEFAULT_CLINIC_SETTINGS.name);
     const isSuper = state.user.roles.includes('superadmin');
-    const canManageSettings = state.user.roles.some(role => ['superadmin', 'admin'].includes(role));
+    const isAdmin = state.user.roles.some(role => ['superadmin', 'admin'].includes(role));
+    const isSecretary = state.user.roles.includes('secretary');
+    const canManageSettings = isAdmin || isSecretary;
+    const canManageUsers = isAdmin;       // crear/ver usuarios y profesionales
+    const canManageClinic = isSecretary || isAdmin; // configuración de clínica
 
     if (!canManageSettings) {
         return `
             <div class="settings-card">
                 <h3>Acceso denegado</h3>
-                <p>Solo los usuarios con rol superadmin o admin pueden gestionar la configuración.</p>
+                <p>No tenés permisos para acceder a la configuración.</p>
             </div>
         `;
     }
@@ -6878,17 +7623,17 @@ function renderSettingsSubpages() {
         const initials = (u.name || u.email || 'U').substring(0, 2).toUpperCase();
         return `
             <div class="settings-entity-card">
-                <div class="settings-entity-avatar">${initials}</div>
+                <div class="settings-entity-avatar">${escapeHtml(initials)}</div>
                 <div class="settings-entity-info">
-                    <span class="settings-entity-name">${u.name || 'Sin nombre'}</span>
-                    <span class="settings-entity-sub">${u.email || '-'}</span>
+                    <span class="settings-entity-name">${escapeHtml(u.name || 'Sin nombre')}</span>
+                    <span class="settings-entity-sub">${escapeHtml(u.email || '-')}</span>
                 </div>
                 <span class="badge ${roleBadgeClass} flex-shrink-0">${primaryRole}</span>
                 <div class="settings-entity-actions">
-                    ${isSuper ? `
+                    ${isAdmin ? `
                     <button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
-                    <button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>
-                    ` : '<span class="text-xs text-gray-400">Solo lectura</span>'}
+                    ${isSuper && !u.isPlatformAdmin ? `<button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    ` : ''}
                 </div>
             </div>`;
     }).join('');
@@ -6903,8 +7648,8 @@ function renderSettingsSubpages() {
                     ${(p.name||'').split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase() || '?'}
                 </div>
                 <div class="settings-entity-info">
-                    <span class="settings-entity-name">${p.name}${p.lastName ? ' ' + p.lastName : ''}</span>
-                    <span class="settings-entity-sub">${p.specialty || p.email || '-'}</span>
+                    <span class="settings-entity-name">${escapeHtml(p.name)}${p.lastName ? ' ' + escapeHtml(p.lastName) : ''}</span>
+                    <span class="settings-entity-sub">${escapeHtml(p.specialty || p.email || '-')}</span>
                 </div>
                 ${statusLabel}
                 <div class="settings-entity-actions">
@@ -6930,11 +7675,11 @@ function renderSettingsSubpages() {
         : '<p class="subtext">No hay profesionales cargados todavía.</p>';
 
     const settingsSections = [
-        { id: 'clinic-settings', label: 'Configuración clínica', icon: 'fa-hospital', description: 'Nombre comercial e identidad visual de profesionales.' },
-        ...(canManageSettings ? [{ id: 'create-user', label: 'Crear usuario', icon: 'fa-user-plus', description: 'Alta de nuevos usuarios y permisos.' }] : []),
-        { id: 'create-professional', label: 'Crear profesional', icon: 'fa-user-doctor', description: 'Registro de profesionales y datos base.' },
-        ...(canManageSettings ? [{ id: 'users-list', label: 'Usuarios existentes', icon: 'fa-users-gear', description: 'Listado de usuarios y accesos asignados.' }] : []),
-        { id: 'professionals-list', label: 'Profesionales existentes', icon: 'fa-address-card', description: 'Vista de profesionales y acceso al calendario.' }
+        ...(canManageClinic ? [{ id: 'clinic-settings', label: 'Configuración clínica', icon: 'fa-hospital', description: 'Nombre comercial e identidad visual de profesionales.' }] : []),
+        ...(canManageUsers ? [{ id: 'create-user', label: 'Crear usuario', icon: 'fa-user-plus', description: 'Alta de nuevos usuarios y permisos.' }] : []),
+        ...(canManageUsers ? [{ id: 'create-professional', label: 'Crear profesional', icon: 'fa-user-doctor', description: 'Registro de profesionales y datos base.' }] : []),
+        ...(canManageUsers ? [{ id: 'users-list', label: 'Usuarios existentes', icon: 'fa-users-gear', description: 'Listado de usuarios y accesos asignados.' }] : []),
+        ...(canManageUsers ? [{ id: 'professionals-list', label: 'Profesionales existentes', icon: 'fa-address-card', description: 'Vista de profesionales y acceso al calendario.' }] : []),
     ];
 
     const activeSection = settingsSections.some(section => section.id === state.settingsSubView)
@@ -6969,11 +7714,15 @@ function renderSettingsSubpages() {
                 </form>
             </section>
         `,
-        'create-user': canManageSettings ? (() => {
+        'create-user': canManageUsers ? (() => {
             const editingUser = state.editingUserId ? users.find(u => u.id === state.editingUserId) : null;
             const isEditing = !!editingUser;
             const editingRoles = new Set(editingUser ? (editingUser.roles || (editingUser.role ? [editingUser.role] : [])) : []);
-            const editingProfs = new Set(((editingUser && editingUser.allowedProfessionals) || []).map(id => parseInt(id, 10)));
+            const currentLinkedProfId = editingUser?.linkedProfessionalId || null;
+            const editingProfs = new Set([
+                ...((editingUser && editingUser.allowedProfessionals) || []).map(id => parseInt(id, 10)),
+                ...(currentLinkedProfId ? [currentLinkedProfId] : [])
+            ]);
             const isRoleChecked = (r) => editingRoles.has(r) || (r==='administrador'&&editingRoles.has('admin')) || (r==='secretario'&&editingRoles.has('secretary')) || (r==='profesional'&&editingRoles.has('professional'));
             return `
             <section class="settings-card settings-panel-card">
@@ -6987,7 +7736,7 @@ function renderSettingsSubpages() {
                     <input type="hidden" id="u-editing-id" value="${isEditing ? editingUser.id : ''}">
                     <div class="input-group"><label>Nombre completo *</label><input type="text" id="u-name" value="${isEditing ? escapeHtml(editingUser.name||editingUser.fullName||'') : ''}" required></div>
                     <div class="input-group"><label>Email *</label><input type="email" id="u-email" value="${isEditing ? escapeHtml(editingUser.email||'') : ''}" required></div>
-                    <div class="input-group"><label>Contraseña ${isEditing ? '(opcional)' : '*'}</label><input type="password" id="u-password" minlength="6" ${isEditing ? '' : 'required'}></div>
+                    <div class="input-group"><label>Contraseña ${isEditing ? '(opcional)' : '*'}</label><div class="pwd-wrap"><input type="password" id="u-password" minlength="6" ${isEditing ? '' : 'required'} style="padding-right:40px;"><button type="button" class="login-pwd-toggle" tabindex="-1" onclick="const i=document.getElementById('u-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')"><i class="fa-solid fa-eye"></i></button></div></div>
                     <div class="input-group"><label>Tipo de usuario *</label><select id="u-type" required><option value="">Seleccionar...</option><option value="administrador" ${isEditing&&editingUser.type==='administrador'?'selected':''}>Administrador</option><option value="secretario" ${isEditing&&editingUser.type==='secretario'?'selected':''}>Secretario</option><option value="profesional" ${isEditing&&editingUser.type==='profesional'?'selected':''}>Profesional</option></select></div>
                     <div class="settings-subsection">
                         <h4>Roles de Permisos</h4>
@@ -6996,17 +7745,16 @@ function renderSettingsSubpages() {
                             <div class="checkbox-group"><input type="checkbox" name="u-role" value="administrador" ${isRoleChecked('administrador')?'checked':''}><label>Administrador</label></div>
                             <div class="checkbox-group"><input type="checkbox" name="u-role" value="secretario" ${isRoleChecked('secretario')?'checked':''}><label>Secretario</label></div>
                             <div class="checkbox-group"><input type="checkbox" name="u-role" value="profesional" ${isRoleChecked('profesional')?'checked':''}><label>Profesional</label></div>
-                            ${isSuper ? `<div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin" ${isRoleChecked('superadmin')?'checked':''}><label>Superadmin</label></div>` : ''}
                         </div>
                     </div>
                     <div class="settings-subsection">
-                        <h4>Asignar Profesionales (opcional)</h4>
-                        <p class="subtext">Se puede dejar vacío; acceso completo si no se selecciona ninguno.</p>
+                        <h4>Asignar Profesionales</h4>
+                        <p class="subtext">Para rol <strong>Profesional</strong>: seleccioná el profesional que corresponde a este usuario — determina a qué agenda, odontograma y tratamientos accede. Para otros roles: acceso completo si no se selecciona ninguno.</p>
                         <div class="settings-list settings-list-static">
                             ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}" ${editingProfs.has(p.id)?'checked':''}><label>${escapeHtml(p.name)}</label></div>`).join('')}
                         </div>
                     </div>
-                    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                    <div class="form-action-row">
                         <button type="submit" class="btn btn-primary">${isEditing ? 'Actualizar Usuario' : 'Guardar Usuario'}</button>
                         ${isEditing ? '<button type="button" class="btn btn-ghost" onclick="window._cancelEditUser()">Cancelar</button>' : ''}
                     </div>
@@ -7036,14 +7784,14 @@ function renderSettingsSubpages() {
                     <div class="input-group"><label>Teléfono</label><input type="text" id="p-phone" value="${isEditing ? escapeHtml(editingProf.phone||'') : ''}"></div>
                     <div class="input-group"><label>Email</label><input type="email" id="p-email" value="${isEditing ? escapeHtml(editingProf.email||'') : ''}"></div>
                     <div class="input-group"><label>Estado</label><select id="p-status"><option value="activo" ${profStatus==='activo'?'selected':''}>Activo</option><option value="inactivo" ${profStatus==='inactivo'?'selected':''}>Inactivo</option></select></div>
-                    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                    <div class="form-action-row">
                         <button type="submit" class="btn btn-primary">${isEditing ? 'Actualizar Profesional' : 'Guardar Profesional'}</button>
                         ${isEditing ? '<button type="button" class="btn btn-ghost" onclick="window._cancelEditProf()">Cancelar</button>' : ''}
                     </div>
                 </form>
             </section>`;
         })(),
-        'users-list': canManageSettings ? `
+        'users-list': canManageUsers ? `
             <section class="settings-card settings-panel-card">
                 <header><h3>Usuarios Existentes</h3></header>
                 <div class="settings-entity-list">
@@ -7094,13 +7842,15 @@ function renderSettings() {
     const users = DB.get('users');
     const profs = DB.get('professionals');
     const isSuper = state.user.roles.includes('superadmin');
-    const canManageSettings = state.user.roles.some(role => ['superadmin', 'admin'].includes(role));
+    const isAdmin = state.user.roles.some(role => ['superadmin', 'admin'].includes(role));
+    const isSecretary = state.user.roles.includes('secretary');
+    const canManageSettings = isAdmin || isSecretary;
 
     if (!canManageSettings) {
         return `
             <div class="settings-card">
                 <h3>Acceso denegado</h3>
-                <p>Solo los usuarios con rol superadmin o admin pueden gestionar la configuración.</p>
+                <p>No tenés permisos para acceder a la configuración.</p>
             </div>
         `;
     }
@@ -7116,11 +7866,11 @@ function renderSettings() {
 
         return `
             <tr class="hover-row">
-                <td class="table-name"><strong>${u.name || 'Sin nombre'}</strong><br><span class="subtle">${u.email || '-'}</span></td>
+                <td class="table-name"><strong>${escapeHtml(u.name || 'Sin nombre')}</strong><br><span class="subtle">${escapeHtml(u.email || '-')}</span></td>
                 <td>${u.type || '-'}</td>
                 <td>${roles}</td>
                 <td>${profNames}</td>
-                <td class="text-center">${isSuper ? `<button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar usuario"><i class="fa-solid fa-pen"></i></button><button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar usuario" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
+                <td class="text-center">${isSuper ? `<button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar usuario"><i class="fa-solid fa-pen"></i></button>${!u.isPlatformAdmin ? `<button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar usuario" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
             </tr>`;
     }).join('');
 
@@ -7130,11 +7880,11 @@ function renderSettings() {
             : `<span class="badge badge-gray">Inactivo</span>`;
         return `
             <tr class="hover-row">
-                <td class="table-name">${p.name}</td>
-                <td>${p.lastName || '-'}</td>
-                <td>${p.specialty || '-'}</td>
-                <td>${p.phone || '-'}</td>
-                <td>${p.email || '-'}</td>
+                <td class="table-name">${escapeHtml(p.name)}</td>
+                <td>${escapeHtml(p.lastName || '-')}</td>
+                <td>${escapeHtml(p.specialty || '-')}</td>
+                <td>${escapeHtml(p.phone || '-')}</td>
+                <td>${escapeHtml(p.email || '-')}</td>
                 <td>${statusLabel}</td>
                 <td class="text-center">${canViewAppointmentsUi() ? `<button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Ver calendario"><i class="fa-solid fa-calendar-days"></i></button>` : ''}${canManageProfessionalSchedulesUi() ? `<button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Configurar horarios"><i class="fa-solid fa-clock"></i></button>` : ''}</td>
             </tr>`;
@@ -7153,7 +7903,7 @@ function renderSettings() {
                 <form id="new-user-form" class="settings-form-row columns-1">
                     <div class="input-group"><label>Nombre completo *</label><input type="text" id="u-name" required></div>
                     <div class="input-group"><label>Email *</label><input type="email" id="u-email" required></div>
-                    <div class="input-group"><label>Contraseña *</label><input type="password" id="u-password" minlength="6" required></div>
+                    <div class="input-group"><label>Contraseña *</label><div class="pwd-wrap"><input type="password" id="u-password" minlength="6" required style="padding-right:40px;"><button type="button" class="login-pwd-toggle" tabindex="-1" onclick="const i=document.getElementById('u-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')"><i class="fa-solid fa-eye"></i></button></div></div>
                     <div class="input-group"><label>Tipo de usuario *</label><select id="u-type" required><option value="">Seleccionar...</option><option value="administrador">Administrador</option><option value="secretario">Secretario</option><option value="profesional">Profesional</option></select></div>
 
                     <div class="settings-subsection">
@@ -7162,14 +7912,13 @@ function renderSettings() {
                         <div class="checkbox-group"><input type="checkbox" name="u-role" value="administrador"><label>Administrador</label></div>
                         <div class="checkbox-group"><input type="checkbox" name="u-role" value="secretario"><label>Secretario</label></div>
                         <div class="checkbox-group"><input type="checkbox" name="u-role" value="profesional"><label>Profesional</label></div>
-                        ${isSuper ? '<div class="checkbox-group"><input type="checkbox" name="u-role" value="superadmin"><label>Superadmin</label></div>' : ''}
                     </div>
 
                     <div class="settings-subsection">
                         <h4>Asignar Profesionales (opcional)</h4>
                         <p class="subtext">Se puede dejar vacío; acceso completo si no se selecciona ninguno.</p>
                         <div class="settings-list settings-list-static">
-                            ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}"><label>${p.name}</label></div>`).join('')}
+                            ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}"><label>${escapeHtml(p.name)}</label></div>`).join('')}
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary">Guardar Usuario</button>
@@ -7257,10 +8006,13 @@ async function loadClinicalHistory(patientId, options = {}) {
     mainContent.innerHTML = '<div class="card p-6 text-center text-gray-500">Cargando historia clínica...</div>';
     
     // Determinar qué profesional se usa para el odontograma
-    if (isSuperadmin() && !state.clinicalOdontoProfessionalId) {
-        const activeProfessionals = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
-        if (activeProfessionals.length > 0) {
-            state.clinicalOdontoProfessionalId = activeProfessionals[0].id;
+    const scopedProfs = state.user?.allowedProfessionals || [];
+    const needsSelector = isSuperadmin() || scopedProfs.length > 1;
+    if (needsSelector && !state.clinicalOdontoProfessionalId) {
+        const allProfs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
+        const candidates = isSuperadmin() ? allProfs : allProfs.filter(p => scopedProfs.includes(p.id));
+        if (candidates.length > 0) {
+            state.clinicalOdontoProfessionalId = candidates[0].id;
         }
     }
 
@@ -7546,19 +8298,23 @@ function renderClinicalHistory(patientId) {
                 <div class="odontogram-header mb-4 clinical-odontogram-section">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma</h3>
                     ${(() => {
-                        if (isSuperadmin()) {
-                            const profs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
+                        const _scopedProfs = state.user?.allowedProfessionals || [];
+                        const _needsSelector = isSuperadmin() || _scopedProfs.length > 1;
+                        if (_needsSelector) {
+                            const allProfs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
+                            const profs = isSuperadmin() ? allProfs : allProfs.filter(p => _scopedProfs.includes(p.id));
                             const selectedId = state.clinicalOdontoProfessionalId;
                             return `<div class="odonto-prof-selector print-hidden">
                                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Profesional:</label>
                                 <select id="odonto-prof-select" class="odonto-prof-select-input" onchange="window.changeOdontoProfessional(${patientId}, this.value)">
                                     <option value="">— Seleccionar —</option>
-                                    ${profs.map(p => `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${p.name}${p.specialty ? ' · ' + p.specialty : ''}</option>`).join('')}
+                                    ${profs.map(p => `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name)}${p.specialty ? ' · ' + escapeHtml(p.specialty) : ''}</option>`).join('')}
                                 </select>
                             </div>`;
                         }
                         const profName = state.user?.assignedProfessionalName || '';
-                        return profName ? `<span class="text-xs text-gray-500 font-medium print-hidden">Dr/Dra. ${profName}</span>` : '';
+                        const profLabel = profName && !/^Dr\.?\/?(Dra\.?)?|^Dr\.?\s/i.test(profName) ? `Dr/Dra. ${profName}` : profName;
+                        return profLabel ? `<span class="text-xs text-gray-500 font-medium print-hidden">${profLabel}</span>` : '';
                     })()}
                 </div>
                 
@@ -7577,7 +8333,7 @@ function renderClinicalHistory(patientId) {
                             </div>
                         </div>
 
-                        ${(() => { const _age = calcAge(patient.fechaNacimiento); const _show = _age !== null && _age < 13; return `
+                        ${(() => { const _age = calcAge(patient.fechaNacimiento); const _show = (_age !== null && _age < 13) || hasChildDentitionData(patient); return `
                         <button class="odonto-infantil-toggle" onclick="window.toggleInfantilSection()">
                             <span class="odonto-infantil-toggle-line"></span>
                             <span>Dentición Infantil</span>
@@ -7972,6 +8728,12 @@ function renderClinicalOdontogram(patientId) {
     const wrapper = document.querySelector('.odontogram-wrapper');
     if (!patient || !wrapper) return;
 
+    // Preservar el estado visible de dentición infantil si ya fue toggleado por el usuario
+    const existingSection = document.getElementById('odonto-infantil-section');
+    const infantilVisible = existingSection
+        ? existingSection.style.display !== 'none'
+        : ((calcAge(patient.fechaNacimiento) !== null && calcAge(patient.fechaNacimiento) < 13) || hasChildDentitionData(patient));
+
     wrapper.innerHTML = `
         <div class="flex flex-col items-center gap-5 min-w-max">
             <div class="w-full flex flex-col items-center gap-3">
@@ -7987,14 +8749,13 @@ function renderClinicalOdontogram(patientId) {
                 </div>
             </div>
 
-            ${(() => { const _age = calcAge(patient.fechaNacimiento); const _show = _age !== null && _age < 13; return `
             <button class="odonto-infantil-toggle" onclick="window.toggleInfantilSection()">
                 <span class="odonto-infantil-toggle-line"></span>
                 <span>Dentición Infantil</span>
-                <i id="odonto-infantil-icon" class="fa-solid ${_show ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+                <i id="odonto-infantil-icon" class="fa-solid ${infantilVisible ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
                 <span class="odonto-infantil-toggle-line"></span>
             </button>
-            <div id="odonto-infantil-section" style="display:${_show ? 'flex' : 'none'};flex-direction:column;align-items:center;gap:12px;width:100%;">
+            <div id="odonto-infantil-section" style="display:${infantilVisible ? 'flex' : 'none'};flex-direction:column;align-items:center;gap:12px;width:100%;">
                 <div class="flex gap-4 md:gap-8 justify-center min-w-max">
                     <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([55,54,53,52,51], patient.odontograma, true)} </div>
                     <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([61,62,63,64,65], patient.odontograma, true)} </div>
@@ -8004,7 +8765,7 @@ function renderClinicalOdontogram(patientId) {
                     <div class="flex gap-[2px] md:gap-1"> ${drawTeethRow([85,84,83,82,81], patient.odontograma, false)} </div>
                     <div class="flex gap-[2px] md:gap-1 border-l-2 border-gray-300 pl-4 md:pl-8"> ${drawTeethRow([71,72,73,74,75], patient.odontograma, false)} </div>
                 </div>
-            </div>`; })()}
+            </div>
         </div>
     `;
 
@@ -8213,10 +8974,9 @@ function openTreatmentModal(patientId) {
     // ESC cierra el modal
     const _escHandler = (e) => {
         if (e.key !== 'Escape') return;
-        document.removeEventListener('keydown', _escHandler);
         closeModal();
     };
-    document.addEventListener('keydown', _escHandler);
+    document.addEventListener('keydown', _escHandler, { once: true });
     document.getElementById('tx-history-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const p = DB.get('patients').find(pt => pt.id === patientId);
@@ -8309,10 +9069,9 @@ function openClinicalImageModal(patientId) {
     // ESC cierra el modal
     const _escHandler = (e) => {
         if (e.key !== 'Escape') return;
-        document.removeEventListener('keydown', _escHandler);
         closeModal();
     };
-    document.addEventListener('keydown', _escHandler);
+    document.addEventListener('keydown', _escHandler, { once: true });
     document.getElementById('clinical-image-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fileInput = document.getElementById('clinical-image-file');

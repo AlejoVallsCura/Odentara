@@ -1,10 +1,10 @@
 const express = require("express");
 
-const prisma = require("../lib/prisma");
+const mainPrisma = require("../lib/prisma"); // para /serve/:id (sin auth)
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
-const { canEditClinicalData, canViewClinicalData } = require("../lib/permissions");
+const { canEditClinicalData, canViewClinicalData, canAccessWholeClinic } = require("../lib/permissions");
 const { checkClinicalImagesFeature } = require("../lib/plan-limits");
 const { uploadImage, getImageStream, deleteImage, isR2Key, isStorageConfigured } = require("../lib/storage");
 const crypto = require("crypto");
@@ -57,7 +57,7 @@ function serializeImage(image) {
 }
 
 function getProfessionalIdFilter(permissions, overrideId) {
-  if (permissions.isSuperadmin) {
+  if (canAccessWholeClinic(permissions)) {
     return overrideId ? Number(overrideId) : null;
   }
   if (permissions.assignedProfessionalId) {
@@ -77,7 +77,7 @@ router.get("/serve/:id", async (req, res) => {
       return res.status(401).send("Token inválido o expirado.");
     }
 
-    const image = await prisma.clinicalImage.findFirst({
+    const image = await mainPrisma.clinicalImage.findFirst({
       where: { id: imageId, deletedAt: null },
     });
 
@@ -98,6 +98,7 @@ router.get("/serve/:id", async (req, res) => {
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canViewClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para ver imágenes clínicas." });
     }
@@ -122,6 +123,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para cargar imágenes clínicas." });
     }
@@ -154,16 +156,14 @@ router.post("/", requireAuth, async (req, res) => {
 
       // Si R2 está configurado y la imagen llega como base64, subirla a R2
       if (isStorageConfigured() && storedUrl.startsWith("data:")) {
-        try {
-          storedUrl = await uploadImage({
-            base64:    storedUrl,
-            clinicId:  req.user.clinicId,
-            patientId,
-          });
-        } catch (uploadErr) {
-          console.error("[clinical-images] Error subiendo a R2:", uploadErr.message);
-          // Si falla el upload, guardar base64 como fallback
-        }
+        storedUrl = await uploadImage({
+          base64:    storedUrl,
+          clinicId:  req.user.clinicId,
+          patientId,
+        });
+      } else if (!isStorageConfigured() && storedUrl.startsWith("data:")) {
+        // R2 no configurado: rechazar para no llenar la DB con base64
+        return res.status(503).json({ ok: false, error: "El almacenamiento de imágenes no está configurado en el servidor." });
       }
 
       const created = await prisma.clinicalImage.create({
@@ -190,6 +190,7 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para editar imágenes clínicas." });
     }
@@ -223,6 +224,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar imágenes clínicas." });
     }

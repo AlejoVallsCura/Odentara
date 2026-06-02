@@ -1,5 +1,7 @@
 const prisma = require("../lib/prisma");
 const { verifyToken, buildPermissionSummary } = require("../lib/auth");
+const { getClinicPrisma } = require("../lib/clinic-prisma");
+const { isRevoked } = require("../lib/token-revocation");
 
 async function requireAuth(req, res, next) {
   try {
@@ -11,6 +13,10 @@ async function requireAuth(req, res, next) {
     }
 
     const payload = verifyToken(token);
+
+    if (isRevoked(payload.jti)) {
+      return res.status(401).json({ ok: false, error: "Sesión cerrada. Iniciá sesión nuevamente." });
+    }
 
     const user = await prisma.user.findFirst({
       where: { id: payload.userId, deletedAt: null },
@@ -62,8 +68,20 @@ async function requireAuth(req, res, next) {
       }
     }
 
+    // Bloquear usuarios sin clínica asignada en subdominios de clínica
+    if (!user.isPlatformAdmin && !user.clinicId && req.clinicSlug) {
+      return res.status(403).json({
+        ok: false,
+        error: "Esta cuenta no tiene una clínica asignada. Ingresá desde odentara.com",
+        code: "NO_CLINIC",
+      });
+    }
+
     req.user = user;
+    req.rawToken = token;
     req.permissions = buildPermissionSummary(user);
+    // Inyectar el cliente Prisma correcto para la clínica de este usuario
+    req.prisma = await getClinicPrisma(user.clinicId);
     next();
   } catch (error) {
     return res.status(401).json({ ok: false, error: "Token invalido o vencido." });

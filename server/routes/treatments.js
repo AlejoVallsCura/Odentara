@@ -1,6 +1,5 @@
 const express = require("express");
 
-const prisma = require("../lib/prisma");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
@@ -38,7 +37,7 @@ function canUseProfessional(permissions, professionalId) {
   return getAccessibleProfessionalIds(permissions).includes(Number(professionalId));
 }
 
-async function ensureAccessibleAppointment(permissions, appointmentId, patientId) {
+async function ensureAccessibleAppointment(prisma, permissions, appointmentId, patientId) {
   if (!appointmentId) return true;
 
   const appointment = await prisma.appointment.findFirst({
@@ -57,15 +56,16 @@ async function ensureAccessibleAppointment(permissions, appointmentId, patientId
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canViewClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para ver tratamientos." });
     }
 
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
 
-    // Determinar filtro de profesional: superadmin puede pasar cualquier id, profesional usa el propio
+    // Determinar filtro de profesional: admin con acceso total puede pasar cualquier id, profesional usa el propio
     let professionalIdFilter = null;
-    if (req.permissions.isSuperadmin) {
+    if (canAccessWholeClinic(req.permissions)) {
       professionalIdFilter = req.query.professionalId ? Number(req.query.professionalId) : null;
     } else if (req.permissions.assignedProfessionalId) {
       professionalIdFilter = req.permissions.assignedProfessionalId;
@@ -97,6 +97,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para crear tratamientos." });
     }
@@ -118,7 +119,7 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes acceso al profesional indicado." });
     }
 
-    if (!(await ensureAccessibleAppointment(req.permissions, appointmentId, patientId))) {
+    if (!(await ensureAccessibleAppointment(prisma, req.permissions, appointmentId, patientId))) {
       return res.status(403).json({ ok: false, error: "No tenes acceso al turno indicado." });
     }
 
@@ -151,6 +152,7 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para editar tratamientos." });
     }
@@ -185,7 +187,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes acceso al profesional indicado." });
     }
 
-    if (!(await ensureAccessibleAppointment(req.permissions, appointmentId, existing.patientId))) {
+    if (!(await ensureAccessibleAppointment(prisma, req.permissions, appointmentId, existing.patientId))) {
       return res.status(403).json({ ok: false, error: "No tenes acceso al turno indicado." });
     }
 
@@ -217,6 +219,7 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar tratamientos." });
     }

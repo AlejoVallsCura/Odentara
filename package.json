@@ -2,10 +2,10 @@
   "name": "odentara",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server/index.js",
   "scripts": {
     "dev": "nodemon server/index.js",
-    "start": "node index.js",
+    "start": "node server/index.js",
     "postinstall": "prisma generate",
     "seed": "node prisma/seed.js",
     "prisma:generate": "prisma generate",
@@ -21,6 +21,9 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "bugs": {
     "url": "https://github.com/AlejoVallsCura/Odentara/issues"
   },

@@ -1,6 +1,5 @@
 const express = require("express");
 
-const prisma = require("../lib/prisma");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
@@ -157,6 +156,7 @@ async function ensureAccessibleProfessional(permissions, professionalId) {
 }
 
 async function validateAppointmentPayload(
+  prisma,
   payload,
   permissions,
   clinicId,
@@ -267,6 +267,7 @@ async function validateAppointmentPayload(
 
 router.get("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     const date = String(req.query.date || "").trim();
     const professionalId = req.query.professionalId ? Number(req.query.professionalId) : null;
     const patientSearch = String(req.query.q || "").trim();
@@ -321,6 +322,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.get("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     const appointment = await prisma.appointment.findFirst({
       where: {
         id: Number(req.params.id),
@@ -354,6 +356,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManageAppointments(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para crear turnos." });
     }
@@ -377,7 +380,7 @@ router.post("/", requireAuth, async (req, res) => {
       notes: req.body.notes ? String(req.body.notes).trim() : null,
     };
 
-    const validationError = await validateAppointmentPayload(payload, req.permissions, req.user.clinicId);
+    const validationError = await validateAppointmentPayload(prisma, payload, req.permissions, req.user.clinicId);
     if (validationError) {
       return res.status(400).json({ ok: false, error: validationError });
     }
@@ -424,6 +427,7 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.put("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canEditAppointments(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para editar turnos." });
     }
@@ -476,6 +480,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     };
 
     const validationError = await validateAppointmentPayload(
+      prisma,
       payload,
       req.permissions,
       req.user.clinicId,
@@ -525,8 +530,68 @@ router.put("/:id", requireAuth, async (req, res) => {
   }
 });
 
+router.patch("/:id", requireAuth, async (req, res) => {
+  try {
+    const prisma = req.prisma;
+    if (!canEditAppointments(req.permissions)) {
+      return res.status(403).json({ ok: false, error: "No tenes permisos para editar turnos." });
+    }
+
+    const appointmentId = Number(req.params.id);
+    const existing = await prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        ...buildAppointmentAccessWhere(req.permissions, req.user.clinicId),
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: "Turno no encontrado o sin acceso." });
+    }
+
+    const data = {};
+    if (req.body.status !== undefined && VALID_STATUSES.has(req.body.status)) {
+      data.status = req.body.status;
+    }
+    if (req.body.cancellationReason !== undefined) {
+      data.cancellationReason = req.body.cancellationReason ? String(req.body.cancellationReason).trim() : null;
+    }
+    if (req.body.confirmationChannel !== undefined && VALID_CHANNELS.has(req.body.confirmationChannel)) {
+      data.confirmationChannel = req.body.confirmationChannel;
+    }
+    if (req.body.confirmationSentAt !== undefined) {
+      data.confirmationSentAt = req.body.confirmationSentAt ? new Date(req.body.confirmationSentAt) : null;
+    }
+    if (req.body.confirmationResponseAt !== undefined) {
+      data.confirmationResponseAt = req.body.confirmationResponseAt ? new Date(req.body.confirmationResponseAt) : null;
+    }
+    if (req.body.notes !== undefined) {
+      data.notes = req.body.notes ? String(req.body.notes).trim() : null;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ ok: false, error: "No se enviaron campos para actualizar." });
+    }
+
+    const appointment = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data,
+      include: {
+        patient: { select: { id: true, fullName: true, dni: true, phone: true } },
+        professional: { select: { id: true, fullName: true, color: true } },
+        createdByUser: { select: { id: true, email: true, fullName: true } },
+      },
+    });
+
+    return res.json({ ok: true, appointment: serializeAppointment(appointment) });
+  } catch (_error) {
+    return res.status(500).json({ ok: false, error: "No se pudo actualizar el turno." });
+  }
+});
+
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
+    const prisma = req.prisma;
     if (!canManageAppointments(req.permissions)) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar turnos." });
     }
