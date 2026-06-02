@@ -6,11 +6,6 @@ node_modules
 
 /generated/prisma
 
-# Claude Code internal files
-CLAUDE.md
-AGENTS.md
-.claude/
-
 # Deployment artifacts
 *.zip
 make_zip.ps1
