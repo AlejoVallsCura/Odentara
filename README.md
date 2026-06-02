@@ -19,15 +19,13 @@
 
 <div align="center">
 
-<!-- Dashboard -->
-![Dashboard](https://via.placeholder.com/800x450/060d0b/14b8a6?text=Dashboard+—+próximamente)
+![Dashboard](/.github/screenshots/dashboard.png)
 
-<!-- Agenda -->
-![Agenda de turnos](https://via.placeholder.com/800x450/060d0b/14b8a6?text=Agenda+de+turnos+—+próximamente)
+![Agenda de turnos](/.github/screenshots/turnos.png)
+
+![Registro de pacientes](/.github/screenshots/pacientes.png)
 
 </div>
-
-> ℹ️ Demo en vivo disponible próximamente.
 
 ---
 
