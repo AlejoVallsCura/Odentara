@@ -495,4 +495,98 @@
     }
   });
   } // end initCore
+
+  /* ═══════════════════════════════════════════════════════════════
+     TESTIMONIOS — Carrusel
+  ═══════════════════════════════════════════════════════════════ */
+  initCarousel();
+
+  function initCarousel() {
+    const wrap  = document.querySelector("[data-carousel]");
+    if (!wrap) return;
+
+    const track  = wrap.querySelector("[data-carousel-track]");
+    const btnPrev = wrap.querySelector("[data-carousel-prev]");
+    const btnNext = wrap.querySelector("[data-carousel-next]");
+    const dotsWrap = wrap.querySelector("[data-carousel-dots]");
+    const cards  = Array.from(track.children);
+
+    let current  = 0;
+    let autoTimer = null;
+
+    // Cuántas cards visibles según viewport
+    function visibleCount() {
+      if (window.innerWidth <= 560) return 1;
+      if (window.innerWidth <= 900) return 2;
+      return 3;
+    }
+
+    function maxIndex() {
+      return Math.max(0, cards.length - visibleCount());
+    }
+
+    // Construir dots (uno por "página")
+    function buildDots() {
+      dotsWrap.innerHTML = "";
+      const pages = maxIndex() + 1;
+      for (let i = 0; i < pages; i++) {
+        const dot = document.createElement("button");
+        dot.className = "tc-dot" + (i === current ? " is-active" : "");
+        dot.setAttribute("aria-label", "Ir a página " + (i + 1));
+        dot.addEventListener("click", () => goTo(i));
+        dotsWrap.appendChild(dot);
+      }
+    }
+
+    function updateDots() {
+      dotsWrap.querySelectorAll(".tc-dot").forEach((d, i) => {
+        d.classList.toggle("is-active", i === current);
+      });
+    }
+
+    function goTo(index) {
+      current = Math.max(0, Math.min(index, maxIndex()));
+      const cardWidth = cards[0].getBoundingClientRect().width;
+      const gap = 24;
+      track.style.transform = `translateX(-${current * (cardWidth + gap)}px)`;
+      updateDots();
+      btnPrev.disabled = current === 0;
+      btnNext.disabled = current >= maxIndex();
+    }
+
+    function next() { goTo(current >= maxIndex() ? 0 : current + 1); }
+    function prev() { goTo(current <= 0 ? maxIndex() : current - 1); }
+
+    // Auto-avance cada 4.5s
+    function startAuto() {
+      clearInterval(autoTimer);
+      autoTimer = setInterval(next, 4500);
+    }
+    function stopAuto() { clearInterval(autoTimer); }
+
+    btnNext.addEventListener("click", () => { next(); stopAuto(); startAuto(); });
+    btnPrev.addEventListener("click", () => { prev(); stopAuto(); startAuto(); });
+    wrap.addEventListener("mouseenter", stopAuto);
+    wrap.addEventListener("mouseleave", startAuto);
+
+    // Touch/swipe
+    let touchStartX = 0;
+    track.addEventListener("touchstart", e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    track.addEventListener("touchend", e => {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 50) { diff > 0 ? next() : prev(); }
+    }, { passive: true });
+
+    // Recalcular en resize
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { buildDots(); goTo(Math.min(current, maxIndex())); }, 150);
+    });
+
+    buildDots();
+    goTo(0);
+    startAuto();
+  }
+
 })();
