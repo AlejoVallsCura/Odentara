@@ -109,10 +109,17 @@ router.put("/:patientId", requireAuth, async (req, res) => {
 
     const rawEntries = Array.isArray(req.body.odontogramEntries) ? req.body.odontogramEntries : [];
 
+    // Whitelist de valores válidos — previene XSS stored si el front renderiza sin escapar
+    const VALID_TOOTH_STATUS = new Set([
+      "healthy", "caries", "restored", "absent", "implant",
+      "crown", "crown_implant", "endodontics", "orthodontics", "sealant",
+    ]);
+    const VALID_TOOTH_FACES = new Set(["V", "L", "M", "D", "O", "I", null, undefined, ""]);
+
     // Deduplicar entradas por (toothNumber, face) para evitar violaciones de constraint único
     const seen = new Set();
     const odontogramEntries = rawEntries
-      .filter((e) => e?.toothNumber && e?.status)
+      .filter((e) => e?.toothNumber && VALID_TOOTH_STATUS.has(e?.status))
       .filter((e) => {
         const key = `${e.toothNumber}|${e.face ?? "__null__"}`;
         if (seen.has(key)) return false;
@@ -120,8 +127,8 @@ router.put("/:patientId", requireAuth, async (req, res) => {
         return true;
       })
       .map((e) => ({
-        toothNumber: String(e.toothNumber),
-        face: e.face || null,
+        toothNumber: String(e.toothNumber).slice(0, 10),
+        face: VALID_TOOTH_FACES.has(e.face) ? (e.face || null) : null,
         status: e.status,
       }));
 
