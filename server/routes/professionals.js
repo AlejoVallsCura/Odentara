@@ -4,8 +4,6 @@ const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
   hasRole,
-  canAccessWholeClinic,
-  getAccessibleProfessionalIds,
   canManageProfessionals,
   canManageProfessionalSchedules,
   canViewProfessionals,
@@ -13,73 +11,17 @@ const {
 const { buildProfessionalAccessWhere } = require("../lib/access");
 const { checkProfessionalLimit } = require("../lib/plan-limits");
 const { parseId } = require("../lib/parse-id");
+const {
+  serializeProfessional,
+  normalizeSchedules,
+  normalizeExceptions,
+  normalizeColor,
+  PROFESSIONAL_INCLUDE,
+} = require("../services/professional.service");
 
 const router = express.Router();
 
-function serializeProfessional(professional) {
-  return {
-    id: professional.id,
-    fullName: professional.fullName,
-    specialty: professional.specialty,
-    email: professional.email,
-    phone: professional.phone,
-    color: professional.color,
-    active: professional.active,
-    userId: professional.userId,
-    createdAt: professional.createdAt,
-    updatedAt: professional.updatedAt,
-    assignedUser: professional.user
-      ? {
-          id: professional.user.id,
-          email: professional.user.email,
-          fullName: professional.user.fullName,
-        }
-      : null,
-    schedules: (professional.schedules || []).map((schedule) => ({
-      id: schedule.id,
-      weekday: schedule.weekday,
-      startTime: schedule.startTime,
-      endTime: schedule.endTime,
-      active: schedule.active,
-    })),
-    exceptions: (professional.scheduleExceptions || []).map((exception) => ({
-      id: exception.id,
-      date: exception.date,
-      type: exception.type,
-      startTime: exception.startTime,
-      endTime: exception.endTime,
-      reason: exception.reason,
-    })),
-    stats: {
-      appointments: professional._count?.appointments || 0,
-      treatments: professional._count?.patientTreatments || 0,
-    },
-  };
-}
-
-function normalizeSchedules(schedules = []) {
-  return schedules
-    .filter((item) => item && item.startTime && item.endTime && item.weekday !== undefined)
-    .map((item) => ({
-      weekday: Number(item.weekday),
-      startTime: String(item.startTime),
-      endTime: String(item.endTime),
-      active: item.active !== undefined ? Boolean(item.active) : true,
-    }));
-}
-
-function normalizeExceptions(exceptions = []) {
-  return exceptions
-    .filter((item) => item && item.date && item.type)
-    .map((item) => ({
-      date: new Date(item.date),
-      type: item.type,
-      startTime: item.startTime ? String(item.startTime) : null,
-      endTime: item.endTime ? String(item.endTime) : null,
-      reason: item.reason ? String(item.reason).trim() : null,
-    }));
-}
-
+// ── GET / ─────────────────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -104,34 +46,16 @@ router.get("/", requireAuth, async (req, res) => {
         ],
       },
       orderBy: [{ fullName: "asc" }],
-      include: {
-        user: {
-          select: { id: true, email: true, fullName: true },
-        },
-        schedules: {
-          orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
-        },
-        scheduleExceptions: {
-          orderBy: [{ date: "asc" }],
-        },
-        _count: {
-          select: {
-            appointments: true,
-            patientTreatments: true,
-          },
-        },
-      },
+      include: PROFESSIONAL_INCLUDE,
     });
 
-    return res.json({
-      ok: true,
-      professionals: professionals.map(serializeProfessional),
-    });
+    return res.json({ ok: true, professionals: professionals.map(serializeProfessional) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudieron listar los profesionales." });
   }
 });
 
+// ── GET /:id ──────────────────────────────────────────────────────────────────
 router.get("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -141,43 +65,26 @@ router.get("/:id", requireAuth, async (req, res) => {
 
     const professionalId = parseId(req.params.id);
     if (!professionalId) return res.status(400).json({ ok: false, error: "ID de profesional inválido." });
+
     const professional = await prisma.professional.findFirst({
       where: {
         id: professionalId,
         ...buildProfessionalAccessWhere(req.permissions, req.user.clinicId),
       },
-      include: {
-        user: {
-          select: { id: true, email: true, fullName: true },
-        },
-        schedules: {
-          orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
-        },
-        scheduleExceptions: {
-          orderBy: [{ date: "asc" }],
-        },
-        _count: {
-          select: {
-            appointments: true,
-            patientTreatments: true,
-          },
-        },
-      },
+      include: PROFESSIONAL_INCLUDE,
     });
 
     if (!professional) {
       return res.status(404).json({ ok: false, error: "Profesional no encontrado o sin acceso." });
     }
 
-    return res.json({
-      ok: true,
-      professional: serializeProfessional(professional),
-    });
+    return res.json({ ok: true, professional: serializeProfessional(professional) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo obtener el profesional." });
   }
 });
 
+// ── POST / ────────────────────────────────────────────────────────────────────
 router.post("/", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -185,23 +92,19 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes permisos para crear profesionales." });
     }
 
-    const fullName = String(req.body.fullName || "").trim();
+    const fullName  = String(req.body.fullName || "").trim();
     const specialty = req.body.specialty ? String(req.body.specialty).trim() : null;
-    const email = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
-    const phone = req.body.phone ? String(req.body.phone).trim() : null;
-    const rawColor = req.body.color ? String(req.body.color).trim() : null;
-    const color = rawColor && /^#[0-9a-fA-F]{3,8}$|^rgb\(|^hsl\(/.test(rawColor) ? rawColor : null;
-    const active = req.body.active !== undefined ? Boolean(req.body.active) : true;
-    const schedules = normalizeSchedules(req.body.schedules || []);
+    const email     = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
+    const phone     = req.body.phone ? String(req.body.phone).trim() : null;
+    const color     = normalizeColor(req.body.color);
+    const active    = req.body.active !== undefined ? Boolean(req.body.active) : true;
+    const schedules  = normalizeSchedules(req.body.schedules || []);
     const exceptions = normalizeExceptions(req.body.exceptions || []);
 
     if (!fullName) {
       return res.status(400).json({ ok: false, error: "El nombre del profesional es obligatorio." });
     }
 
-    // ── Verificar límite de plan y crear dentro de una transacción serializable ──
-    // Esto previene la race condition donde dos requests simultáneos leen el
-    // mismo count y ambos crean un profesional, superando el límite del plan.
     const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
 
     if (email) {
@@ -216,7 +119,6 @@ router.post("/", requireAuth, async (req, res) => {
     let professional;
     try {
       professional = await prisma.$transaction(async (tx) => {
-        // Count + create atómicos: previene race condition en límite de plan
         const currentCount = await tx.professional.count({
           where: { clinicId: req.user.clinicId, deletedAt: null },
         });
@@ -229,22 +131,12 @@ router.post("/", requireAuth, async (req, res) => {
         return tx.professional.create({
           data: {
             clinicId: req.user.clinicId,
-            fullName,
-            specialty,
-            email,
-            phone,
-            color,
-            active,
+            fullName, specialty, email, phone, color, active,
             deletedAt: null,
-            schedules: schedules.length > 0 ? { create: schedules } : undefined,
+            schedules:  schedules.length  > 0 ? { create: schedules  } : undefined,
             scheduleExceptions: exceptions.length > 0 ? { create: exceptions } : undefined,
           },
-          include: {
-            user: { select: { id: true, email: true, fullName: true } },
-            schedules: { orderBy: [{ weekday: "asc" }, { startTime: "asc" }] },
-            scheduleExceptions: { orderBy: [{ date: "asc" }] },
-            _count: { select: { appointments: true, patientTreatments: true } },
-          },
+          include: PROFESSIONAL_INCLUDE,
         });
       });
     } catch (err) {
@@ -254,22 +146,19 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(500).json({ ok: false, error: "No se pudo crear el profesional." });
     }
 
-    return res.status(201).json({
-      ok: true,
-      professional: serializeProfessional(professional),
-    });
+    return res.status(201).json({ ok: true, professional: serializeProfessional(professional) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo crear el profesional." });
   }
 });
 
+// ── PUT /:id ──────────────────────────────────────────────────────────────────
 router.put("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     const professionalId = parseId(req.params.id);
     if (!professionalId) return res.status(400).json({ ok: false, error: "ID de profesional inválido." });
 
-    // Professionals can edit their own schedule only
     const isProfessionalEditingOwn =
       hasRole(req.permissions, "professional") &&
       req.permissions?.assignedProfessionalId === professionalId;
@@ -277,34 +166,22 @@ router.put("/:id", requireAuth, async (req, res) => {
     if (!canManageProfessionalSchedules(req.permissions) && !isProfessionalEditingOwn) {
       return res.status(403).json({ ok: false, error: "No tenes permisos para editar profesionales." });
     }
+
     const existing = await prisma.professional.findFirst({
       where: { id: professionalId, clinicId: req.user.clinicId, deletedAt: null },
-      include: {
-        schedules: true,
-        scheduleExceptions: true,
-      },
+      include: { schedules: true, scheduleExceptions: true },
     });
-
     if (!existing) {
       return res.status(404).json({ ok: false, error: "Profesional no encontrado." });
     }
 
-    const canEditCoreData = canManageProfessionals(req.permissions);
-    const fullName = canEditCoreData ? String(req.body.fullName || "").trim() : existing.fullName;
-    const specialty = canEditCoreData
-      ? (req.body.specialty ? String(req.body.specialty).trim() : null)
-      : existing.specialty;
-    const email = canEditCoreData
-      ? (req.body.email ? String(req.body.email).trim().toLowerCase() : null)
-      : existing.email;
-    const phone = canEditCoreData
-      ? (req.body.phone ? String(req.body.phone).trim() : null)
-      : existing.phone;
-    const _rawColorPut = req.body.color ? String(req.body.color).trim() : null;
-    const color = canEditCoreData
-      ? (_rawColorPut && /^#[0-9a-fA-F]{3,8}$|^rgb\(|^hsl\(/.test(_rawColorPut) ? _rawColorPut : null)
-      : existing.color;
-    const active = canEditCoreData && req.body.active !== undefined ? Boolean(req.body.active) : existing.active;
+    const canEditCore = canManageProfessionals(req.permissions);
+    const fullName  = canEditCore ? String(req.body.fullName || "").trim() : existing.fullName;
+    const specialty = canEditCore ? (req.body.specialty ? String(req.body.specialty).trim() : null) : existing.specialty;
+    const email     = canEditCore ? (req.body.email ? String(req.body.email).trim().toLowerCase() : null) : existing.email;
+    const phone     = canEditCore ? (req.body.phone ? String(req.body.phone).trim() : null) : existing.phone;
+    const color     = canEditCore ? normalizeColor(req.body.color) : existing.color;
+    const active    = canEditCore && req.body.active !== undefined ? Boolean(req.body.active) : existing.active;
     const hasSchedules  = Array.isArray(req.body.schedules);
     const hasExceptions = Array.isArray(req.body.exceptions);
     const schedules  = hasSchedules  ? normalizeSchedules(req.body.schedules)  : [];
@@ -314,7 +191,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: "El nombre del profesional es obligatorio." });
     }
 
-    if (canEditCoreData && email) {
+    if (canEditCore && email) {
       const existingByEmail = await prisma.professional.findFirst({
         where: { email, clinicId: req.user.clinicId, id: { not: professionalId } },
       });
@@ -326,48 +203,21 @@ router.put("/:id", requireAuth, async (req, res) => {
     const professional = await prisma.professional.update({
       where: { id: professionalId },
       data: {
-        fullName,
-        specialty,
-        email,
-        phone,
-        color,
-        active,
+        fullName, specialty, email, phone, color, active,
         deletedAt: null,
-        ...(hasSchedules ? {
-          schedules: { deleteMany: {}, create: schedules },
-        } : {}),
-        ...(hasExceptions ? {
-          scheduleExceptions: { deleteMany: {}, create: exceptions },
-        } : {}),
+        ...(hasSchedules  ? { schedules:          { deleteMany: {}, create: schedules  } } : {}),
+        ...(hasExceptions ? { scheduleExceptions: { deleteMany: {}, create: exceptions } } : {}),
       },
-      include: {
-        user: {
-          select: { id: true, email: true, fullName: true },
-        },
-        schedules: {
-          orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
-        },
-        scheduleExceptions: {
-          orderBy: [{ date: "asc" }],
-        },
-        _count: {
-          select: {
-            appointments: true,
-            patientTreatments: true,
-          },
-        },
-      },
+      include: PROFESSIONAL_INCLUDE,
     });
 
-    return res.json({
-      ok: true,
-      professional: serializeProfessional(professional),
-    });
+    return res.json({ ok: true, professional: serializeProfessional(professional) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo actualizar el profesional." });
   }
 });
 
+// ── DELETE /:id ───────────────────────────────────────────────────────────────
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -377,40 +227,28 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
     const professionalId = parseId(req.params.id);
     if (!professionalId) return res.status(400).json({ ok: false, error: "ID de profesional inválido." });
+
     const existing = await prisma.professional.findFirst({
       where: { id: professionalId, clinicId: req.user.clinicId, deletedAt: null },
-      include: {
-        schedules: true,
-        scheduleExceptions: true,
-      },
+      include: { schedules: true, scheduleExceptions: true },
     });
-
     if (!existing || existing.deletedAt) {
       return res.status(404).json({ ok: false, error: "Profesional no encontrado." });
     }
 
     await prisma.professional.update({
       where: { id: professionalId },
-      data: {
-        active: false,
-        deletedAt: new Date(),
-      },
+      data: { active: false, deletedAt: new Date() },
     });
 
-    await logDeleteAudit(prisma, req.user.id, "Professional", professionalId, {
-      professional: existing,
-    });
+    await logDeleteAudit(prisma, req.user.id, "Professional", professionalId, { professional: existing });
 
-    return res.json({
-      ok: true,
-      message: "Profesional eliminado correctamente.",
-    });
+    return res.json({ ok: true, message: "Profesional eliminado correctamente." });
   } catch (error) {
     const message =
       error?.code === "P2003"
         ? "No se puede eliminar el profesional porque tiene registros relacionados."
         : "No se pudo eliminar el profesional.";
-
     return res.status(400).json({ ok: false, error: message });
   }
 });

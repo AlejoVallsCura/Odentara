@@ -3,268 +3,26 @@ const express = require("express");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
-  canAccessWholeClinic,
-  getAccessibleProfessionalIds,
   canManageAppointments,
   canEditAppointments,
 } = require("../lib/permissions");
 const { buildAppointmentAccessWhere } = require("../lib/access");
+const {
+  VALID_STATUSES,
+  VALID_CHANNELS,
+  APPOINTMENT_INCLUDE,
+  parseDateOnly,
+  formatLocalDate,
+  formatLocalTime,
+  parseDateTime,
+  serializeAppointment,
+  buildAppointmentPayload,
+  validateAppointmentPayload,
+} = require("../services/appointment.service");
 
 const router = express.Router();
 
-const VALID_STATUSES = new Set(["not_sent", "sent", "confirmed", "rescheduled", "cancelled"]);
-const VALID_CHANNELS = new Set(["whatsapp", "phone", "email", "manual"]);
-const BUSINESS_TIME_ZONE = "America/Buenos_Aires";
-
-function getBusinessNowParts() {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BUSINESS_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-
-  const parts = formatter.formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-
-  return {
-    year: Number(values.year),
-    month: Number(values.month),
-    day: Number(values.day),
-    hour: Number(values.hour),
-    minute: Number(values.minute),
-  };
-}
-
-function getTodayIsoLocal() {
-  const now = getBusinessNowParts();
-  const year = now.year;
-  const month = String(now.month).padStart(2, "0");
-  const day = String(now.day).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function parseDateOnly(dateStr) {
-  const [year, month, day] = String(dateStr).split("-").map(Number);
-  return new Date(year, (month || 1) - 1, day || 1);
-}
-
-function formatLocalDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatLocalTime(date) {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function parseDateTime(dateStr, timeStr) {
-  const [year, month, day] = String(dateStr).split("-").map(Number);
-  const [hours, minutes] = String(timeStr).split(":").map(Number);
-  return new Date(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0, 0, 0);
-}
-
-function timeToMinutes(timeStr = "") {
-  const [hours, minutes] = String(timeStr).split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-  return hours * 60 + minutes;
-}
-
-function currentMinutes() {
-  const now = getBusinessNowParts();
-  return now.hour * 60 + now.minute;
-}
-
-function getAppointmentEndMinutes(payload) {
-  const start = timeToMinutes(payload.time);
-  if (start === null) return null;
-  const duration = payload.isOverbook ? 15 : Number(payload.durationMinutes || 0);
-  return start + duration;
-}
-
-function scheduleAllowsAppointment(schedules = [], payload) {
-  const start = timeToMinutes(payload.time);
-  const end = getAppointmentEndMinutes(payload);
-  if (start === null || end === null) return false;
-
-  const weekday = parseDateOnly(payload.date).getDay();
-  return schedules.some((item) => {
-    if (!item.active || item.weekday !== weekday) return false;
-    const scheduleStart = timeToMinutes(item.startTime);
-    const scheduleEnd = timeToMinutes(item.endTime);
-    if (scheduleStart === null || scheduleEnd === null) return false;
-    return start >= scheduleStart && end <= scheduleEnd;
-  });
-}
-
-
-function serializeAppointment(appointment) {
-  return {
-    id: appointment.id,
-    patientId: appointment.patientId,
-    professionalId: appointment.professionalId,
-    createdByUserId: appointment.createdByUserId,
-    date: formatLocalDate(appointment.date),
-    startTime: formatLocalTime(appointment.startTime),
-    durationMinutes: appointment.durationMinutes,
-    status: appointment.status,
-    isOverbook: appointment.isOverbook,
-    confirmationChannel: appointment.confirmationChannel,
-    confirmationSentAt: appointment.confirmationSentAt,
-    confirmationResponseAt: appointment.confirmationResponseAt,
-    cancellationReason: appointment.cancellationReason,
-    notes: appointment.notes,
-    createdAt: appointment.createdAt,
-    updatedAt: appointment.updatedAt,
-    patient: appointment.patient
-      ? {
-          id: appointment.patient.id,
-          fullName: appointment.patient.fullName,
-          dni: appointment.patient.dni,
-          phone: appointment.patient.phone,
-        }
-      : null,
-    professional: appointment.professional
-      ? {
-          id: appointment.professional.id,
-          fullName: appointment.professional.fullName,
-          color: appointment.professional.color,
-        }
-      : null,
-    createdByUser: appointment.createdByUser
-      ? {
-          id: appointment.createdByUser.id,
-          email: appointment.createdByUser.email,
-          fullName: appointment.createdByUser.fullName,
-        }
-      : null,
-  };
-}
-
-async function ensureAccessibleProfessional(permissions, professionalId) {
-  if (canAccessWholeClinic(permissions)) {
-    return true;
-  }
-
-  const ids = getAccessibleProfessionalIds(permissions);
-  return ids.includes(professionalId);
-}
-
-async function validateAppointmentPayload(
-  prisma,
-  payload,
-  permissions,
-  clinicId,
-  currentAppointmentId = null,
-  existingAppointment = null
-) {
-  if (!payload.patientId || !payload.professionalId || !payload.date || !payload.time) {
-    return "Paciente, profesional, fecha y hora son obligatorios.";
-  }
-
-  if (!(await ensureAccessibleProfessional(permissions, payload.professionalId))) {
-    return "No tenes acceso al profesional seleccionado.";
-  }
-
-  const patient = await prisma.patient.findFirst({
-    where: { id: payload.patientId, clinicId },
-    select: { id: true, deletedAt: true },
-  });
-
-  if (!patient || patient.deletedAt) {
-    return "El paciente seleccionado no existe.";
-  }
-
-  const professional = await prisma.professional.findFirst({
-    where: { id: payload.professionalId, clinicId },
-    select: { id: true, active: true, deletedAt: true, schedules: true },
-  });
-
-  const validDurations = payload.isOverbook ? [15] : [30, 60, 90, 120];
-  if (!validDurations.includes(Number(payload.durationMinutes || 0))) {
-    return payload.isOverbook
-      ? "El sobreturno solo puede durar 15 minutos."
-      : "La duración del turno no es válida.";
-  }
-
-  if (!professional || professional.deletedAt || !professional.active) {
-    return "El profesional seleccionado no existe o está inactivo.";
-  }
-
-  const keepsSameSlot =
-    existingAppointment &&
-    formatLocalDate(existingAppointment.date) === payload.date &&
-    formatLocalTime(existingAppointment.startTime) === payload.time &&
-    existingAppointment.professionalId === payload.professionalId &&
-    existingAppointment.patientId === payload.patientId &&
-    existingAppointment.isOverbook === payload.isOverbook;
-
-  const todayIso = getTodayIsoLocal();
-  if (payload.date < todayIso && !keepsSameSlot) {
-    return "No se pueden crear turnos para dias anteriores.";
-  }
-
-  if (payload.date === todayIso) {
-    const selectedMinutes = timeToMinutes(payload.time);
-
-    if (
-      selectedMinutes !== null &&
-      selectedMinutes < currentMinutes() &&
-      !payload.isOverbook &&
-      !keepsSameSlot
-    ) {
-      return "Los horarios pasados de hoy solo admiten sobreturnos.";
-    }
-  }
-
-  if (!scheduleAllowsAppointment(professional.schedules || [], payload)) {
-    return "La duración elegida no entra dentro del horario disponible del profesional.";
-  }
-
-  const existingAppointments = await prisma.appointment.findMany({
-    where: {
-      professionalId: payload.professionalId,
-      date: parseDateOnly(payload.date),
-      deletedAt: null,
-      status: { notIn: ["cancelled", "rescheduled"] },
-      ...(currentAppointmentId ? { id: { not: currentAppointmentId } } : {}),
-    },
-    select: { id: true, isOverbook: true, startTime: true, durationMinutes: true },
-  });
-
-  const start = timeToMinutes(payload.time);
-  const end = getAppointmentEndMinutes(payload);
-  if (start === null || end === null) {
-    return "La hora seleccionada no es válida.";
-  }
-
-  const hasOverlap = existingAppointments.some((item) => {
-    const existingStart = item.startTime.getHours() * 60 + item.startTime.getMinutes();
-    const existingEnd = existingStart + item.durationMinutes;
-
-    if (payload.isOverbook) {
-      if (!item.isOverbook) return false;
-      return start < existingEnd && end > existingStart;
-    }
-
-    if (item.isOverbook) return false;
-    return start < existingEnd && end > existingStart;
-  });
-
-  if (hasOverlap) {
-    return payload.isOverbook
-      ? "Ya existe un sobreturno en ese horario para el profesional."
-      : "Ese rango horario ya está ocupado para el profesional.";
-  }
-
-  return null;
-}
-
+// ── GET / ─────────────────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -273,15 +31,8 @@ router.get("/", requireAuth, async (req, res) => {
     const patientSearch = String(req.query.q || "").trim();
 
     const filters = [];
-
-    if (date) {
-      filters.push({ date: parseDateOnly(date) });
-    }
-
-    if (professionalId) {
-      filters.push({ professionalId });
-    }
-
+    if (date) filters.push({ date: parseDateOnly(date) });
+    if (professionalId) filters.push({ professionalId });
     if (patientSearch) {
       filters.push({
         patient: {
@@ -298,28 +49,16 @@ router.get("/", requireAuth, async (req, res) => {
         AND: [buildAppointmentAccessWhere(req.permissions, req.user.clinicId), ...filters],
       },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
-      include: {
-        patient: {
-          select: { id: true, fullName: true, dni: true, phone: true },
-        },
-        professional: {
-          select: { id: true, fullName: true, color: true },
-        },
-        createdByUser: {
-          select: { id: true, email: true, fullName: true },
-        },
-      },
+      include: APPOINTMENT_INCLUDE,
     });
 
-    return res.json({
-      ok: true,
-      appointments: appointments.map(serializeAppointment),
-    });
+    return res.json({ ok: true, appointments: appointments.map(serializeAppointment) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudieron listar los turnos." });
   }
 });
 
+// ── GET /:id ──────────────────────────────────────────────────────────────────
 router.get("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -328,32 +67,20 @@ router.get("/:id", requireAuth, async (req, res) => {
         id: Number(req.params.id),
         ...buildAppointmentAccessWhere(req.permissions, req.user.clinicId),
       },
-      include: {
-        patient: {
-          select: { id: true, fullName: true, dni: true, phone: true },
-        },
-        professional: {
-          select: { id: true, fullName: true, color: true },
-        },
-        createdByUser: {
-          select: { id: true, email: true, fullName: true },
-        },
-      },
+      include: APPOINTMENT_INCLUDE,
     });
 
     if (!appointment) {
       return res.status(404).json({ ok: false, error: "Turno no encontrado o sin acceso." });
     }
 
-    return res.json({
-      ok: true,
-      appointment: serializeAppointment(appointment),
-    });
+    return res.json({ ok: true, appointment: serializeAppointment(appointment) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo obtener el turno." });
   }
 });
 
+// ── POST / ────────────────────────────────────────────────────────────────────
 router.post("/", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -361,26 +88,11 @@ router.post("/", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes permisos para crear turnos." });
     }
 
-    const payload = {
-      patientId: Number(req.body.patientId),
-      professionalId: Number(req.body.professionalId),
-      date: String(req.body.date || "").trim(),
-      time: String(req.body.time || "").trim(),
-      durationMinutes: Number(req.body.durationMinutes || 30),
-      status: VALID_STATUSES.has(req.body.status) ? req.body.status : "not_sent",
-      isOverbook: Boolean(req.body.isOverbook),
-      confirmationChannel: VALID_CHANNELS.has(req.body.confirmationChannel)
-        ? req.body.confirmationChannel
-        : null,
-      confirmationSentAt: req.body.confirmationSentAt ? new Date(req.body.confirmationSentAt) : null,
-      confirmationResponseAt: req.body.confirmationResponseAt
-        ? new Date(req.body.confirmationResponseAt)
-        : null,
-      cancellationReason: req.body.cancellationReason ? String(req.body.cancellationReason).trim() : null,
-      notes: req.body.notes ? String(req.body.notes).trim() : null,
-    };
+    const payload = buildAppointmentPayload(req.body);
 
-    const validationError = await validateAppointmentPayload(prisma, payload, req.permissions, req.user.clinicId);
+    const validationError = await validateAppointmentPayload(
+      prisma, payload, req.permissions, req.user.clinicId
+    );
     if (validationError) {
       return res.status(400).json({ ok: false, error: validationError });
     }
@@ -403,28 +115,16 @@ router.post("/", requireAuth, async (req, res) => {
         notes: payload.notes,
         deletedAt: null,
       },
-      include: {
-        patient: {
-          select: { id: true, fullName: true, dni: true, phone: true },
-        },
-        professional: {
-          select: { id: true, fullName: true, color: true },
-        },
-        createdByUser: {
-          select: { id: true, email: true, fullName: true },
-        },
-      },
+      include: APPOINTMENT_INCLUDE,
     });
 
-    return res.status(201).json({
-      ok: true,
-      appointment: serializeAppointment(appointment),
-    });
+    return res.status(201).json({ ok: true, appointment: serializeAppointment(appointment) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo crear el turno." });
   }
 });
 
+// ── PUT /:id ──────────────────────────────────────────────────────────────────
 router.put("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -444,48 +144,10 @@ router.put("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Turno no encontrado o sin acceso." });
     }
 
-    const payload = {
-      patientId: Number(req.body.patientId ?? existing.patientId),
-      professionalId: Number(req.body.professionalId ?? existing.professionalId),
-      date: String(req.body.date || formatLocalDate(existing.date)).trim(),
-      time: String(req.body.time || formatLocalTime(existing.startTime)).trim(),
-      durationMinutes: Number(req.body.durationMinutes ?? existing.durationMinutes),
-      status: VALID_STATUSES.has(req.body.status) ? req.body.status : existing.status,
-      isOverbook: req.body.isOverbook !== undefined ? Boolean(req.body.isOverbook) : existing.isOverbook,
-      confirmationChannel: req.body.confirmationChannel
-        ? VALID_CHANNELS.has(req.body.confirmationChannel)
-          ? req.body.confirmationChannel
-          : null
-        : existing.confirmationChannel,
-      confirmationSentAt:
-        req.body.confirmationSentAt !== undefined
-          ? req.body.confirmationSentAt
-            ? new Date(req.body.confirmationSentAt)
-            : null
-          : existing.confirmationSentAt,
-      confirmationResponseAt:
-        req.body.confirmationResponseAt !== undefined
-          ? req.body.confirmationResponseAt
-            ? new Date(req.body.confirmationResponseAt)
-            : null
-          : existing.confirmationResponseAt,
-      cancellationReason:
-        req.body.cancellationReason !== undefined
-          ? req.body.cancellationReason
-            ? String(req.body.cancellationReason).trim()
-            : null
-          : existing.cancellationReason,
-      notes:
-        req.body.notes !== undefined ? (req.body.notes ? String(req.body.notes).trim() : null) : existing.notes,
-    };
+    const payload = buildAppointmentPayload(req.body, existing);
 
     const validationError = await validateAppointmentPayload(
-      prisma,
-      payload,
-      req.permissions,
-      req.user.clinicId,
-      appointmentId,
-      existing
+      prisma, payload, req.permissions, req.user.clinicId, appointmentId, existing
     );
     if (validationError) {
       return res.status(400).json({ ok: false, error: validationError });
@@ -508,28 +170,16 @@ router.put("/:id", requireAuth, async (req, res) => {
         notes: payload.notes,
         deletedAt: null,
       },
-      include: {
-        patient: {
-          select: { id: true, fullName: true, dni: true, phone: true },
-        },
-        professional: {
-          select: { id: true, fullName: true, color: true },
-        },
-        createdByUser: {
-          select: { id: true, email: true, fullName: true },
-        },
-      },
+      include: APPOINTMENT_INCLUDE,
     });
 
-    return res.json({
-      ok: true,
-      appointment: serializeAppointment(appointment),
-    });
+    return res.json({ ok: true, appointment: serializeAppointment(appointment) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo actualizar el turno." });
   }
 });
 
+// ── PATCH /:id ────────────────────────────────────────────────────────────────
 router.patch("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -554,16 +204,22 @@ router.patch("/:id", requireAuth, async (req, res) => {
       data.status = req.body.status;
     }
     if (req.body.cancellationReason !== undefined) {
-      data.cancellationReason = req.body.cancellationReason ? String(req.body.cancellationReason).trim() : null;
+      data.cancellationReason = req.body.cancellationReason
+        ? String(req.body.cancellationReason).trim()
+        : null;
     }
     if (req.body.confirmationChannel !== undefined && VALID_CHANNELS.has(req.body.confirmationChannel)) {
       data.confirmationChannel = req.body.confirmationChannel;
     }
     if (req.body.confirmationSentAt !== undefined) {
-      data.confirmationSentAt = req.body.confirmationSentAt ? new Date(req.body.confirmationSentAt) : null;
+      data.confirmationSentAt = req.body.confirmationSentAt
+        ? new Date(req.body.confirmationSentAt)
+        : null;
     }
     if (req.body.confirmationResponseAt !== undefined) {
-      data.confirmationResponseAt = req.body.confirmationResponseAt ? new Date(req.body.confirmationResponseAt) : null;
+      data.confirmationResponseAt = req.body.confirmationResponseAt
+        ? new Date(req.body.confirmationResponseAt)
+        : null;
     }
     if (req.body.notes !== undefined) {
       data.notes = req.body.notes ? String(req.body.notes).trim() : null;
@@ -576,11 +232,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
     const appointment = await prisma.appointment.update({
       where: { id: appointmentId },
       data,
-      include: {
-        patient: { select: { id: true, fullName: true, dni: true, phone: true } },
-        professional: { select: { id: true, fullName: true, color: true } },
-        createdByUser: { select: { id: true, email: true, fullName: true } },
-      },
+      include: APPOINTMENT_INCLUDE,
     });
 
     return res.json({ ok: true, appointment: serializeAppointment(appointment) });
@@ -589,6 +241,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
   }
 });
 
+// ── DELETE /:id ───────────────────────────────────────────────────────────────
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -610,28 +263,19 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
     const existing = await prisma.appointment.findUnique({
       where: { id: appointment.id },
-      include: {
-        patient: true,
-        professional: true,
-      },
+      include: { patient: true, professional: true },
     });
 
     await prisma.appointment.update({
       where: { id: appointment.id },
-      data: {
-        status: "cancelled",
-        deletedAt: new Date(),
-      },
+      data: { status: "cancelled", deletedAt: new Date() },
     });
 
     await logDeleteAudit(prisma, req.user.id, "Appointment", appointment.id, {
       appointment: existing,
     });
 
-    return res.json({
-      ok: true,
-      message: "Turno eliminado correctamente.",
-    });
+    return res.json({ ok: true, message: "Turno eliminado correctamente." });
   } catch (error) {
     const message =
       error?.code === "P2003"

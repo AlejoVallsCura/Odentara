@@ -14,3 +14,6 @@ deploy-temp/
 
 # Test/local data
 pacientes_test.csv
+
+# Docs generados
+ARQUITECTURA.pdf

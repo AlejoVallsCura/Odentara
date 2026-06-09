@@ -5,7 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Odentara</title>
-    <link rel="stylesheet" href="styles.css?v=20260608">
+    <link rel="stylesheet" href="/css/variables.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/components.css">
+    <link rel="stylesheet" href="/css/layout.css">
+    <link rel="stylesheet" href="/css/calendar.css">
+    <link rel="stylesheet" href="/css/refresh.css">
+    <link rel="stylesheet" href="/css/dark-theme.css">
+    <link rel="stylesheet" href="/css/patches.css">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -287,6 +294,24 @@
     })();
     </script>
     <script src="/xlsx.full.min.js"></script>
+    <!-- core modules (orden importa) -->
+    <script src="/js/core/state.js"></script>
+    <script src="/js/core/utils.js"></script>
+    <script src="/js/core/mappers.js"></script>
+    <script src="/js/core/permissions.js"></script>
+    <script src="/js/core/ui.js"></script>
+    <script src="/js/core/api.js"></script>
+    <script src="/js/core/db-local.js"></script>
+    <script src="/js/core/auth.js"></script>
+    <script src="/js/core/helpers.js"></script>
+    <script src="/js/core/router.js"></script>
+    <script src="/js/views/platform.js"></script>
+    <script src="/js/views/clinical.js"></script>
+    <script src="/js/views/appointments.js"></script>
+    <script src="/js/views/patients.js"></script>
+    <script src="/js/views/billing.js"></script>
+    <script src="/js/views/dashboard.js"></script>
+    <script src="/js/views/settings.js"></script>
     <script src="app.js" onerror="(function(){
         clearTimeout(window.__clinicFallback);
         var parts = window.location.hostname.split('.');
