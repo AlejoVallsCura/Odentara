@@ -1,0 +1,2253 @@
+/* ============================================================
+   calendar.css — extraído de styles.css
+   Líneas originales 2609–4855
+   NO modificar el orden de carga en index.html
+   ============================================================ */
+
+/* ===== CALENDAR STYLES ===== */
+.cal-wrapper { display: flex; flex-direction: column; height: 100%; }
+
+.cal-toolbar { padding: 0.75rem 1.25rem !important; }
+
+.cal-layout {
+    display: flex;
+    gap: 1rem;
+    flex: 1;
+    min-height: 0;
+}
+
+.cal-scroll-wrap {
+    flex: 1;
+    overflow: auto;
+    border-radius: 0.75rem;
+    border: 1px solid var(--gray-200);
+    background: #fff;
+    box-shadow: var(--shadow-sm);
+}
+
+.cal-grid {
+    display: flex;
+    flex-direction: column;
+    min-width: calc(80px + var(--day-cols, 7) * 140px);
+}
+
+/* Header row */
+.cal-header-row {
+    display: grid;
+    grid-template-columns: 64px repeat(var(--day-cols, 7), 1fr);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #fff;
+    border-bottom: 2px solid var(--gray-200);
+}
+
+.cal-time-gutter { width: 64px; }
+
+.cal-day-header {
+    padding: 0.5rem 0.25rem;
+    text-align: center;
+    border-left: 1px solid var(--gray-100);
+    width: 100%;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+}
+
+.cal-day-name {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--gray-500);
+    letter-spacing: 0.05em;
+}
+
+.cal-day-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-top: 2px;
+}
+
+.cal-day-count {
+    display: block;
+    margin-top: 0.18rem;
+    font-size: 0.66rem;
+    font-weight: 600;
+    color: var(--gray-500);
+    line-height: 1.2;
+}
+
+.cal-today-header .cal-day-name { color: var(--primary-600); }
+.cal-today-badge {
+    background: var(--primary-600);
+    color: #fff !important;
+}
+
+/* Body rows */
+.cal-body { flex: 1; overflow: hidden; }
+
+.cal-row {
+    display: grid;
+    grid-template-columns: 64px repeat(var(--day-cols, 7), 1fr);
+}
+
+.cal-row:hover { background: rgba(99, 102, 241, 0.01); }
+
+.cal-time-label {
+    width: 64px;
+    padding: 4px 8px 0;
+    font-size: 0.65rem;
+    color: var(--gray-400);
+    text-align: right;
+    font-weight: 500;
+    position: relative;
+    top: -6px;
+    white-space: nowrap;
+}
+
+.cal-cell {
+    border-left: 1px solid var(--gray-100);
+    min-height: 30px;
+    padding: 2px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cal-cell-hour { border-top: 1px solid var(--gray-200); }
+.cal-cell-half { border-top: 1px dashed var(--gray-100); }
+
+/* Appointment blocks */
+.cal-apt-block {
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-size: 0.72rem;
+    min-height: 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    transition: filter 0.15s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+    line-height: 1.3;
+}
+
+.cal-apt-block:hover { filter: brightness(0.93); z-index: 5; }
+
+.cal-apt-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-apt-meta {
+    font-size: 0.64rem;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Popup flotante de acciones de turno ─────────────────────────────────── */
+.cal-apt-popup {
+    position: fixed;
+    background: #1e1b4b;
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    border-radius: 14px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.25);
+    padding: 6px;
+    z-index: 9999;
+    min-width: 220px;
+    max-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    animation: calPopupIn 0.13s ease-out;
+}
+@keyframes calPopupIn {
+    from { opacity: 0; transform: scale(0.92) translateY(-4px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0);     }
+}
+
+/* Bloque de información del turno */
+.cal-apt-popup-info {
+    padding: 10px 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.cal-apt-popup-patient {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+.cal-apt-popup-row {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.65);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.cal-apt-popup-row i { width: 13px; text-align: center; color: rgba(139,92,246,0.85); }
+.cal-apt-popup-dur {
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.71rem;
+    margin-left: 2px;
+}
+.cal-apt-popup-notes {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.5);
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin-top: 1px;
+    line-height: 1.4;
+}
+.cal-apt-popup-notes i { width: 13px; text-align: center; margin-top: 1px; flex-shrink: 0; }
+
+/* Badges de estado */
+.cal-apt-popup-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    width: fit-content;
+}
+.cal-apt-popup-badge-cancelled { background: rgba(239,68,68,0.2); color: #fca5a5; }
+.cal-apt-popup-badge-overbook  { background: rgba(234,179,8,0.2);  color: #fde68a; }
+
+.cal-apt-popup-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.1);
+    margin: 3px 4px 3px;
+}
+
+/* Botones de acción */
+.cal-apt-popup-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.88);
+    padding: 8px 12px;
+    border-radius: 8px;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    transition: background 0.1s;
+    width: 100%;
+    white-space: nowrap;
+}
+.cal-apt-popup-btn:hover { background: rgba(255,255,255,0.08); }
+.cal-apt-popup-btn i { width: 14px; text-align: center; opacity: 0.7; flex-shrink: 0; }
+.cal-apt-popup-btn-danger { color: #fca5a5 !important; }
+.cal-apt-popup-btn-danger:hover { background: rgba(239,68,68,0.15) !important; }
+
+/* Sidebar legend */
+.cal-legend {
+    width: 248px;
+    min-width: 248px;
+    background: rgba(255,255,255,0.84);
+    border: 1px solid var(--border-soft);
+    border-radius: 1.25rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    box-shadow: var(--shadow-sm);
+    height: fit-content;
+    position: sticky;
+    top: 0.5rem;
+}
+
+.cal-legend-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.cal-legend-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--gray-500);
+    margin-bottom: 0.15rem;
+}
+
+.cal-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    text-align: left;
+}
+
+.cal-legend-item input[type="checkbox"] {
+    accent-color: var(--primary-600);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.cal-prof-select .cal-legend-chip {
+    width: 100%;
+    min-height: 2.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.82;
+    transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+.cal-prof-select.is-active .cal-legend-chip {
+    opacity: 1;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+    transform: translateY(-1px);
+}
+
+.cal-prof-select:hover .cal-legend-chip {
+    opacity: 1;
+    transform: translateY(-1px);
+    filter: saturate(1.04);
+}
+
+.cal-legend-chip {
+    flex: 1;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0.8rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* btn-sm */
+.btn-sm {
+    padding: 0.375rem 0.75rem !important;
+    font-size: 0.8rem !important;
+}
+
+/* badge extra */
+.badge-purple { background: #ede9fe; color: #5b21b6; }
+.badge-info { background: #dbeafe; color: #1e40af; }
+.badge-success { background: #d1fae5; color: #065f46; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-purple.badge { background: #ede9fe; color: #5b21b6; }
+
+.dashboard-status-select {
+    min-width: 170px;
+    padding: 0.5rem 2rem 0.5rem 0.85rem;
+    border-radius: 999px;
+    border: 1px solid var(--gray-200);
+    font-size: 0.79rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    box-shadow: none;
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+        calc(100% - 16px) calc(50% - 1px),
+        calc(100% - 11px) calc(50% - 1px);
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.dashboard-status-select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.dashboard-status-select option {
+    background: #ffffff;
+    color: var(--gray-800);
+}
+
+.dashboard-status-select.badge-success {
+    background-color: #f4fbf7;
+    color: #166534;
+    border-color: #b7e4c7;
+}
+
+.dashboard-status-select.badge-info {
+    background-color: #f4f9ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+}
+
+.dashboard-status-select.badge-warning {
+    background-color: #fffaf0;
+    color: #9a3412;
+    border-color: #fcd34d;
+}
+
+.dashboard-status-select.badge-danger {
+    background-color: #fff5f5;
+    color: #b91c1c;
+    border-color: #fecaca;
+}
+
+.dashboard-status-select.badge-purple {
+    background-color: #faf5ff;
+    color: #6d28d9;
+    border-color: #ddd6fe;
+}
+
+/* ===== CALENDAR V2 — Absolute-positioned blocks ===== */
+.cal-grid-v2 {
+    display: flex;
+    min-width: max-content;
+    border-top: 2px solid var(--gray-200);
+}
+
+/* Left time gutter */
+.cal-gutter-col {
+    width: 60px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--gray-200);
+    background: var(--gray-50);
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
+.cal-gutter-header {
+    height: 48px;
+    border-bottom: 2px solid var(--gray-200);
+    background: var(--gray-50);
+}
+
+.cal-gutter-body {
+    position: relative;
+}
+
+.cal-hour-label {
+    position: absolute;
+    right: 6px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--gray-400);
+    transform: translateY(-50%);
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.cal-h-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--gray-200);
+    pointer-events: none;
+    width: 100%;
+}
+
+.cal-h-half {
+    border-top-style: dashed;
+    border-top-color: var(--gray-100);
+}
+
+/* Day columns */
+.cal-day-col {
+    flex: 1;
+    min-width: 120px;
+    border-right: 1px solid var(--gray-100);
+    display: flex;
+    flex-direction: column;
+}
+
+.cal-day-col:last-child { border-right: none; }
+
+.cal-day-header {
+    height: 48px;
+    padding: 6px 4px;
+    text-align: center;
+    border-top: none;
+    border-right: none;
+    border-left: none;
+    border-bottom: 2px solid var(--gray-200);
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 5;
+    flex-shrink: 0;
+}
+
+.cal-day-header:hover {
+    background: rgba(99, 102, 241, 0.04);
+}
+
+.cal-day-header:focus-visible,
+.cal-month-dayhead:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.42);
+    outline-offset: -2px;
+}
+
+.cal-today-header {
+    background: var(--primary-50);
+}
+
+.cal-day-name {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--gray-500);
+    letter-spacing: 0.05em;
+}
+
+.cal-day-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--gray-700);
+}
+
+/* Day body — appointments go here absolutely */
+.cal-day-body {
+    position: relative;
+    flex: 1;
+}
+
+/* Appointment block — absolute within day body */
+.cal-apt-block {
+    position: absolute;
+    left: 3px;
+    right: 3px;
+    border-radius: 6px;
+    padding: 0.38rem 0.5rem;
+    font-size: 0.72rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.1s;
+    overflow: hidden;
+    line-height: 1.3;
+    z-index: 2;
+    border-left: 4px solid transparent;
+}
+
+.cal-apt-content {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.cal-apt-block:hover {
+    filter: brightness(0.92);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 3;
+}
+
+.cal-apt-name {
+    display: block;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.cal-apt-meta {
+    display: block;
+    font-size: 0.65rem;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.cal-apt-tag {
+    display: inline-flex;
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(255,255,255,0.72);
+}
+
+.cal-apt-overbook {
+    left: 52%;
+    right: 3px;
+    min-height: 26px;
+    padding: 0.24rem 0.4rem 0.26rem;
+    z-index: 20 !important;
+    box-shadow: 0 4px 14px rgba(249, 115, 22, 0.22);
+}
+
+.cal-apt-overbook:hover {
+    z-index: 21 !important;
+}
+
+.cal-apt-overbook .cal-apt-name {
+    font-size: 0.64rem;
+    line-height: 1.15;
+}
+
+.cal-apt-overbook .cal-apt-meta {
+    font-size: 0.53rem;
+    line-height: 1.05;
+}
+
+.cal-apt-overbook .cal-apt-content {
+    gap: 0.02rem;
+    padding-right: 5.2rem;
+}
+
+.cal-apt-overbook .cal-apt-tag {
+    position: absolute;
+    top: 0.22rem;
+    right: 0.24rem;
+    margin-top: 0;
+    max-width: calc(100% - 0.5rem);
+    padding: 0.08rem 0.34rem;
+    font-size: 0.5rem;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* ── Turno cancelado ── */
+.cal-apt-cancelled {
+    opacity: 0.65;
+    border-left: 3px solid #fca5a5 !important;
+    box-shadow: none !important;
+}
+.cal-apt-cancelled::after {
+    background: none !important;
+}
+.cal-apt-cancelled:hover {
+    opacity: 0.82;
+    filter: none !important;
+    transform: none !important;
+}
+.cal-apt-name-cancelled {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+.cal-apt-tag-cancelled {
+    background: rgba(239, 68, 68, 0.14) !important;
+    color: #b91c1c;
+    font-weight: 700;
+    border: 1px solid rgba(239,68,68,0.2) !important;
+}
+body.theme-dark .cal-apt-cancelled {
+    opacity: 0.5;
+}
+body.theme-dark .cal-apt-tag-cancelled {
+    background: rgba(239, 68, 68, 0.2) !important;
+    color: #fca5a5;
+}
+
+/* Tarjeta compacta cancelada (vista semana/mes mobile) */
+.cal-mobile-card.is-cancelled {
+    opacity: 0.68;
+    background: repeating-linear-gradient(
+        135deg,
+        #fee2e2 0px, #fee2e2 7px,
+        #fecaca 7px, #fecaca 14px
+    ) !important;
+}
+body.theme-dark .cal-mobile-card.is-cancelled {
+    background: repeating-linear-gradient(
+        135deg,
+        rgba(220,38,38,0.18) 0px, rgba(220,38,38,0.18) 7px,
+        rgba(220,38,38,0.08) 7px, rgba(220,38,38,0.08) 14px
+    ) !important;
+}
+
+.cal-legend-mobile {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+.cal-legend-mobile .cal-legend-title {
+    margin-bottom: 0;
+    min-width: fit-content;
+}
+
+.cal-legend-mobile .cal-legend-item {
+    min-width: fit-content;
+}
+
+.cal-wrapper-mobile {
+    gap: 0.85rem;
+}
+
+.cal-mobile-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.cal-mobile-section {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.cal-mobile-section-header {
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--gray-200);
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.cal-mobile-list {
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.cal-mobile-card {
+    border: 1px solid var(--gray-200);
+    border-left: 4px solid var(--primary-500);
+    border-radius: 0.95rem;
+    padding: 0.85rem;
+    background: #fff;
+}
+
+.cal-mobile-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.55rem;
+}
+
+.cal-mobile-card-time {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.cal-mobile-card-duration,
+.cal-mobile-card-prof {
+    font-size: 0.8rem;
+    color: var(--gray-500);
+}
+
+.cal-mobile-card-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    margin-bottom: 0.2rem;
+}
+
+.cal-mobile-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.35rem;
+}
+
+.cal-mobile-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+}
+
+.cal-mobile-empty {
+    border: 1px dashed var(--gray-300);
+    border-radius: 0.9rem;
+    padding: 1rem;
+    text-align: center;
+    color: var(--gray-500);
+    background: #fff;
+}
+
+.cal-mobile-empty-root {
+    background: #fff;
+}
+
+.cal-mobile-count {
+    border-radius: 0.9rem;
+    padding: 0.8rem 1rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.92rem;
+    letter-spacing: 0.01em;
+}
+
+/* ===== FINAL RESPONSIVE OVERRIDES ===== */
+@media screen and (max-width: 1024px) {
+    #app-view {
+        display: block !important;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    #app-view aside {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(86vw, 320px) !important;
+        min-width: min(86vw, 320px) !important;
+        height: 100dvh !important;
+        transform: translateX(-104%) !important;
+        transition: transform var(--transition-base) !important;
+        z-index: 40;
+        box-shadow: var(--shadow-xl);
+        border-top-right-radius: 1.25rem;
+    }
+
+    #app-view.sidebar-open aside {
+        transform: translateX(0) !important;
+    }
+
+    #app-view main {
+        width: 100% !important;
+        min-width: 0;
+        margin-left: 0 !important;
+        height: 100vh;
+    }
+
+    #app-view.sidebar-open .sidebar-backdrop {
+        display: block !important;
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .sidebar-toggle-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .app-header {
+        display: flex;
+        position: sticky;
+        top: 0;
+        z-index: 80;
+        padding-top: env(safe-area-inset-top, 0px);
+        min-height: calc(4rem + env(safe-area-inset-top, 0px));
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .mobile-header-brand {
+        display: inline-flex;
+    }
+
+    #main-content {
+        padding: 1rem !important;
+    }
+
+    .cal-layout {
+        flex-direction: column;
+    }
+
+    .cal-legend {
+        width: 100%;
+        min-width: 0;
+        order: -1;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .metrics-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .app-header {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    #main-content {
+        padding-top: 1rem !important;
+        scroll-padding-top: calc(5rem + env(safe-area-inset-top, 0px));
+    }
+
+    .table-container {
+        overflow-x: auto;
+    }
+
+    table {
+        min-width: 700px;
+    }
+
+    .card,
+    .settings-card,
+    .table-container,
+    .clinical-history-card {
+        border-radius: 0.85rem;
+    }
+}
+
+@media screen and (max-width: 540px) {
+    #app-view aside {
+        width: 88vw !important;
+        min-width: 88vw !important;
+    }
+
+    .nav-item {
+        padding: 0.85rem 1rem;
+    }
+
+    .app-brand,
+    .sidebar-user-wrap,
+    #main-content {
+        padding-left: 0.9rem !important;
+        padding-right: 0.9rem !important;
+    }
+
+    .dashboard-date-filter {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .clinical-history-card .flex.justify-between,
+    .clinical-history-card .flex.items-center.justify-between,
+    .clinical-history-card .flex.flex-col.md\:flex-row {
+        gap: 0.75rem;
+    }
+
+    .clinical-image-body {
+        padding: 0.8rem;
+    }
+
+    .settings-card header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+    }
+
+    .modal-footer {
+        flex-direction: column-reverse;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .mobile-header-left {
+        min-width: 0;
+        gap: 0.65rem;
+    }
+
+    .mobile-header-brand {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .mobile-header-brand span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .cal-toolbar {
+        padding: 1rem !important;
+    }
+
+    .cal-toolbar-inner {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.85rem;
+    }
+
+    .cal-toolbar-nav {
+        display: grid;
+        grid-template-columns: 2.9rem minmax(0, 1fr) 2.9rem;
+        align-items: center;
+        gap: 0.65rem;
+    }
+
+    .cal-toolbar-date {
+        font-size: 0.98rem;
+        text-align: center;
+    }
+
+    .cal-toolbar-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 0.7rem;
+    }
+
+    .cal-toolbar-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .cal-view-switcher {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
+    }
+
+    .table-container.table-container-schedules,
+    .table-container.table-container-patients {
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding: 0;
+    }
+
+    .table-container.table-container-schedules table,
+    .table-container.table-container-patients table {
+        min-width: 720px !important;
+    }
+
+    .table-container.table-container-schedules thead,
+    .table-container.table-container-patients thead {
+        display: table-header-group;
+    }
+
+    .table-container.table-container-schedules tbody,
+    .table-container.table-container-patients tbody {
+        display: table-row-group;
+    }
+
+    .table-container.table-container-schedules tr,
+    .table-container.table-container-patients tr {
+        display: table-row;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
+    }
+
+    .table-container.table-container-schedules td,
+    .table-container.table-container-patients td,
+    .table-container.table-container-schedules th,
+    .table-container.table-container-patients th {
+        display: table-cell;
+        width: auto;
+        min-width: 0;
+        vertical-align: middle;
+        white-space: normal;
+    }
+
+    .table-container.table-container-schedules td::before,
+    .table-container.table-container-patients td::before {
+        display: none;
+        content: none;
+    }
+
+    .table-container.table-container-schedules .table-prof-name-cell,
+    .table-container.table-container-patients #patients-table td:first-child {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+    }
+
+    .table-container.table-container-schedules .table-actions-cell {
+        text-align: right;
+    }
+
+    .table-container.table-container-patients .table-actions-cell {
+        text-align: left;
+    }
+
+    .patient-actions {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+    }
+
+    .btn-schedule-mobile {
+        width: 3rem;
+        height: 3rem;
+        padding: 0;
+        border-radius: 0.95rem;
+    }
+
+    .btn-schedule-mobile .btn-label {
+        display: none;
+    }
+}
+
+.clinical-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.clinical-images-shell {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 1rem;
+    padding: 1rem;
+}
+
+.clinical-images-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.7rem;
+    margin-bottom: 1rem;
+}
+
+.clinical-images-summary > div {
+    min-width: 0;
+    border: 1px solid var(--gray-200);
+    border-radius: 0.8rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    padding: 0.78rem 0.9rem;
+}
+
+.clinical-images-summary span {
+    display: block;
+    color: var(--gray-500);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.clinical-images-summary strong {
+    display: block;
+    margin-top: 0.24rem;
+    color: var(--gray-900);
+    font-size: 0.92rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.clinical-image-card {
+    position: relative;
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.clinical-image-actions {
+    position: absolute;
+    top: 0.8rem;
+    right: 0.8rem;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.clinical-image-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background: rgba(15, 23, 42, 0.72);
+    color: #fff;
+    padding: 0.42rem 0.72rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.clinical-image-action-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(15, 23, 42, 0.86);
+    border-color: rgba(255, 255, 255, 0.65);
+}
+
+.clinical-image-action-delete {
+    background: rgba(127, 29, 29, 0.76);
+}
+
+.clinical-image-action-delete:hover {
+    background: rgba(153, 27, 27, 0.9);
+}
+
+.clinical-image-preview-button {
+    display: block;
+    width: 100%;
+}
+
+.clinical-image-preview {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+    background: var(--gray-100);
+}
+
+.clinical-image-body {
+    padding: 0.9rem;
+}
+
+.clinical-image-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.45rem;
+}
+
+.clinical-image-error {
+    display: none;
+    margin: 0 0 0.65rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #b45309;
+}
+
+.clinical-image-card--broken .clinical-image-body {
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.clinical-image-body--error .clinical-image-error {
+    display: block;
+}
+
+.clinical-image-date {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--primary-700);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.clinical-image-inline-link {
+    border: none;
+    background: transparent;
+    color: var(--primary-700);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0;
+    white-space: nowrap;
+}
+
+.clinical-image-inline-link:hover {
+    color: var(--primary-800);
+    text-decoration: underline;
+}
+
+.clinical-image-description {
+    font-size: 0.9rem;
+    color: var(--gray-700);
+    min-height: 2.5rem;
+    margin-bottom: 0;
+}
+
+/* ── PDF card dentro de la grilla clínica ── */
+.clinical-pdf-card {
+    cursor: default !important;
+}
+.clinical-pdf-preview-link {
+    display: block;
+    width: 100%;
+    text-decoration: none;
+}
+.clinical-pdf-preview-link:hover .clinical-pdf-icon {
+    background: rgba(239,68,68,0.12);
+}
+.clinical-pdf-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    height: 180px;
+    min-height: 180px;
+    font-size: 3rem;
+    color: #ef4444;
+    background: rgba(239,68,68,0.06);
+}
+body.theme-dark .clinical-pdf-icon {
+    background: rgba(239,68,68,0.08);
+    color: #f87171;
+}
+body.theme-dark .clinical-pdf-preview-link:hover .clinical-pdf-icon {
+    background: rgba(239,68,68,0.14);
+}
+
+.clinical-image-empty {
+    grid-column: 1 / -1;
+    min-height: 112px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--gray-300);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--gray-500);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.clinical-image-viewer-overlay {
+    z-index: 80;
+    padding: 1.25rem;
+    background: rgba(2, 6, 23, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+
+.clinical-image-viewer {
+    width: min(1180px, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(226, 232, 240, 0.22);
+    border-radius: 1.15rem;
+    background: #0f172a;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.46);
+    color: #f8fafc;
+    transform: translateY(10px) scale(0.98);
+    transition: transform 0.2s ease;
+}
+
+.modal-overlay.active .clinical-image-viewer {
+    transform: translateY(0) scale(1);
+}
+
+.clinical-image-viewer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.96);
+}
+
+.clinical-image-viewer-heading {
+    min-width: 0;
+}
+
+.clinical-image-viewer-kicker {
+    display: block;
+    margin-bottom: 0.18rem;
+    color: #67e8f9;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.clinical-image-viewer-heading h3 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.clinical-image-viewer-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-shrink: 0;
+}
+
+.clinical-image-viewer-counter {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.1rem;
+    padding: 0 0.78rem;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.clinical-image-viewer-close {
+    width: 2.25rem;
+    height: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.7rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: #f8fafc;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.clinical-image-viewer-close:hover {
+    transform: translateY(-1px);
+    background: rgba(248, 113, 113, 0.16);
+    border-color: rgba(248, 113, 113, 0.42);
+}
+
+.clinical-image-viewer-layout {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    flex: 1;
+}
+
+.clinical-image-viewer-stage {
+    position: relative;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.1rem;
+    background:
+        linear-gradient(45deg, rgba(148, 163, 184, 0.08) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(148, 163, 184, 0.08) 25%, transparent 25%),
+        #020617;
+    background-position: 0 0, 0 12px;
+    background-size: 24px 24px;
+}
+
+.clinical-image-viewer-figure {
+    position: relative;
+    width: 100%;
+    height: min(64vh, 640px);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.clinical-image-viewer-zoom-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    transform-origin: center center;
+    transition: transform 0.1s ease;
+    will-change: transform;
+    touch-action: none;
+}
+
+.clinical-image-viewer-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 0.8rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
+    background: #111827;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.clinical-image-viewer-zoom-btns {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.clinical-image-viewer-zoom-btn {
+    background: rgba(255,255,255,0.12);
+    border: none;
+    border-radius: 0.5rem;
+    color: #f8fafc;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: background 0.15s;
+}
+
+.clinical-image-viewer-zoom-btn:hover {
+    background: rgba(255,255,255,0.22);
+}
+
+.clinical-image-viewer-caption {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.8rem;
+    background: rgba(15, 23, 42, 0.7);
+    color: #f8fafc;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.clinical-image-viewer-caption span {
+    color: #bae6fd;
+    font-size: 0.76rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.clinical-image-viewer-caption strong {
+    min-width: 0;
+    font-size: 0.86rem;
+    line-height: 1.25;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.clinical-image-viewer-nav {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    width: 2.75rem;
+    height: 3.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.85rem;
+    background: rgba(15, 23, 42, 0.72);
+    color: #f8fafc;
+    transform: translateY(-50%);
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.clinical-image-viewer-nav:hover {
+    background: rgba(14, 165, 233, 0.22);
+    border-color: rgba(125, 211, 252, 0.46);
+    transform: translateY(-50%) scale(1.03);
+}
+
+.clinical-image-viewer-nav.prev {
+    left: 1rem;
+}
+
+.clinical-image-viewer-nav.next {
+    right: 1rem;
+}
+
+.clinical-image-viewer-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1rem;
+    border-left: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.98);
+}
+
+.clinical-image-viewer-progress {
+    height: 0.42rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.22);
+}
+
+.clinical-image-viewer-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #22d3ee 0%, #facc15 100%);
+}
+
+.clinical-image-viewer-detail {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 0.85rem;
+    padding: 0.78rem;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.clinical-image-viewer-detail span {
+    display: block;
+    margin-bottom: 0.32rem;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.clinical-image-viewer-detail strong {
+    display: block;
+    color: #f8fafc;
+    font-size: 0.88rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.clinical-image-viewer-neighbors {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+}
+
+.clinical-image-viewer-neighbors button {
+    min-height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 0.78rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+    padding: 0.6rem 0.72rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.clinical-image-viewer-neighbors button:hover {
+    background: rgba(14, 165, 233, 0.16);
+    border-color: rgba(125, 211, 252, 0.38);
+}
+
+.clinical-image-viewer-thumbs {
+    display: flex;
+    gap: 0.7rem;
+    overflow-x: auto;
+    padding: 0.85rem 1rem 1rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(2, 6, 23, 0.82);
+    scrollbar-width: thin;
+}
+
+.clinical-image-viewer-thumb {
+    width: 112px;
+    flex: 0 0 112px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 0.85rem;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+    color: #cbd5e1;
+    text-align: left;
+    transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+
+.clinical-image-viewer-thumb:hover {
+    transform: translateY(-1px);
+    border-color: rgba(125, 211, 252, 0.42);
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.clinical-image-viewer-thumb.is-active {
+    border-color: #22d3ee;
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.18);
+}
+
+.clinical-image-viewer-thumb img {
+    width: 100%;
+    height: 64px;
+    display: block;
+    object-fit: cover;
+    background: #111827;
+}
+
+.clinical-image-viewer-thumb span {
+    display: block;
+    padding: 0.48rem 0.55rem 0.55rem;
+    color: inherit;
+    font-size: 0.7rem;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 980px) {
+    .clinical-image-viewer-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .clinical-image-viewer-panel {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        border-left: none;
+        border-top: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .clinical-image-viewer-progress,
+    .clinical-image-viewer-neighbors {
+        grid-column: 1 / -1;
+    }
+
+    .clinical-image-viewer-neighbors {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .clinical-image-viewer-figure {
+        height: min(52vh, 520px);
+    }
+}
+
+@media (max-width: 768px) {
+    .clinical-images-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .clinical-image-viewer-overlay {
+        padding: 0.55rem;
+    }
+
+    .clinical-image-viewer {
+        width: calc(100vw - 1.1rem);
+        max-height: calc(100vh - 1.1rem);
+        border-radius: 0.95rem;
+    }
+
+    .clinical-image-viewer-header {
+        align-items: flex-start;
+        padding: 0.85rem;
+    }
+
+    .clinical-image-viewer-counter {
+        display: none;
+    }
+
+    .clinical-image-viewer-stage {
+        padding: 0.7rem;
+    }
+
+    .clinical-image-viewer-figure {
+        height: 42vh;
+    }
+
+    .clinical-image-viewer-nav {
+        width: 2.35rem;
+        height: 3rem;
+        border-radius: 0.75rem;
+    }
+
+    .clinical-image-viewer-nav.prev {
+        left: 0.65rem;
+    }
+
+    .clinical-image-viewer-nav.next {
+        right: 0.65rem;
+    }
+
+    .clinical-image-viewer-caption {
+        position: static;
+        margin-top: 0.7rem;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .clinical-image-viewer-caption strong {
+        text-align: left;
+    }
+
+    .clinical-image-viewer-panel {
+        grid-template-columns: 1fr;
+        padding: 0.75rem;
+    }
+
+    .clinical-image-viewer-neighbors {
+        grid-template-columns: 1fr;
+    }
+
+    .clinical-image-viewer-thumb {
+        width: 96px;
+        flex-basis: 96px;
+    }
+
+    .clinical-image-viewer-thumb img {
+        height: 56px;
+    }
+}
+
+/* ===== CALENDAR DAY VIEW ===== */
+.cal-grid-day {
+    display: flex;
+    height: 100%;
+}
+
+.cal-prof-col {
+    flex: 1;
+    min-width: 200px;
+    border-right: 1px solid var(--gray-200);
+}
+
+.cal-prof-col:last-child {
+    border-right: none;
+}
+
+.cal-prof-header {
+    padding: 0.75rem;
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: var(--gray-700);
+}
+
+.cal-day-count {
+    margin-top: 0.12rem;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--gray-500);
+}
+
+.cal-prof-body {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Week view appointments */
+.cal-week-apt {
+    background: #10b981;
+    color: white;
+    padding: 0.5rem;
+    margin-bottom: 0.25rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+.cal-week-apt:hover {
+    opacity: 0.8;
+}
+.cal-week-apt-name {
+    font-weight: 500;
+}
+.cal-week-apt-meta {
+    font-size: 0.75rem;
+    opacity: 0.9;
+}
+
+.cal-month-board {
+    min-width: 980px;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+}
+
+.cal-month-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: #fff;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.34);
+}
+
+.cal-month-weekday {
+    padding: 0.85rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray-500);
+    border-right: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.cal-month-weekday:last-child {
+    border-right: none;
+}
+
+.cal-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-auto-rows: minmax(115px, 1fr);
+}
+
+.cal-month-cell {
+    min-height: 115px;
+    border-right: 1px solid rgba(148, 163, 184, 0.2);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    background: #fff;
+}
+
+.cal-month-cell:nth-child(7n) {
+    border-right: none;
+}
+
+.cal-month-cell.is-outside-month {
+    background: linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
+}
+
+.cal-month-empty-slot {
+    flex: 1;
+}
+
+.cal-month-dayhead {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.24rem;
+    padding: 0.55rem 0.6rem 0.5rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+    margin: -0.35rem -0.35rem 0.45rem;
+    min-height: 3rem;
+    width: calc(100% + 0.7rem);
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.cal-month-dayhead.is-today .cal-month-daynum {
+    background: var(--primary-600);
+    color: #fff;
+    box-shadow: 0 10px 18px rgba(79, 70, 229, 0.2);
+}
+
+.cal-month-daynum {
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0 0.42rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--gray-700);
+    line-height: 1;
+}
+
+.cal-month-cell.is-outside-month .cal-month-daynum {
+    color: var(--gray-400);
+}
+
+.cal-month-daycount {
+    font-size: 0.67rem;
+    font-weight: 700;
+    color: var(--gray-500);
+    line-height: 1.2;
+}
+
+.cal-month-daybody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-height: 0;
+}
+
+.cal-month-dayempty {
+    font-size: 0.76rem;
+    color: var(--gray-400);
+    padding: 0.2rem 0.1rem;
+}
+
+.cal-month-apt {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-left: 4px solid var(--primary-500);
+    border-radius: 0.75rem;
+    padding: 0.45rem 0.55rem;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+.cal-month-apt:hover {
+    transform: translateY(-1px);
+    filter: brightness(0.97);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
+.cal-month-apt.is-overbook {
+    outline: 1px dashed rgba(249, 115, 22, 0.45);
+}
+
+.cal-month-apt-time {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    opacity: 0.92;
+    margin-bottom: 0.2rem;
+}
+
+.cal-month-apt-name {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-month-apt-prof {
+    display: block;
+    font-size: 0.68rem;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.feedback-toast-root {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    pointer-events: none;
+}
+
+.feedback-toast {
+    pointer-events: auto;
+    min-width: 280px;
+    max-width: 360px;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(99, 102, 241, 0.12);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.14);
+    backdrop-filter: blur(18px);
+    transform: translateY(-10px);
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.feedback-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.feedback-toast-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.9rem;
+}
+
+.feedback-toast-copy {
+    color: var(--gray-800);
+    font-size: 0.92rem;
+    line-height: 1.45;
+    font-weight: 500;
+}
+
+.feedback-toast-success .feedback-toast-icon {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.feedback-toast-error .feedback-toast-icon {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.feedback-toast-info .feedback-toast-icon {
+    background: #e0e7ff;
+    color: var(--primary-700);
+}
+
+.feedback-dialog-root {
+    position: fixed;
+    inset: 0;
+    z-index: 3100;
+    pointer-events: none;
+}
+
+.feedback-dialog-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    background: rgba(15, 23, 42, 0.34);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    pointer-events: none; /* No bloquear clicks cuando el diálogo no está visible */
+}
+
+.feedback-dialog-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto; /* Solo capturar clicks cuando el diálogo está visible */
+}
+
+.feedback-dialog {
+    width: min(100%, 420px);
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(99, 102, 241, 0.12);
+    border-radius: 1.35rem;
+    box-shadow: 0 28px 60px rgba(15, 23, 42, 0.24);
+    padding: 1.25rem;
+    transform: translateY(12px) scale(0.98);
+    transition: transform 0.18s ease;
+}
+
+.feedback-dialog-overlay.is-visible .feedback-dialog {
+    transform: translateY(0) scale(1);
+}
+
+.feedback-dialog-badge {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+.feedback-dialog-info .feedback-dialog-badge {
+    background: #e0e7ff;
+    color: var(--primary-700);
+}
+
+.feedback-dialog-danger .feedback-dialog-badge,
+.feedback-dialog-error .feedback-dialog-badge {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.feedback-dialog-success .feedback-dialog-badge {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.feedback-dialog-eyebrow {
+    margin: 0 0 0.45rem;
+    color: var(--gray-500);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.feedback-dialog-message {
+    margin: 0;
+    color: var(--gray-900);
+    font-size: 1rem;
+    line-height: 1.55;
+    font-weight: 600;
+}
+
+.feedback-dialog-actions {
+    margin-top: 1.35rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+@media (max-width: 768px) {
+    .feedback-toast-root {
+        top: auto;
+        right: 0.9rem;
+        left: 0.9rem;
+        bottom: 0.9rem;
+    }
+
+    .feedback-toast {
+        min-width: 0;
+        max-width: none;
+    }
+
+    .feedback-dialog {
+        width: min(100%, 360px);
+        border-radius: 1.15rem;
+        padding: 1rem;
+    }
+
+    .feedback-dialog-actions {
+        flex-direction: column-reverse;
+    }
+
+.feedback-dialog-actions .btn {
+        width: 100%;
+    }
+}
+
+@media screen and (max-width: 820px) {
+    .modal-content-patient {
+        max-width: min(100vw - 2rem, 680px);
+        width: min(100vw - 2rem, 680px);
+    }
+
+    .modal-content-patient #patient-form .modal-body > .patient-form-row-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .modal-content-patient #patient-form .modal-body > .patient-form-row-3 .input-group:last-child {
+        grid-column: 1 / -1;
+    }
+}
+
