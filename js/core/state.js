@@ -59,6 +59,10 @@ function getAppLoginUrl() {
 // No usar setState() — la app es vanilla JS sin reactividad.
 // -----------------------------------------------------------------------------
 
+// ID de navegación: se incrementa en cada loadView() para que solo la última
+// navegación iniciada pueda renderizar. Evita condiciones de carrera en async.
+let _loadViewSeq = 0;
+
 const state = {
     user:                        null,
     authToken:                   null,
