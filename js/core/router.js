@@ -296,6 +296,8 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
 
     state.currentView = viewId;
     setPageTitle(title);
+    // Limpiar indicador de hora actual si se cambia de vista
+    if (typeof stopNowIndicator === 'function') stopNowIndicator();
     // Cerrar cualquier menú de estado abierto antes de limpiar el DOM
     _closeStatusMenu();
     mainContent.innerHTML = '';
@@ -367,6 +369,8 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     else content.innerHTML = renderPlaceholder(viewId);
 
     mainContent.appendChild(content);
+    // Iniciar indicador de hora actual DESPUÉS del appendChild, cuando el DOM ya está disponible
+    if (viewId === 'appointments' && typeof startNowIndicator === 'function') startNowIndicator();
     renderSidebar();
     return true;
 }

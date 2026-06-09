@@ -846,8 +846,51 @@ function openScheduleModal(profId) {
 const calendarState = {
     currentDate: getTodayIsoLocal(),
     viewMode: 'day', // 'day', 'week', 'month'
-    visibleProfs: {}
+    visibleProfs: {},
+    nowIndicatorTimer: null
 };
+
+function startNowIndicator() {
+    if (calendarState.nowIndicatorTimer) {
+        clearInterval(calendarState.nowIndicatorTimer);
+        calendarState.nowIndicatorTimer = null;
+    }
+    const lineEl   = document.getElementById('cal-now-line');
+    const gutterEl = document.getElementById('cal-now-gutter');
+    const timeEl   = document.getElementById('cal-now-time');
+    if (!lineEl) return;
+
+    const startMin  = parseFloat(lineEl.dataset.startMin);
+    const pxPerMin  = parseFloat(lineEl.dataset.pxPerMin);
+    const topOffset = parseFloat(lineEl.dataset.topOffset);
+    const endMin    = parseFloat(lineEl.dataset.endMin);
+
+    function update() {
+        const now   = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        // Hide if outside the visible range
+        const visible = nowMin >= startMin && nowMin <= endMin;
+        const display = visible ? '' : 'none';
+        lineEl.style.display   = display;
+        if (gutterEl) gutterEl.style.display = display;
+        if (!visible) return;
+        const top = (nowMin - startMin) * pxPerMin + topOffset;
+        lineEl.style.top   = top + 'px';
+        if (gutterEl) gutterEl.style.top = top + 'px';
+        if (timeEl) {
+            timeEl.textContent = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+        }
+    }
+    update();
+    calendarState.nowIndicatorTimer = setInterval(update, 10000);
+}
+
+function stopNowIndicator() {
+    if (calendarState.nowIndicatorTimer) {
+        clearInterval(calendarState.nowIndicatorTimer);
+        calendarState.nowIndicatorTimer = null;
+    }
+}
 
 function getSelectedCalendarProfessionalId(professionals = getAccessibleProfessionals()) {
     const selected = professionals.find((p) => calendarState.visibleProfs[p.id]);
@@ -1354,6 +1397,22 @@ function renderAppointments() {
             }
         }
 
+        // Now indicator — only shown when viewing today
+        const isViewingToday = currentDate === getTodayIsoLocal();
+        let nowLineHtml   = '';
+        let nowGutterHtml = '';
+        if (isViewingToday) {
+            const nowDate  = new Date();
+            const nowMin   = nowDate.getHours() * 60 + nowDate.getMinutes();
+            const nowTop   = (nowMin - calStartMin) * CAL_PX_PER_MIN + CAL_TOP_OFFSET;
+            const nowHH    = String(nowDate.getHours()).padStart(2,'0');
+            const nowMM    = String(nowDate.getMinutes()).padStart(2,'0');
+            const dataAttrs = `data-start-min="${calStartMin}" data-end-min="${calEndMin}" data-px-per-min="${CAL_PX_PER_MIN}" data-top-offset="${CAL_TOP_OFFSET}"`;
+            const hidden    = (nowMin < calStartMin || nowMin > calEndMin) ? 'style="display:none"' : `style="top:${nowTop}px"`;
+            nowLineHtml = `<div id="cal-now-line" class="cal-now-line" ${dataAttrs} ${hidden}><div class="cal-now-dot"></div></div>`;
+            nowGutterHtml = `<div id="cal-now-gutter" class="cal-now-gutter" ${dataAttrs} ${hidden}></div>`;
+        }
+
         // Build professional columns
         let profCols = '';
         [activeProfessional].forEach(p => {
@@ -1403,6 +1462,7 @@ function renderAppointments() {
                 <div class="cal-prof-body" style="height:${calTotalHeight}px; position:relative;">
                     ${linesHtml}
                     ${aptBlocks}
+                    ${nowLineHtml}
                 </div>
             </div>`;
         });
@@ -1421,6 +1481,7 @@ function renderAppointments() {
                         <div class="cal-gutter-header"></div>
                         <div class="cal-gutter-body" style="height:${calTotalHeight}px; position:relative;">
                             ${timeLabelsHtml}
+                            ${nowGutterHtml}
                         </div>
                     </div>
                     <!-- Professional columns -->

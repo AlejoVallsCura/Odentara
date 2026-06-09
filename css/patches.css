@@ -4990,3 +4990,63 @@ body.theme-dark .prof-color-row    { background: transparent !important; }
     border-color:  #14b8a6             !important;
     box-shadow:    0 0 0 3.5px rgba(20,184,166,.20) !important;
 }
+
+/* ── Indicador de hora actual en calendario (day view) ────────────────────── */
+.cal-now-line {
+    position:       absolute;
+    left:           0;
+    right:          0;
+    height:         2px;
+    background:     linear-gradient(90deg, #ef4444 0%, rgba(239,68,68,.18) 100%);
+    z-index:        40;
+    pointer-events: none;
+    transform:      translateY(-1px);
+}
+.cal-now-dot {
+    position:       absolute;
+    left:           -5px;
+    top:            50%;
+    transform:      translateY(-50%);
+    width:          10px;
+    height:         10px;
+    border-radius:  50%;
+    background:     #ef4444;
+    box-shadow:     0 0 0 3px rgba(239,68,68,.20),
+                    0 0 8px rgba(239,68,68,.35);
+}
+.cal-now-gutter {
+    position:       absolute;
+    right:          4px;
+    transform:      translateY(-50%);
+    z-index:        40;
+    pointer-events: none;
+}
+.cal-now-time-badge {
+    display:        inline-block;
+    font-size:      9.5px;
+    font-weight:    700;
+    letter-spacing: .02em;
+    color:          #ef4444;
+    background:     #fff;
+    padding:        1px 5px;
+    border-radius:  4px;
+    border:         1.5px solid rgba(239,68,68,.30);
+    line-height:    1.5;
+    box-shadow:     0 1px 4px rgba(239,68,68,.12);
+}
+
+/* Dark mode */
+body.theme-dark .cal-now-line {
+    background: linear-gradient(90deg, #f87171 0%, rgba(248,113,113,.12) 100%);
+}
+body.theme-dark .cal-now-dot {
+    background:  #f87171;
+    box-shadow:  0 0 0 3px rgba(248,113,113,.22),
+                 0 0 10px rgba(248,113,113,.40);
+}
+body.theme-dark .cal-now-time-badge {
+    color:       #f87171;
+    background:  #1e293b;
+    border-color: rgba(248,113,113,.35);
+    box-shadow:  0 1px 4px rgba(248,113,113,.15);
+}
