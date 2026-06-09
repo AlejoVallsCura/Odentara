@@ -161,7 +161,7 @@ const mainContent = document.getElementById('main-content');
 const pageTitle = document.getElementById('page-title');
 const appSidebar = document.getElementById('app-sidebar');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
-}
+const sidebarToggle = document.getElementById('sidebar-toggle');
 
 function isMobileLayout() {
     return window.innerWidth <= 1024;
