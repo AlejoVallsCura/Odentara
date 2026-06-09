@@ -1,4 +1,6 @@
 ﻿// --- Navigation & State ---
+let _loadViewSeq = 0; // navigation ID: solo la última navegación renderiza
+
 const state = {
     user: null,
     authToken: null,
@@ -863,6 +865,7 @@ const roleConfig = {
     admin: {
         name: 'Administrador',
         navItems: [
+            { id: 'dashboard', icon: 'fa-chart-pie',           label: 'Dashboard' },
             { id: 'patients',  icon: 'fa-users',               label: 'Pacientes' },
             { id: 'billing',   icon: 'fa-file-invoice-dollar', label: 'Cuentas Corrientes' },
             { id: 'settings',  icon: 'fa-cog',                 label: 'Configuración' }
@@ -891,6 +894,9 @@ const roleConfig = {
 
 // --- Initial DOM Elements ---
 const views = { login: document.getElementById('login-view'), app: document.getElementById('app-view') };
+
+// El login siempre es dark — forzar sin persistir la preferencia del usuario
+applyTheme('dark', false);
 const modalsContainer = document.getElementById('modals-container');
 const mainContent = document.getElementById('main-content');
 const pageTitle = document.getElementById('page-title');
@@ -954,12 +960,27 @@ function normalizePatientName(name = '') {
 
 function mapApiUserToLegacyUser(apiUser = {}) {
     const displayName = apiUser.fullName || apiUser.name || apiUser.email || 'Usuario';
+    const roles = Array.isArray(apiUser.roles) ? apiUser.roles : [];
+
+    // Derivar "type" (label visual) desde los roles del backend.
+    // Prioridad: professional > secretary > admin
+    // Un profesional que también tiene admin sigue siendo "profesional" visualmente.
+    function deriveTypeFromRoles(roleCodes) {
+        const r = roleCodes.map(c => String(c).toLowerCase());
+        if (r.some(c => c === 'superadmin')) return 'superadmin';
+        if (r.some(c => c === 'professional' || c === 'profesional')) return 'profesional';
+        if (r.some(c => c === 'secretary' || c === 'secretario')) return 'secretario';
+        if (r.some(c => c === 'admin' || c === 'administrador')) return 'administrador';
+        return '';
+    }
+
     return {
         id: apiUser.id,
         email: apiUser.email,
         name: displayName,
         fullName: apiUser.fullName || displayName,
-        roles: Array.isArray(apiUser.roles) ? apiUser.roles : [],
+        type: apiUser.type || deriveTypeFromRoles(roles),
+        roles,
         allowedProfessionals: Array.isArray(apiUser.allowedProfessionalIds) ? apiUser.allowedProfessionalIds : [],
         assignedProfessionalId: apiUser.assignedProfessionalId || null,
         assignedProfessionalName: apiUser.assignedProfessionalName || null,
@@ -1295,14 +1316,13 @@ function applyAuthenticatedUiState() {
     views.login.classList.add('hidden');
     views.app.classList.remove('hidden');
     views.app.classList.add('active');
+    // Restaurar el tema preferido del usuario al entrar a la app
+    applyTheme(localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light', false);
 
     if (isSelfPlatformAdmin()) {
         loadView('platform-clinics', 'Panel de Plataforma', { skipSync: true });
-    } else if (state.user?.roles?.includes('admin') && !state.user?.roles?.includes('superadmin') && !state.user?.roles?.includes('secretary')) {
-        // Admin puro: aterriza directo en Pacientes (no tiene dashboard)
-        loadView('patients', 'Pacientes', { skipSync: true });
     } else {
-        // skipSync: true porque tryRestoreSession/login ya hizo syncBackendSnapshotToLocalDb justo antes
+        // Todos los roles aterrizan en Dashboard
         loadView('dashboard', 'Dashboard', { skipSync: true });
         startDashboardAutoRefresh();
     }
@@ -1371,14 +1391,16 @@ function mapApiTreatmentToLegacy(treatment = {}) {
 
 function mapApiClinicalImageToLegacy(image = {}) {
     return {
-        id: image.id,
-        date: image.takenAt
-            ? formatDateToLocalIso(new Date(image.takenAt))
-            : image.createdAt
-                ? formatDateToLocalIso(new Date(image.createdAt))
-                : '',
+        id:          image.id,
+        date:        image.takenAt
+                        ? formatDateToLocalIso(new Date(image.takenAt))
+                        : image.createdAt
+                            ? formatDateToLocalIso(new Date(image.createdAt))
+                            : '',
         description: image.description || '',
-        dataUrl: image.imageUrl || ''
+        dataUrl:     image.imageUrl || '',
+        mimeType:    image.mimeType || 'image/jpeg',
+        fileName:    image.fileName || null,
     };
 }
 
@@ -1801,7 +1823,7 @@ async function syncBackendSnapshotToLocalDb() {
     }
 
     if (usersRes.status === 'fulfilled') {
-        DB.save('users', (usersRes.value.users || []).map(mapApiUserToSettings));
+        DB.save('users', (usersRes.value.users || []).map(mapApiUserToLegacyUser));
     }
 }
 
@@ -2006,6 +2028,8 @@ function isTodayDate(dateStr) {
 
 // --- Events ---
 document.addEventListener('DOMContentLoaded', () => {
+    clearTimeout(window.__clinicFallback); // app.js cargó — cancelar fallback de redirección
+
     ensureThemeControls();
     applyTheme(getStoredTheme(), false);
     applyClinicBranding();
@@ -2022,7 +2046,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loginForm.requestSubmit();
     });
 
-    // Renderizar Turnstile solo en app.odentara.com
+    // ── Login setup ──────────────────────────────────────────────────────────────
     const isTurnstileHost = /^app\.odentara\.com$/i.test(location.hostname);
     const submitBtn = document.getElementById('login-submit-btn');
 
@@ -2036,92 +2060,68 @@ document.addEventListener('DOMContentLoaded', () => {
         const el = document.getElementById('login-error-msg');
         if (el) el.classList.add('hidden');
     }
-
-    // Limpiar error al escribir en los campos
     document.getElementById('email')?.addEventListener('input', clearLoginError);
     document.getElementById('password')?.addEventListener('input', clearLoginError);
 
-    // Cloudflare Access exchange: cuando la URL tiene ?__exchange=, Cloudflare
-    // está procesando el token en background. Deshabilitar el botón hasta que termine.
-    let cloudflareReady = true;
-    if (new URLSearchParams(location.search).has('__exchange')) {
-        cloudflareReady = false;
-        if (submitBtn) submitBtn.disabled = true;
-        const exchangePoll = setInterval(() => {
-            if (!new URLSearchParams(location.search).has('__exchange')) {
-                clearInterval(exchangePoll);
-                cloudflareReady = true;
-                if (!isTurnstileHost) {
-                    if (submitBtn) submitBtn.disabled = false;
-                }
-                clearLoginError();
-            }
-        }, 300);
-    }
-
+    // ── Turnstile (solo en app.odentara.com) ─────────────────────────────────────
     if (isTurnstileHost) {
-        // Botón deshabilitado hasta que Turnstile confirme
         if (submitBtn) submitBtn.disabled = true;
 
-        window._onTurnstileSuccess = function() {
-            if (submitBtn) submitBtn.disabled = false;
-            clearLoginError();
-        };
-        window._onTurnstileExpired = function() {
+        // _renderTurnstile limpia e inicia el widget. Se llama en tres momentos:
+        //   • Al cargar la página (desde _turnstileOnLoad o el flag de arranque)
+        //   • Al hacer logout (desde logout())
+        window._renderTurnstile = function() {
+            const container = document.getElementById('turnstile-container');
+            if (!container || !window.turnstile) return;
+            container.innerHTML = '';
             if (submitBtn) submitBtn.disabled = true;
+            window.turnstile.render(container, {
+                sitekey: '0x4AAAAAADXSH3_I07gUFeOy',
+                theme: 'dark',
+                callback: function() {
+                    if (submitBtn) submitBtn.disabled = false;
+                    clearLoginError();
+                },
+                'expired-callback': function() {
+                    if (submitBtn) submitBtn.disabled = true;
+                },
+            });
         };
 
-        const container = document.getElementById('turnstile-container');
-        if (container) {
-            container.innerHTML = '<div class="cf-turnstile" data-sitekey="0x4AAAAAADXSH3_I07gUFeOy" data-theme="auto" data-callback="_onTurnstileSuccess" data-expired-callback="_onTurnstileExpired" style="margin-bottom:12px;"></div>';
-        }
+        window._turnstileOnLoad = window._renderTurnstile;
+
+        // Si CF terminó de cargar antes que app.js (flag activado por el stub):
+        if (window._turnstileReadyFlag) window._renderTurnstile();
+
     } else {
-        if (submitBtn && cloudflareReady) submitBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
     }
 
+    // ── Submit ────────────────────────────────────────────────────────────────────
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (isAppLoading()) return;
 
-        const email = document.getElementById('email').value.trim();
+        const email    = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
 
-        // Validaciones con mensajes inline
-        if (!email && !password) {
-            showLoginError('Ingresá tu email y contraseña.');
-            return;
-        }
-        if (!email) {
-            showLoginError('Ingresá tu email.');
-            return;
-        }
-        if (!password) {
-            showLoginError('Ingresá tu contraseña.');
-            return;
-        }
-        if (!cloudflareReady) {
-            showLoginError('Cloudflare aún está verificando tu sesión. Esperá un momento e intentá de nuevo.');
-            return;
-        }
-        if (isTurnstileHost && !(document.querySelector('[name="cf-turnstile-response"]') || {}).value) {
+        if (!email && !password) { showLoginError('Ingresá tu email y contraseña.'); return; }
+        if (!email)               { showLoginError('Ingresá tu email.'); return; }
+        if (!password)            { showLoginError('Ingresá tu contraseña.'); return; }
+
+        const turnstileInput = document.querySelector('[name="cf-turnstile-response"]');
+        if (isTurnstileHost && !turnstileInput?.value) {
             showLoginError('Completá la verificación de seguridad antes de continuar.');
             return;
         }
 
         clearLoginError();
-
-        // Leer token de Turnstile solo si estamos en app.odentara.com
-        const turnstileToken = isTurnstileHost
-            ? (document.querySelector('[name="cf-turnstile-response"]') || {}).value || ''
-            : '';
-
         if (submitBtn) submitBtn.disabled = true;
+
         try {
-            await withAppLoading('Iniciando sesión...', async () => {
-                await login(email, password, turnstileToken);
-            });
+            const turnstileToken = isTurnstileHost ? (turnstileInput?.value || '') : '';
+            await withAppLoading('Iniciando sesión...', () => login(email, password, turnstileToken));
         } finally {
-            // Resetear widget — el botón vuelve a deshabilitarse hasta nueva verificación
             if (isTurnstileHost && window.turnstile) {
                 window.turnstile.reset();
                 if (submitBtn) submitBtn.disabled = true;
@@ -2299,8 +2299,8 @@ document.addEventListener('DOMContentLoaded', () => {
             state.settingsSubView = 'create-professional';
             refreshCurrentView();
         }
-        if (e.target.closest('#btn-add-patient')) openPatientModal();
-        if (e.target.closest('#btn-import-patients')) openPatientImportModal();
+        if (e.target.closest('#btn-add-patient') || e.target.closest('#btn-add-patient-empty')) openPatientModal();
+        if (e.target.closest('#btn-import-patients') || e.target.closest('#btn-import-patients-empty')) openPatientImportModal();
         if (e.target.closest('.btn-edit-patient')) openPatientModal(parseInt(e.target.closest('.btn-edit-patient').dataset.id));
         if (e.target.closest('.btn-delete-patient')) {
             const patientId = parseInt(e.target.closest('.btn-delete-patient').dataset.id);
@@ -2562,14 +2562,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const name     = document.getElementById('u-name').value.trim();
             const email    = document.getElementById('u-email').value.trim();
             const password = document.getElementById('u-password').value;
-            const type     = document.getElementById('u-type').value;
 
-            if (!name || !email || (!isEditing && !password) || !type) {
-                alert(isEditing ? 'Completa nombre, email y tipo de usuario.' : 'Completa nombre, email, contraseña y tipo de usuario.');
+            if (!name || !email || (!isEditing && !password)) {
+                alert(isEditing ? 'Completa nombre y email.' : 'Completa nombre, email y contraseña.');
                 return;
             }
-            if (password && password.length < 6) {
-                alert('La contraseña debe tener al menos 6 caracteres.');
+            if (password && password.length < 8) {
+                alert('La contraseña debe tener al menos 8 caracteres.');
                 return;
             }
             const roleNodes = Array.from(document.querySelectorAll('input[name="u-role"]:checked'));
@@ -2578,6 +2577,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Selecciona al menos un rol de permisos.');
                 return;
             }
+            // Derivar tipo visualmente desde los roles seleccionados
+            const type = (() => {
+                const r = roles.map(c => String(c).toLowerCase());
+                if (r.some(c => c === 'superadmin')) return 'superadmin';
+                if (r.some(c => c === 'professional' || c === 'profesional')) return 'profesional';
+                if (r.some(c => c === 'secretary' || c === 'secretario')) return 'secretario';
+                if (r.some(c => c === 'admin' || c === 'administrador')) return 'administrador';
+                return 'administrador';
+            })();
             const profNodes = Array.from(document.querySelectorAll('input[name="u-profs"]:checked'));
             const selectedProfessionals = profNodes.map(p => parseInt(p.value));
             const hasProfRole = roles.includes('profesional') || roles.includes('professional');
@@ -2849,13 +2857,17 @@ async function logout() {
         return;
     }
 
-    // En app.odentara.com o localhost → mostrar pantalla de login en el lugar
+    // En app.odentara.com o localhost → volver al login en el lugar
     setSidebarOpen(false);
+    applyTheme('dark', false);
     views.app.classList.remove('active');
     setTimeout(() => {
         views.app.classList.add('hidden');
         views.login.classList.remove('hidden');
-        setTimeout(() => views.login.classList.add('active'), 10);
+        setTimeout(() => {
+            views.login.classList.add('active');
+            window._renderTurnstile?.(); // re-renderizar widget (quedó inválido mientras estaba oculto)
+        }, 10);
     }, 250);
 }
 
@@ -2946,7 +2958,9 @@ function renderSidebar() {
         sidebarNav.appendChild(link);
 
         if (item.id === 'settings' && state.currentView === 'settings') {
-            SETTINGS_SUB_ITEMS.forEach(sub => {
+            const _isAdminNav = state.user.roles.some(r => ['superadmin', 'admin'].includes(r));
+            const _adminOnlyItems = new Set(['create-user', 'create-professional', 'users-list', 'professionals-list']);
+            SETTINGS_SUB_ITEMS.filter(sub => _isAdminNav || !_adminOnlyItems.has(sub.id)).forEach(sub => {
                 const subLink = document.createElement('a');
                 subLink.className = `nav-sub-item ${sub.id === state.settingsSubView ? 'active' : ''}`;
                 subLink.dataset.settingsView = sub.id;
@@ -2994,28 +3008,26 @@ function formatDashboardDateLabel(dateStr) {
 }
 
 async function loadView(viewId, title = 'Dashboard', options = {}) {
+    const navId = ++_loadViewSeq;
+
     if (!options.skipUnsavedCheck && viewId !== 'patient-history' && !(await confirmClinicalDraftExit())) {
         renderSidebar();
         return false;
     }
 
     // Guard: bloquear vistas no permitidas para el rol actual
-    const isAdminOnly = () => state.user?.roles?.includes('admin') &&
-        !state.user?.roles?.includes('superadmin') &&
-        !state.user?.roles?.includes('secretary');
     const viewGuards = {
-        dashboard:      () => !isAdminOnly(), // admin puro no tiene dashboard
-        appointments:   () => canViewAppointmentsUi(),
-        professionals:  () => state.user && state.user.roles.some(r => ['superadmin', 'secretary', 'professional'].includes(r)),
-        billing:        () => canViewBillingUi() || canViewPatientBillingUi(),
-        settings:       () => canAccessSettingsUi(),
+        appointments:      () => canViewAppointmentsUi(),
+        professionals:     () => state.user && state.user.roles.some(r => ['superadmin', 'secretary', 'professional'].includes(r)),
+        billing:           () => canViewBillingUi() || canViewPatientBillingUi(),
+        settings:          () => canAccessSettingsUi(),
         'patient-history': () => canViewClinicalHistoryUi()
     };
     if (viewGuards[viewId] && !viewGuards[viewId]()) {
         showAlert('No tenés permisos para acceder a esta sección.', { title: 'Acceso denegado', variant: 'error' });
-        // Admin puro: fallback a pacientes; resto: fallback a dashboard
-        viewId = isAdminOnly() ? 'patients' : 'dashboard';
-        title  = isAdminOnly() ? 'Pacientes' : 'Dashboard';
+        // Fallback: primero dashboard, si tampoco pasa el guard → patients
+        viewId = 'dashboard';
+        title  = 'Dashboard';
     }
 
     state.currentView = viewId;
@@ -3034,6 +3046,9 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
             // Si falla la sincronización, se renderiza con los datos cacheados
         }
     }
+
+    // Si mientras esperaba el sync se inició otra navegación, esta ya está obsoleta
+    if (navId !== _loadViewSeq) return false;
 
     const content = document.createElement('div');
     content.className = 'animate-fade-in';
@@ -4234,7 +4249,7 @@ function canManageUsersUi() {
 }
 
 function canAccessSettingsUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
+    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin', 'secretary'].includes(role));
 }
 
 function getBillingEntriesForPatient(patientId) {
@@ -4360,6 +4375,10 @@ function getAccessibleProfessionalIds() {
     const allProfs = DB.get('professionals');
     if (!state.user) return [];
     if (isSuperadmin()) return allProfs.map(p => p.id);
+
+    // Admin (con o sin rol profesional) ve todos los profesionales
+    // Solo podrá editar su propio horario, pero puede verlos todos
+    if (state.user.roles.includes('admin')) return allProfs.map(p => p.id);
 
     const explicitAllowed = Array.isArray(state.user.allowedProfessionals) ? state.user.allowedProfessionals : [];
 
@@ -6001,12 +6020,11 @@ function openBillingModal(preselectedPatientId = null) {
                 </div>
                 <form id="tx-form">
                     <div class="modal-body">
-                        <div class="input-group" style="position:relative;">
+                        <div class="input-group">
                             <label>Paciente</label>
                             <input type="text" id="tx-patient-search" autocomplete="off" placeholder="Buscar por nombre o DNI..." style="width:100%;"
                                 value="${preselectedPatientId ? (patients.find(p => p.id === preselectedPatientId)?.name + ' (DNI ' + patients.find(p => p.id === preselectedPatientId)?.dni + ')') : ''}">
                             <input type="hidden" id="tx-patient" value="${preselectedPatientId || ''}">
-                            <div id="tx-patient-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:0.5rem;box-shadow:var(--shadow-lg);z-index:100;max-height:200px;overflow-y:auto;"></div>
                         </div>
                         <div class="input-group">
                             <label>Profesional Asignado a la Transacción</label>
@@ -6033,38 +6051,61 @@ function openBillingModal(preselectedPatientId = null) {
         closeModal();
     };
     document.addEventListener('keydown', _escHandler, { once: true });
-    // Autocomplete paciente
+    // Autocomplete paciente — el dropdown se monta en body para evitar overflow:hidden del modal
     const txSearch = document.getElementById('tx-patient-search');
     const txHidden = document.getElementById('tx-patient');
-    const txResults = document.getElementById('tx-patient-results');
+
+    // Crear dropdown en body
+    const txResults = document.createElement('div');
+    txResults.id = 'tx-patient-results';
+    txResults.style.cssText = 'display:none;position:fixed;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:0.5rem;box-shadow:0 10px 25px rgba(0,0,0,0.15);z-index:99999;max-height:220px;overflow-y:auto;';
+    document.body.appendChild(txResults);
+
+    function positionTxDropdown() {
+        const rect = txSearch.getBoundingClientRect();
+        txResults.style.top  = (rect.bottom + 4) + 'px';
+        txResults.style.left = rect.left + 'px';
+        txResults.style.width = rect.width + 'px';
+    }
+
+    function removeTxDropdown() {
+        txResults.style.display = 'none';
+    }
+
     txSearch.addEventListener('input', () => {
         const q = txSearch.value.trim().toLowerCase();
         txHidden.value = '';
-        if (!q) { txResults.style.display = 'none'; return; }
+        if (!q) { removeTxDropdown(); return; }
         const matches = patients.filter(p =>
             p.name.toLowerCase().includes(q) || String(p.dni).includes(q)
         ).slice(0, 8);
-        if (!matches.length) { txResults.style.display = 'none'; return; }
+        if (!matches.length) { removeTxDropdown(); return; }
         txResults.innerHTML = matches.map(p =>
             `<div class="tx-patient-option" data-id="${p.id}" data-label="${escapeHtml(p.name)} (DNI ${p.dni})"
-                style="padding:0.6rem 1rem;cursor:pointer;font-size:0.875rem;border-bottom:1px solid var(--border);">
-                <strong>${escapeHtml(p.name)}</strong> <span style="color:var(--text-muted);">DNI ${p.dni}</span>
+                style="padding:0.6rem 1rem;cursor:pointer;font-size:0.875rem;border-bottom:1px solid var(--border,#e2e8f0);">
+                <strong>${escapeHtml(p.name)}</strong> <span style="color:var(--text-muted,#94a3b8);">DNI ${p.dni}</span>
             </div>`
         ).join('');
+        positionTxDropdown();
         txResults.style.display = 'block';
         txResults.querySelectorAll('.tx-patient-option').forEach(opt => {
             opt.addEventListener('mousedown', (ev) => {
                 ev.preventDefault();
                 txHidden.value = opt.dataset.id;
                 txSearch.value = opt.dataset.label;
-                txResults.style.display = 'none';
+                removeTxDropdown();
             });
-            opt.addEventListener('mouseover', () => opt.style.background = 'var(--surface-hover, #f3f4f6)');
+            opt.addEventListener('mouseover', () => opt.style.background = 'var(--surface-hover,#f3f4f6)');
             opt.addEventListener('mouseout', () => opt.style.background = '');
         });
     });
-    txSearch.addEventListener('blur', () => setTimeout(() => { txResults.style.display = 'none'; }, 150));
+    txSearch.addEventListener('blur', () => setTimeout(removeTxDropdown, 150));
     txSearch.addEventListener('focus', () => { if (txSearch.value) txSearch.dispatchEvent(new Event('input')); });
+    // Limpiar el dropdown del body cuando se cierra el modal
+    const _origCloseModal = typeof closeModal === 'function' ? closeModal : null;
+    const _txCleanup = () => { if (txResults.parentNode) txResults.parentNode.removeChild(txResults); };
+    document.querySelector('[data-modal-close]')?.addEventListener('click', _txCleanup, { once: true });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') _txCleanup(); }, { once: true });
 
     document.getElementById('tx-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -6408,6 +6449,8 @@ function isCompactAppointmentsLayout() {
 }
 
 function renderCalendarFilterLegend(professionals, options = {}) {
+    // Con un solo profesional no hay nada que filtrar — ocultar la barra
+    if (!professionals || professionals.length <= 1) return '';
     const {
         horizontal = false,
         compact = false
@@ -6759,7 +6802,8 @@ function renderAppointments() {
             calEndMin   = eh * 60 + em + CAL_PAD_MINS;
         }
         const calTotalMins   = calEndMin - calStartMin;
-        const calTotalHeight = calTotalMins * CAL_PX_PER_MIN;
+        const CAL_TOP_OFFSET = 8; // px de margen superior para que el primer label no quede cortado
+        const calTotalHeight = calTotalMins * CAL_PX_PER_MIN + CAL_TOP_OFFSET;
         // hora entera más cercana hacia abajo/arriba para las etiquetas
         const calLabelStart = Math.floor(calStartMin / 60);
         const calLabelEnd   = Math.ceil(calEndMin   / 60);
@@ -6788,14 +6832,14 @@ function renderAppointments() {
         // Build time labels (left gutter)
         let timeLabelsHtml = '';
         for (let h = calLabelStart; h <= calLabelEnd; h++) {
-            const top = (h * 60 - calStartMin) * CAL_PX_PER_MIN;
+            const top = (h * 60 - calStartMin) * CAL_PX_PER_MIN + CAL_TOP_OFFSET;
             timeLabelsHtml += `<div class="cal-hour-label" style="top:${top}px">${String(h).padStart(2,'0')}:00</div>`;
         }
 
         // Build horizontal hour lines
         let linesHtml = '';
         for (let h = calLabelStart; h <= calLabelEnd; h++) {
-            const top = (h * 60 - calStartMin) * CAL_PX_PER_MIN;
+            const top = (h * 60 - calStartMin) * CAL_PX_PER_MIN + CAL_TOP_OFFSET;
             linesHtml += `<div class="cal-h-line" style="top:${top}px"></div>`;
             if (h < calLabelEnd) {
                 linesHtml += `<div class="cal-h-line cal-h-half" style="top:${top + 60 * CAL_PX_PER_MIN / 2}px"></div>`;
@@ -6822,7 +6866,7 @@ function renderAppointments() {
                 const startMin = ah * 60 + am;
                 const offsetMin = startMin - calStartMin;
                 const duration = apt.isOverbook ? 15 : apt.duration;
-                const topPx = offsetMin * CAL_PX_PER_MIN;
+                const topPx = offsetMin * CAL_PX_PER_MIN + CAL_TOP_OFFSET;
                 const heightPx = Math.max(duration * CAL_PX_PER_MIN, 28);
                 const visual = getAppointmentVisual(apt);
                 const blockClasses = `cal-apt-block ${apt.isOverbook ? 'cal-apt-overbook' : ''} ${visual.cancelled ? 'cal-apt-cancelled' : ''}`;
@@ -7077,6 +7121,41 @@ function renderProfessionals() {
 
 function renderPatients() {
     const patients = getAccessiblePatients().sort((a,b)=>a.name.localeCompare(b.name));
+    const canCreate = canCreatePatientUi();
+    const emptyState = patients.length === 0 ? `
+        <div class="patients-empty-state">
+            <div class="patients-empty-icon">
+                <i class="fa-solid fa-users"></i>
+            </div>
+            <h3 class="patients-empty-title">Todavía no hay pacientes cargados</h3>
+            <p class="patients-empty-sub">Podés agregar pacientes de dos maneras:</p>
+            <div class="patients-empty-methods">
+                <div class="patients-empty-method">
+                    <div class="patients-empty-method-icon">
+                        <i class="fa-solid fa-user-plus"></i>
+                    </div>
+                    <div>
+                        <strong>Uno por uno</strong>
+                        <p>Hacé clic en <em>Nuevo Paciente</em> y completá el formulario con los datos del paciente (nombre, DNI, teléfono, etc.).</p>
+                    </div>
+                </div>
+                <div class="patients-empty-method">
+                    <div class="patients-empty-method-icon patients-empty-method-icon--excel">
+                        <i class="fa-solid fa-file-excel"></i>
+                    </div>
+                    <div>
+                        <strong>Importar desde Excel</strong>
+                        <p>Usá la plantilla de Excel para cargar múltiples pacientes a la vez. Descargá la plantilla desde <em>Exportar Excel</em>, completala y luego importala con <em>Importar Excel</em>.</p>
+                    </div>
+                </div>
+            </div>
+            ${canCreate ? `
+            <div class="patients-empty-actions">
+                <button class="btn btn-primary" id="btn-add-patient-empty"><i class="fa-solid fa-user-plus"></i> Nuevo Paciente</button>
+                <button class="btn btn-secondary" id="btn-import-patients-empty"><i class="fa-solid fa-file-excel"></i> Importar Excel</button>
+            </div>` : ''}
+        </div>
+    ` : '';
     return `
         <div class="card mb-6 section-hero-card section-hero-inline">
             <div class="section-hero-copy">
@@ -7084,15 +7163,17 @@ function renderPatients() {
                 <h3 class="section-title">Registro de Pacientes</h3>
                 <p class="section-subtitle">Visualiza, edita y administra los datos base de cada paciente.</p>
             </div>
-            ${canCreatePatientUi() ? `
+            ${canCreate ? `
             <div class="flex gap-2 flex-wrap">
                 <button class="btn btn-primary" id="btn-add-patient"><i class="fa-solid fa-user-plus"></i> Nuevo Paciente</button>
                 <button class="btn btn-secondary" id="btn-import-patients"><i class="fa-solid fa-file-excel"></i> Importar Excel</button>
                 <button class="btn btn-secondary" id="btn-export-patients" onclick="exportPatients()"><i class="fa-solid fa-file-arrow-down"></i> Exportar Excel</button>
             </div>` : ''}
         </div>
+        ${patients.length > 0 ? `
         <div class="patient-search-shell mb-4">
-            <input type="search" id="search-patient" placeholder="Buscar pacientes por nombre o DNI..." class="form-input w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
+            <i class="fa-solid fa-magnifying-glass patient-search-icon"></i>
+            <input type="search" id="search-patient" placeholder="Buscar pacientes por nombre o DNI..." class="form-input w-full border text-sm">
         </div>
         <div class="table-container table-container-patients shadow-sm">
             <div class="patients-scroll-inner">
@@ -7123,7 +7204,7 @@ function renderPatients() {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </div>` : emptyState}
     `;
 }
 
@@ -7172,7 +7253,7 @@ function renderBilling() {
     // Caja: filtro por período
     const cajaPeriod = state.cajaPeriod || '7d';
     const cajaPeriodDays = cajaPeriod === '1d' ? 1 : cajaPeriod === '7d' ? 7 : cajaPeriod === '30d' ? 30 : 90;
-    const cajaPeriodLabel = cajaPeriod === '1d' ? 'Últimas 24 hs' : cajaPeriod === '7d' ? 'Últimos 7 días' : cajaPeriod === '30d' ? 'Últimos 30 días' : 'Últimos 90 días';
+    const cajaPeriodLabel = cajaPeriod === '1d' ? 'Últimas 24 hs' : cajaPeriod === '7d' ? ' Últimos 7 días' : cajaPeriod === '30d' ? 'Últimos 30 días' : 'Últimos 90 días';
     const cajaCutoff = (() => {
         const d = new Date(); d.setDate(d.getDate() - (cajaPeriodDays - 1)); return formatDateToLocalIso(d);
     })();
@@ -7427,14 +7508,18 @@ function renderBilling() {
 
 function renderDashboardContent(apts, patients, todaysApts, selectedDate, selectedDateApts) {
     const now = new Date();
-    const todaysOpenApts = todaysApts.filter(apt => {
+    // Todos los turnos del día (excluye cancelados/reprogramados)
+    const todaysOpenApts = todaysApts.filter(apt => isBlockingAppointmentStatus(apt.status));
+
+    // Turnos no iniciados: aún no empezaron (hora de inicio en el futuro)
+    const notStartedApts = todaysApts.filter(apt => {
         if (!isBlockingAppointmentStatus(apt.status)) return false;
         const [hours, minutes] = apt.time.split(':').map(Number);
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
-        const duration = apt.isOverbook ? 15 : (apt.duration || 0);
-        const end = new Date(start.getTime() + duration * 60000);
-        return end > now;
+        return start > now;
     });
+
+    // Turnos activos (corriendo ahora) — se mantiene para uso interno
     const currentRunningApts = todaysApts.filter(apt => {
         if (!isBlockingAppointmentStatus(apt.status)) return false;
         const [hours, minutes] = apt.time.split(':').map(Number);
@@ -7443,9 +7528,8 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
         const end = new Date(start.getTime() + duration * 60000);
         return start <= now && end > now;
     });
+
     const patientsTodayCount = new Set(todaysOpenApts.map(apt => apt.patient)).size;
-    const activeTurnsCount = currentRunningApts.length;
-    const activeOverbooksCount = currentRunningApts.filter(apt => apt.isOverbook).length;
     const selectedLabel = formatDashboardDateLabel(selectedDate);
     const selectedTitle = selectedDate === getTodayIsoLocal() ? 'Turnos de Hoy' : 'Turnos Programados';
     const canManageStatus = canManageAppointmentStatusUi();
@@ -7485,8 +7569,8 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                 <div class="metric-info"><h3>Turnos de Hoy</h3><p>${todaysOpenApts.length}</p></div>
             </div>
             <div class="card metric-card">
-                <div class="metric-icon metric-green"><i class="fa-solid fa-clock"></i></div>
-                <div class="metric-info"><h3>Turnos Activos</h3><p>${currentRunningApts.length}</p></div>
+                <div class="metric-icon metric-orange"><i class="fa-solid fa-hourglass-half"></i></div>
+                <div class="metric-info"><h3>Pendientes</h3><p>${notStartedApts.length}</p></div>
             </div>
             <div class="card metric-card">
                 <div class="metric-icon metric-purple"><i class="fa-solid fa-bolt"></i></div>
@@ -7505,6 +7589,11 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                     <input type="date" id="dashboard-date-filter" class="dashboard-date-filter" value="${selectedDate}">
                 </div>
             </div>
+            ${pendingApts.length === 0 ? `
+            <div class="dashboard-empty-state">
+                <div class="dashboard-empty-icon"><i class="fa-regular fa-calendar-check"></i></div>
+                <p class="dashboard-empty-title">${emptyStateText}</p>
+            </div>` : `
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
                     <colgroup>
@@ -7558,10 +7647,9 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                 </tr>
                             `;
                         }).join('')}
-                        ${pendingApts.length === 0 ? `<tr><td colspan="7" class="text-center py-6 text-gray-500">${emptyStateText}</td></tr>` : ''}
                     </tbody>
                 </table>
-            </div>
+            </div>`}
             ${finishedApts.length > 0 ? `
             <details class="finished-apts-details">
                 <summary class="finished-apts-summary">
@@ -7616,11 +7704,14 @@ function renderSettingsSubpages() {
         `;
     }
 
+    const _roleBadgeClass = r => r === 'superadmin' ? 'badge-danger' : r === 'admin' ? 'badge-info' : r === 'secretary' ? 'badge-warning' : r === 'professional' ? 'badge-success' : 'badge-gray';
+    const _roleLabel = r => ({ superadmin: 'superadmin', admin: 'admin', secretary: 'secretario', professional: 'profesional' }[r] || r);
     const userCards = users.map(u => {
         const rolesList = (u.roles || (u.role ? [u.role] : []));
-        const primaryRole = rolesList[0] || u.type || 'usuario';
-        const roleBadgeClass = primaryRole === 'superadmin' ? 'badge-primary' : (primaryRole === 'admin' ? 'badge-info' : (primaryRole === 'secretary' ? 'badge-warning' : 'badge-gray'));
         const initials = (u.name || u.email || 'U').substring(0, 2).toUpperCase();
+        const roleBadges = rolesList.length
+            ? rolesList.map(r => `<span class="badge ${_roleBadgeClass(r)} flex-shrink-0">${_roleLabel(r)}</span>`).join('')
+            : `<span class="badge badge-gray flex-shrink-0">sin rol</span>`;
         return `
             <div class="settings-entity-card">
                 <div class="settings-entity-avatar">${escapeHtml(initials)}</div>
@@ -7628,12 +7719,11 @@ function renderSettingsSubpages() {
                     <span class="settings-entity-name">${escapeHtml(u.name || 'Sin nombre')}</span>
                     <span class="settings-entity-sub">${escapeHtml(u.email || '-')}</span>
                 </div>
-                <span class="badge ${roleBadgeClass} flex-shrink-0">${primaryRole}</span>
+                <div class="user-role-badges flex-shrink-0" style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${roleBadges}</div>
                 <div class="settings-entity-actions">
-                    ${isAdmin ? `
-                    <button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                    ${(isSuper || u.id === state.user?.id) ? `
+                    <button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>` : ''}
                     ${isSuper && !u.isPlatformAdmin ? `<button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}
-                    ` : ''}
                 </div>
             </div>`;
     }).join('');
@@ -7662,13 +7752,27 @@ function renderSettingsSubpages() {
 
     const professionalColorRows = profs.length
         ? profs.map((professional, idx) => {
-            const fallback = PROF_COLORS[idx % PROF_COLORS.length]?.bg || '#6366f1';
-            const savedColor = clinicSettings.professionalColors?.[String(professional.id)];
-            const currentColor = normalizeHexColor(savedColor || professional.color || fallback, fallback);
+            // Usar getProfColor como fuente única — es lo que muestran los chips realmente
+            const currentColor = getProfColor(professional.id).bg;
+            const swatchId = `swatch-${professional.id}`;
+            const hexId    = `hexval-${professional.id}`;
+            const chipId   = `chip-${professional.id}`;
             return `
-                <div class="checkbox-group" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
-                    <label>${professional.name}</label>
-                    <input type="color" name="clinic-prof-color" data-prof-id="${professional.id}" value="${currentColor}" style="width:3.25rem; min-width:3.25rem; height:2rem; padding:0.12rem; border-radius:0.55rem; cursor:pointer;">
+                <div class="prof-color-row">
+                    <span class="dash-prof-chip" id="${chipId}" style="background:${currentColor};color:#fff;min-width:7rem;text-align:center;">
+                        ${escapeHtml(professional.name)}
+                    </span>
+                    <label class="prof-color-swatch-label" title="Cambiar color">
+                        <span class="prof-color-swatch" id="${swatchId}" style="background:${currentColor}"></span>
+                        <span class="prof-color-hex" id="${hexId}">${currentColor}</span>
+                        <input type="color" name="clinic-prof-color" data-prof-id="${professional.id}" value="${currentColor}"
+                            class="prof-color-input-hidden"
+                            oninput="
+                                document.getElementById('${swatchId}').style.background=this.value;
+                                document.getElementById('${hexId}').textContent=this.value;
+                                document.getElementById('${chipId}').style.background=this.value;
+                            ">
+                    </label>
                 </div>
             `;
         }).join('')
@@ -7718,7 +7822,7 @@ function renderSettingsSubpages() {
             const editingUser = state.editingUserId ? users.find(u => u.id === state.editingUserId) : null;
             const isEditing = !!editingUser;
             const editingRoles = new Set(editingUser ? (editingUser.roles || (editingUser.role ? [editingUser.role] : [])) : []);
-            const currentLinkedProfId = editingUser?.linkedProfessionalId || null;
+            const currentLinkedProfId = editingUser?.assignedProfessionalId || editingUser?.linkedProfessionalId || null;
             const editingProfs = new Set([
                 ...((editingUser && editingUser.allowedProfessionals) || []).map(id => parseInt(id, 10)),
                 ...(currentLinkedProfId ? [currentLinkedProfId] : [])
@@ -7729,15 +7833,15 @@ function renderSettingsSubpages() {
                 <header>
                     <div>
                         <h3>${isEditing ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</h3>
-                        <p class="subtext">${isEditing ? 'La contraseña es opcional; completala solo si querés cambiarla.' : 'Campos obligatorios: Nombre completo, Email, Contraseña y Tipo de usuario.'}</p>
+                        <p class="subtext">${isEditing ? 'La contraseña es opcional; completala solo si querés cambiarla.' : 'Campos obligatorios: Nombre completo, Email y Contraseña. El tipo se define por los roles.'}</p>
                     </div>
                 </header>
                 <form id="new-user-form" class="settings-form-row columns-1">
                     <input type="hidden" id="u-editing-id" value="${isEditing ? editingUser.id : ''}">
                     <div class="input-group"><label>Nombre completo *</label><input type="text" id="u-name" value="${isEditing ? escapeHtml(editingUser.name||editingUser.fullName||'') : ''}" required></div>
                     <div class="input-group"><label>Email *</label><input type="email" id="u-email" value="${isEditing ? escapeHtml(editingUser.email||'') : ''}" required></div>
-                    <div class="input-group"><label>Contraseña ${isEditing ? '(opcional)' : '*'}</label><div class="pwd-wrap"><input type="password" id="u-password" minlength="6" ${isEditing ? '' : 'required'} style="padding-right:40px;"><button type="button" class="login-pwd-toggle" tabindex="-1" onclick="const i=document.getElementById('u-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')"><i class="fa-solid fa-eye"></i></button></div></div>
-                    <div class="input-group"><label>Tipo de usuario *</label><select id="u-type" required><option value="">Seleccionar...</option><option value="administrador" ${isEditing&&editingUser.type==='administrador'?'selected':''}>Administrador</option><option value="secretario" ${isEditing&&editingUser.type==='secretario'?'selected':''}>Secretario</option><option value="profesional" ${isEditing&&editingUser.type==='profesional'?'selected':''}>Profesional</option></select></div>
+                    <div class="input-group"><label>Contraseña ${isEditing ? '(opcional — completá solo si querés cambiarla)' : '*'}</label><div class="pwd-wrap"><input type="password" id="u-password" minlength="8" placeholder="${isEditing ? 'Dejar vacío para no cambiar' : 'Mínimo 8 caracteres'}" ${isEditing ? '' : 'required'} style="padding-right:40px;"><button type="button" class="login-pwd-toggle" tabindex="-1" onclick="const i=document.getElementById('u-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')"><i class="fa-solid fa-eye"></i></button></div></div>
+                    ${(isAdmin || !isEditing || editingUser?.id !== state.user?.id) ? `
                     <div class="settings-subsection">
                         <h4>Roles de Permisos</h4>
                         <p class="subtext">Selecciona uno o varios roles.</p>
@@ -7753,7 +7857,9 @@ function renderSettingsSubpages() {
                         <div class="settings-list settings-list-static">
                             ${profs.map(p => `<div class="checkbox-group"><input type="checkbox" name="u-profs" value="${p.id}" ${editingProfs.has(p.id)?'checked':''}><label>${escapeHtml(p.name)}</label></div>`).join('')}
                         </div>
-                    </div>
+                    </div>` : `
+                    <input type="hidden" name="u-role" value="${[...editingRoles][0] || ''}">
+                    `}
                     <div class="form-action-row">
                         <button type="submit" class="btn btn-primary">${isEditing ? 'Actualizar Usuario' : 'Guardar Usuario'}</button>
                         ${isEditing ? '<button type="button" class="btn btn-ghost" onclick="window._cancelEditUser()">Cancelar</button>' : ''}
@@ -7870,7 +7976,10 @@ function renderSettings() {
                 <td>${u.type || '-'}</td>
                 <td>${roles}</td>
                 <td>${profNames}</td>
-                <td class="text-center">${isSuper ? `<button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar usuario"><i class="fa-solid fa-pen"></i></button>${!u.isPlatformAdmin ? `<button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar usuario" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}` : '<span class="text-xs text-gray-400">Solo lectura</span>'}</td>
+                <td class="text-center">
+                    ${(isSuper || u.id === state.user?.id) ? `<button class="btn btn-icon btn-edit-user" data-id="${u.id}" title="Editar usuario"><i class="fa-solid fa-pen"></i></button>` : ''}
+                    ${isSuper && !u.isPlatformAdmin ? `<button class="btn btn-icon" onclick="deleteUser(${u.id})" title="Eliminar usuario" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}
+                </td>
             </tr>`;
     }).join('');
 
@@ -7897,14 +8006,13 @@ function renderSettings() {
                 <header>
                     <div>
                         <h3>Crear Nuevo Usuario</h3>
-                        <p class="subtext">Campos obligatorios: Nombre completo, Email, Contraseña y Tipo de usuario.</p>
+                        <p class="subtext">Campos obligatorios: Nombre completo, Email y Contraseña. El tipo se define por los roles.</p>
                     </div>
                 </header>
                 <form id="new-user-form" class="settings-form-row columns-1">
                     <div class="input-group"><label>Nombre completo *</label><input type="text" id="u-name" required></div>
                     <div class="input-group"><label>Email *</label><input type="email" id="u-email" required></div>
-                    <div class="input-group"><label>Contraseña *</label><div class="pwd-wrap"><input type="password" id="u-password" minlength="6" required style="padding-right:40px;"><button type="button" class="login-pwd-toggle" tabindex="-1" onclick="const i=document.getElementById('u-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')"><i class="fa-solid fa-eye"></i></button></div></div>
-                    <div class="input-group"><label>Tipo de usuario *</label><select id="u-type" required><option value="">Seleccionar...</option><option value="administrador">Administrador</option><option value="secretario">Secretario</option><option value="profesional">Profesional</option></select></div>
+                    <div class="input-group"><label>Contraseña *</label><div class="pwd-wrap"><input type="password" id="u-password" minlength="8" placeholder="Mínimo 8 caracteres" required style="padding-right:40px;"><button type="button" class="login-pwd-toggle" tabindex="-1" onclick="const i=document.getElementById('u-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')"><i class="fa-solid fa-eye"></i></button></div></div>
 
                     <div class="settings-subsection">
                         <h4>Roles de Permisos</h4>
@@ -8469,55 +8577,84 @@ function renderClinicalHistory(patientId) {
 
             <div class="mb-4 print-hidden">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
-                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Imágenes Clínicas</h3>
-                    ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Agregar Imagen</button>' : ''}
+                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Archivos Clínicos</h3>
+                    ${canEditClinical ? `
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Imagen</button>
+                        <button class="btn btn-secondary btn-sm whitespace-nowrap" id="btn-add-clinical-pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                    </div>` : ''}
                 </div>
                 <div class="clinical-images-shell">
                     <div class="clinical-images-summary">
                         <div>
-                            <span>Archivo visual</span>
-                            <strong>${clinicalImages.length} ${clinicalImages.length === 1 ? 'imagen' : 'imágenes'}</strong>
+                            <span>Imágenes</span>
+                            <strong>${clinicalImages.filter(i => (i.mimeType || '').startsWith('image/')).length}</strong>
                         </div>
                         <div>
-                            <span>Última captura</span>
+                            <span>Documentos PDF</span>
+                            <strong>${clinicalImages.filter(i => i.mimeType === 'application/pdf').length}</strong>
+                        </div>
+                        <div>
+                            <span>Última carga</span>
                             <strong>${escapeHtml(formatClinicalImageDate(latestClinicalImage?.date))}</strong>
-                        </div>
-                        <div>
-                            <span>Vista</span>
-                            <strong>Secuencia clínica</strong>
                         </div>
                     </div>
                     <div class="clinical-images-grid">
-                    ${clinicalImages.map((image, idx) => `
+                    ${clinicalImages.map((image, idx) => {
+                        const isPdf = image.mimeType === 'application/pdf';
+                        const fileId = image.id ?? idx;
+                        const deleteBtn = canEditClinical ? `
+                            <button type="button" class="clinical-image-action-btn clinical-image-action-delete" onclick="deleteClinicalImage(${patientId}, ${fileId})" aria-label="Eliminar archivo">
+                                <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                            </button>` : '';
+                        if (isPdf) {
+                            const name = escapeHtml(image.fileName || image.description || 'documento.pdf');
+                            const url  = escapeHtml(image.dataUrl);
+                            return `
+                            <article class="clinical-image-card clinical-pdf-card">
+                                <div class="clinical-image-actions">
+                                    <a href="${url}" target="_blank" rel="noopener" class="clinical-image-action-btn clinical-image-action-view">
+                                        <i class="fa-solid fa-eye"></i><span>Ver</span>
+                                    </a>
+                                    <a href="${url + '&download=1'}" class="clinical-image-action-btn" download>
+                                        <i class="fa-solid fa-download"></i><span>Bajar</span>
+                                    </a>
+                                    ${deleteBtn}
+                                </div>
+                                <a href="${url}" target="_blank" rel="noopener" class="clinical-pdf-preview-link" style="display:block;text-decoration:none" aria-label="Abrir PDF">
+                                    <div class="clinical-pdf-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                                </a>
+                                <div class="clinical-image-body">
+                                    <div class="clinical-image-meta">
+                                        <div class="clinical-image-date">${escapeHtml(formatClinicalImageDate(image.date))}</div>
+                                        <a href="${url}" target="_blank" rel="noopener" class="clinical-image-inline-link">Abrir</a>
+                                    </div>
+                                    <p class="clinical-image-description" title="${name}">${name}</p>
+                                </div>
+                            </article>`;
+                        }
+                        return `
                         <article class="clinical-image-card">
                             <div class="clinical-image-actions">
-                                <button type="button" class="clinical-image-action-btn clinical-image-action-view" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
-                                    <i class="fa-solid fa-expand"></i>
-                                    <span>Ver</span>
+                                <button type="button" class="clinical-image-action-btn clinical-image-action-view" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${fileId})" aria-label="Ver imagen ampliada">
+                                    <i class="fa-solid fa-expand"></i><span>Ver</span>
                                 </button>
-                                ${canEditClinical ? `
-                                <button type="button" class="clinical-image-action-btn clinical-image-action-delete" onclick="deleteClinicalImage(${patientId}, ${image.id ?? idx})" aria-label="Eliminar imagen clínica">
-                                    <i class="fa-solid fa-trash"></i>
-                                    <span>Eliminar</span>
-                                </button>
-                                ` : ''}
+                                ${deleteBtn}
                             </div>
-                            <button type="button" class="clinical-image-preview-button" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${image.id ?? idx})" aria-label="Ver imagen clínica ampliada">
+                            <button type="button" class="clinical-image-preview-button" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${fileId})" aria-label="Ver imagen ampliada">
                                 <img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.description || 'Imagen clínica')}" class="clinical-image-preview" onerror="this.style.display='none'; this.closest('.clinical-image-card')?.querySelector('.clinical-image-body')?.classList.add('clinical-image-body--error'); this.closest('.clinical-image-card')?.classList.add('clinical-image-card--broken');">
                             </button>
                             <div class="clinical-image-body">
                                 <div class="clinical-image-meta">
                                     <div class="clinical-image-date">${escapeHtml(formatClinicalImageDate(image.date))}</div>
-                                    <button type="button" class="clinical-image-inline-link" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${image.id ?? idx})">
-                                        Abrir
-                                    </button>
+                                    <button type="button" class="clinical-image-inline-link" onclick="event.stopPropagation(); openClinicalImageViewer(${patientId}, ${fileId})">Abrir</button>
                                 </div>
                                 <p class="clinical-image-description">${escapeHtml(image.description || 'Sin descripción')}</p>
                                 <p class="clinical-image-error">La imagen guardada está incompleta. Vuelve a cargarla.</p>
                             </div>
-                        </article>
-                    `).join('')}
-                    ${clinicalImages.length === 0 ? '<div class="clinical-image-empty">Todavia no hay imagenes cargadas en la historia clinica.</div>' : ''}
+                        </article>`;
+                    }).join('')}
+                    ${clinicalImages.length === 0 ? '<div class="clinical-image-empty">Todavía no hay archivos cargados en la historia clínica.</div>' : ''}
                     </div>
                 </div>
             </div>
@@ -8721,6 +8858,9 @@ function attachClinicalHistoryEvents(patientId) {
     document.getElementById('btn-add-clinical-image')?.addEventListener('click', () => {
         openClinicalImageModal(patientId);
     });
+    document.getElementById('btn-add-clinical-pdf')?.addEventListener('click', () => {
+        openClinicalPdfModal(patientId);
+    });
 }
 
 function renderClinicalOdontogram(patientId) {
@@ -8856,7 +8996,7 @@ window.saveClinicalHistory = async function(patientId) {
 
 window.deleteUser = async function(userId) {
     if (!isSuperadmin()) {
-        showAlert('Solo el superadmin puede gestionar usuarios.', { title: 'Usuarios', variant: 'error' });
+        showAlert('Solo el superadmin puede eliminar usuarios.', { title: 'Usuarios', variant: 'error' });
         return;
     }
     if (!await showConfirm('¿Eliminar usuario?', { title: 'Eliminar usuario', confirmText: 'Eliminar' })) return;
@@ -9144,4 +9284,100 @@ function openClinicalImageModal(patientId) {
     });
 }
 
+function openClinicalPdfModal(patientId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
+    if (hasUnsavedClinicalDraft()) {
+        showAlert('Primero guarda la historia clínica antes de agregar documentos.', { title: 'Historia clínica', variant: 'warning' });
+        return;
+    }
+
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active">
+            <div class="modal-content modal-content-patient" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3>Agregar Documentos PDF</h3>
+                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
+                </div>
+                <form id="clinical-pdf-form">
+                    <div class="modal-body">
+                        <div class="input-group">
+                            <label>Fecha</label>
+                            <input type="date" id="clinical-pdf-date" value="${getTodayIsoLocal()}" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Descripción <span style="color:var(--gray-400);font-weight:400">(opcional, aplica a todos)</span></label>
+                            <input type="text" id="clinical-pdf-description" placeholder="Ej: Consentimiento informado, Derivación, Análisis">
+                        </div>
+                        <div class="input-group">
+                            <label>Archivos PDF</label>
+                            <input type="file" id="clinical-pdf-file" accept="application/pdf" multiple required>
+                            <p style="font-size:0.78rem;color:var(--gray-400);margin-top:4px">Podés seleccionar varios PDFs a la vez · Máx. 10 MB por archivo</p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="clinical-pdf-submit"><i class="fa-solid fa-upload"></i> Subir PDF</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); }, { once: true });
+
+    document.getElementById('clinical-pdf-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('clinical-pdf-file');
+        const files = Array.from(fileInput.files || []);
+        if (!files.length) { alert('Seleccioná al menos un archivo PDF.'); return; }
+
+        for (const f of files) {
+            if (f.type !== 'application/pdf') { alert(`"${f.name}" no es un PDF.`); return; }
+            if (f.size > 10 * 1024 * 1024) { alert(`"${f.name}" supera el límite de 10 MB.`); return; }
+        }
+
+        const selectedDate        = document.getElementById('clinical-pdf-date').value;
+        const selectedDescription = document.getElementById('clinical-pdf-description').value.trim();
+        const submitBtn           = document.getElementById('clinical-pdf-submit');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Subiendo...'; }
+
+        const readFileAsDataUrl = (f) => new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload  = () => resolve(r.result);
+            r.onerror = reject;
+            r.readAsDataURL(f);
+        });
+
+        try {
+            const dataUrls = await Promise.all(files.map(readFileAsDataUrl));
+            const images = dataUrls.map((dataUrl, i) => ({
+                imageUrl:    dataUrl,
+                mimeType:    'application/pdf',
+                fileName:    files[i].name,
+                description: selectedDescription || files[i].name,
+                takenAt:     selectedDate ? selectedDate + 'T12:00:00' : null,
+            }));
+
+            await withAppLoading(`Guardando ${files.length > 1 ? files.length + ' documentos' : 'documento'} PDF...`, async () => {
+                await apiFetch('/clinical-images', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        patientId,
+                        professionalId: getCurrentOdontoProfessionalId(),
+                        images,
+                    })
+                });
+                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+            });
+            closeModal();
+            loadClinicalHistory(patientId);
+        } catch (err) {
+            alert(err.message || 'No se pudieron subir los documentos PDF.');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fa-solid fa-upload"></i> Subir PDF'; }
+        }
+    });
+}
 

@@ -10,7 +10,9 @@ function normalizeEmail(email = "") {
 }
 
 function getJwtSecret() {
-  return process.env.JWT_SECRET || "odentara-dev-secret-change-me";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("[FATAL] JWT_SECRET no está configurado. La app no puede firmar tokens.");
+  return secret;
 }
 
 function signToken(payload, options = {}) {
@@ -67,7 +69,8 @@ function buildPermissionSummary(user) {
     isPlatformAdmin,
     canAccessWholeClinic:
       isSuperadmin ||
-      ((isAdmin || isSecretary) && allowedProfessionalIds.length === 0),
+      isAdmin ||   // admin siempre ve toda la clínica, aunque tenga profesional asignado
+      (isSecretary && allowedProfessionalIds.length === 0),
     isSuperadmin,
     isAdmin,
     isSecretary,

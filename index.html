@@ -5,11 +5,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Odentara</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260608">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <!-- _turnstileOnLoad debe existir antes de que el script de CF lo llame (async).
+         Si CF carga antes que app.js, el flag queda en true y app.js lo lee al arrancar. -->
+    <script>
+    /* Aplica theme-dark en <html> antes de que el DOM renderice — evita FOUC */
+    (function () {
+        try {
+            var t = localStorage.getItem('theme');
+            if (t === 'dark' || t === null) document.documentElement.setAttribute('data-theme', 'dark');
+        } catch (e) {}
+    })();
+    </script>
+    <script>
+    window._turnstileReadyFlag = false;
+    window._turnstileOnLoad = function() {
+        window._turnstileReadyFlag = true;
+        if (typeof window._renderTurnstile === 'function') window._renderTurnstile();
+    };
+    </script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=_turnstileOnLoad" async defer></script>
 </head>
 
 <body class="bg-gray-50 text-gray-800 font-inter">
@@ -20,7 +38,11 @@
         <div class="login-brand-side">
             <div class="login-brand-inner">
                 <div class="login-brand-logo-wrap">
-                    <img src="favicon.svg" alt="Odentara" class="login-brand-logo-img">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="13 14 38 40" class="login-brand-logo-svg" aria-label="Odentara">
+                        <path d="M21.5 17.5c-2.9 0-5.2 2.3-5.2 5.2 0 3.8 2 6.6 3.8 9 1.3 1.9 2.5 3.6 2.5 5.5V42c0 4.8 3.9 8.7 8.7 8.7h1.3c4.8 0 8.7-3.9 8.7-8.7v-4.8c0-1.9 1.2-3.6 2.5-5.5 1.8-2.4 3.8-5.2 3.8-9 0-2.9-2.3-5.2-5.2-5.2-2 0-3.6.8-4.9 1.6-1.6 1-2.7 1.6-5.5 1.6s-3.9-.6-5.5-1.6c-1.3-.8-2.9-1.6-4.9-1.6Z" fill="white"/>
+                        <path d="M28 32.7c-1.2 0-2.1.9-2.1 2.1V47c0 1.9 1.6 3.5 3.5 3.5h1.1V35.4c0-1.5-1.1-2.7-2.5-2.7Z" fill="rgba(15,118,110,0.45)"/>
+                        <path d="M36 32.7c-1.4 0-2.5 1.2-2.5 2.7v15.1h1.1c1.9 0 3.5-1.6 3.5-3.5V34.8c0-1.2-.9-2.1-2.1-2.1Z" fill="rgba(15,118,110,0.45)"/>
+                    </svg>
                 </div>
                 <h1 class="login-brand-name">Odentara</h1>
                 <p class="login-brand-tagline">El sistema de gestión diseñado para tu clínica odontológica.</p>
@@ -63,13 +85,15 @@
                     <!-- Mobile: logo -->
                     <div class="login-mobile-logo">
                         <div class="login-mobile-logo-mark">
-                            <img src="favicon.svg" alt="Odentara" class="login-brand-logo-img">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="13 14 38 40" class="login-brand-logo-svg" style="width:19px;height:19px" aria-label="Odentara">
+                                <path d="M21.5 17.5c-2.9 0-5.2 2.3-5.2 5.2 0 3.8 2 6.6 3.8 9 1.3 1.9 2.5 3.6 2.5 5.5V42c0 4.8 3.9 8.7 8.7 8.7h1.3c4.8 0 8.7-3.9 8.7-8.7v-4.8c0-1.9 1.2-3.6 2.5-5.5 1.8-2.4 3.8-5.2 3.8-9 0-2.9-2.3-5.2-5.2-5.2-2 0-3.6.8-4.9 1.6-1.6 1-2.7 1.6-5.5 1.6s-3.9-.6-5.5-1.6c-1.3-.8-2.9-1.6-4.9-1.6Z" fill="white"/>
+                                <path d="M28 32.7c-1.2 0-2.1.9-2.1 2.1V47c0 1.9 1.6 3.5 3.5 3.5h1.1V35.4c0-1.5-1.1-2.7-2.5-2.7Z" fill="rgba(15,118,110,0.45)"/>
+                                <path d="M36 32.7c-1.4 0-2.5 1.2-2.5 2.7v15.1h1.1c1.9 0 3.5-1.6 3.5-3.5V34.8c0-1.2-.9-2.1-2.1-2.1Z" fill="rgba(15,118,110,0.45)"/>
+                            </svg>
                         </div>
                         <span>Odentara</span>
                     </div>
-                    <button type="button" class="theme-toggle-btn" data-theme-toggle aria-label="Cambiar tema" title="Cambiar tema">
-                        <i class="fa-solid fa-moon"></i>
-                    </button>
+                    <!-- Modo oscuro fijo en login: no hay toggle aquí -->
                 </div>
 
                 <!-- Panel: Login -->
@@ -86,7 +110,7 @@
                         <div class="input-group">
                             <label for="password">Contraseña</label>
                             <div class="pwd-wrap">
-                                <input type="password" id="password" placeholder="tu contraseña" style="padding-right:40px;" autocomplete="current-password">
+                                <input type="password" id="password" placeholder="tu contraseña" autocomplete="current-password">
                                 <button type="button" class="login-pwd-toggle" tabindex="-1"
                                     onclick="const i=document.getElementById('password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
                                     <i class="fa-solid fa-eye"></i>
@@ -132,11 +156,11 @@
                             <button type="button" id="back-to-login-link" class="login-link-btn">← Volver al login</button>
                         </div>
                     </form>
-                    <div id="forgot-success" class="hidden" style="text-align:center;padding:12px 0;">
-                        <div style="font-size:36px;margin-bottom:14px;">📧</div>
-                        <p style="font-weight:700;color:var(--gray-800);margin-bottom:8px;font-size:1.05rem;">¡Revisá tu email!</p>
-                        <p style="font-size:13px;color:var(--gray-500);line-height:1.6;">Si el email existe en el sistema, vas a recibir un enlace para restablecer tu contraseña en los próximos minutos.</p>
-                        <button type="button" id="forgot-back-btn" class="btn btn-ghost w-full" style="margin-top:20px;">Volver al login</button>
+                    <div id="forgot-success" class="hidden login-success-state">
+                        <div class="login-success-icon"><i class="fa-solid fa-envelope"></i></div>
+                        <p class="login-success-title">¡Revisá tu email!</p>
+                        <p class="login-success-body">Si el email existe en el sistema, vas a recibir un enlace para restablecer tu contraseña en los próximos minutos.</p>
+                        <button type="button" id="forgot-back-btn" class="btn btn-ghost w-full">Volver al login</button>
                     </div>
                 </div>
 
@@ -150,7 +174,7 @@
                         <div class="input-group">
                             <label for="reset-password">Nueva contraseña</label>
                             <div class="pwd-wrap">
-                                <input type="password" id="reset-password" required placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:40px;" autocomplete="new-password">
+                                <input type="password" id="reset-password" required placeholder="Mínimo 8 caracteres" minlength="8" autocomplete="new-password">
                                 <button type="button" class="login-pwd-toggle" tabindex="-1"
                                     onclick="const i=document.getElementById('reset-password');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
                                     <i class="fa-solid fa-eye"></i>
@@ -160,7 +184,7 @@
                         <div class="input-group">
                             <label for="reset-password2">Confirmar contraseña</label>
                             <div class="pwd-wrap">
-                                <input type="password" id="reset-password2" required placeholder="Repetí la contraseña" style="padding-right:40px;" autocomplete="new-password">
+                                <input type="password" id="reset-password2" required placeholder="Repetí la contraseña" autocomplete="new-password">
                                 <button type="button" class="login-pwd-toggle" tabindex="-1"
                                     onclick="const i=document.getElementById('reset-password2');i.type=i.type==='password'?'text':'password';this.querySelector('i').className='fa-solid '+(i.type==='password'?'fa-eye':'fa-eye-slash')">
                                     <i class="fa-solid fa-eye"></i>
@@ -169,11 +193,11 @@
                         </div>
                         <button type="submit" id="reset-submit-btn" class="btn btn-primary w-full">Guardar contraseña</button>
                     </form>
-                    <div id="reset-success" class="hidden" style="text-align:center;padding:12px 0;">
-                        <div style="font-size:36px;margin-bottom:14px;">✅</div>
-                        <p style="font-weight:700;color:var(--gray-800);margin-bottom:8px;font-size:1.05rem;">¡Contraseña actualizada!</p>
-                        <p style="font-size:13px;color:var(--gray-500);line-height:1.6;">Ya podés ingresar con tu nueva contraseña.</p>
-                        <button type="button" id="reset-goto-login-btn" class="btn btn-primary w-full" style="margin-top:20px;">Ir al login</button>
+                    <div id="reset-success" class="hidden login-success-state">
+                        <div class="login-success-icon login-success-icon--green"><i class="fa-solid fa-circle-check"></i></div>
+                        <p class="login-success-title">¡Contraseña actualizada!</p>
+                        <p class="login-success-body">Ya podés ingresar con tu nueva contraseña.</p>
+                        <button type="button" id="reset-goto-login-btn" class="btn btn-primary w-full">Ir al login</button>
                     </div>
                 </div>
 
@@ -249,8 +273,27 @@
 
     <div id="modals-container"></div>
 
+    <!-- Si app.js no carga en un subdominio de clínica, redirigir al login. -->
+    <script>
+    (function() {
+        var parts = window.location.hostname.split('.');
+        var PLATFORM = ['www','admin','platform','api','app'];
+        var isClinic = parts.length >= 3 && !PLATFORM.includes(parts[0]);
+        if (isClinic && new URLSearchParams(window.location.search).has('__exchange')) {
+            window.__clinicFallback = setTimeout(function() {
+                window.location.href = window.location.protocol + '//app.' + parts.slice(-2).join('.') + '/';
+            }, 8000);
+        }
+    })();
+    </script>
     <script src="/xlsx.full.min.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js" onerror="(function(){
+        clearTimeout(window.__clinicFallback);
+        var parts = window.location.hostname.split('.');
+        var PLATFORM = ['www','admin','platform','api','app'];
+        if (parts.length >= 3 && !PLATFORM.includes(parts[0]))
+            window.location.href = window.location.protocol + '//app.' + parts.slice(-2).join('.') + '/';
+    })()"></script>
 </body>
 
 </html>
