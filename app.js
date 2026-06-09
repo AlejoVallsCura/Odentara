@@ -65,244 +65,9 @@ function getAppLoginUrl() {
 }
 const AUTH_STORAGE_KEY = 'odentara_auth_v1';
 const THEME_STORAGE_KEY = 'odentara_theme_v1';
-const BUSINESS_TIME_ZONE = 'America/Buenos_Aires';
 
-const MOJIBAKE_REPAIRS = [
-    ['ContraseÃ±a', 'Contraseña'],
-    ['ContraseÃƒÂ±a', 'Contraseña'],
-    ['contraseÃ±a', 'contraseña'],
-    ['contraseÃƒÂ±a', 'contraseña'],
-    ['Centro odontolÃ³gico', 'Centro odontológico'],
-    ['Centro odontolÃƒÂ³gico', 'Centro odontológico'],
-    ['Cerrar sesiÃ³n', 'Cerrar sesión'],
-    ['Cerrar sesiÃƒÂ³n', 'Cerrar sesión'],
-    ['Horarios MÃ©dicos', 'Horarios Médicos'],
-    ['Horarios MÃƒÂ©dicos', 'Horarios Médicos'],
-    ['FacturaciÃ³n', 'Facturación'],
-    ['FacturaciÃƒÂ³n', 'Facturación'],
-    ['ConfiguraciÃ³n', 'Configuración'],
-    ['ConfiguraciÃƒÂ³n', 'Configuración'],
-    ['Historias ClÃ­nicas', 'Historias Clínicas'],
-    ['Historias ClÃƒÂ­nicas', 'Historias Clínicas'],
-    ['RecepciÃ³n', 'Recepción'],
-    ['RecepciÃƒÂ³n', 'Recepción'],
-    ['GestiÃ³n de Turnos', 'Gestión de Turnos'],
-    ['GestiÃƒÂ³n de Turnos', 'Gestión de Turnos'],
-    ['Agendas MÃ©dicas', 'Agendas Médicas'],
-    ['Agendas MÃƒÂ©dicas', 'Agendas Médicas'],
-    ['SecretarÃ­a', 'Secretaría'],
-    ['SecretarÃƒÂ­a', 'Secretaría'],
-    ['Completa email y contraseÃ±a.', 'Completa email y contraseña.'],
-    ['Completa email y contraseÃƒÂ±a.', 'Completa email y contraseña.'],
-    ['No se pudo iniciar sesiÃ³n.', 'No se pudo iniciar sesión.'],
-    ['No se pudo iniciar sesiÃƒÂ³n.', 'No se pudo iniciar sesión.'],
-    ['Se inyecta despuÃ©s', 'Se inyecta después'],
-    ['Se inyecta despuÃƒÂ©s', 'Se inyecta después'],
-    ['MÃ³dulo', 'Módulo'],
-    ['MÃƒÂ³dulo', 'Módulo'],
-    ['TelÃ©fono', 'Teléfono'],
-    ['TelÃƒÂ©fono', 'Teléfono'],
-    ['Tel�fono', 'Teléfono'],
-    ['M�dicas', 'Médicas'],
-    ['Cl�nica', 'Clínica'],
-    ['AcciÃƒÂ³n', 'Acción'],
-    ['AcciÃƒÆ’Ã‚Â³n', 'Acción'],
-    ['AcciÃ³n', 'Acción'],
-    ['OdontologÃ­a', 'Odontología'],
-    ['OdontologÃƒÂ­a', 'Odontología'],
-    ['odontolÃ³gica', 'odontológica'],
-    ['odontolÃƒÂ³gica', 'odontológica'],
-    ['odontolÃ³gico', 'odontológico'],
-    ['odontolÃƒÂ³gico', 'odontológico'],
-    ['AtenciÃ³n', 'Atención'],
-    ['AtenciÃƒÂ³n', 'Atención'],
-    ['dÃ­as', 'días'],
-    ['dÃƒÂ­as', 'días'],
-    ['dÃ­a', 'día'],
-    ['dÃƒÂ­a', 'día'],
-    ['pasÃ³', 'pasó'],
-    ['pasÃƒÂ³', 'pasó'],
-    ['vÃ¡lido', 'válido'],
-    ['vÃƒÂ¡lido', 'válido'],
-    ['MiÃ©rcoles', 'Miércoles'],
-    ['MiÃƒÂ©rcoles', 'Miércoles'],
-    ['SÃ¡bado', 'Sábado'],
-    ['SÃƒÂ¡bado', 'Sábado'],
-    ['MiÃ©', 'Mié'],
-    ['MiÃƒÂ©', 'Mié'],
-    ['SÃ¡b', 'Sáb'],
-    ['SÃƒÂ¡b', 'Sáb'],
-    ['quÃ©', 'qué'],
-    ['quÃƒÂ©', 'qué'],
-    ['PrÃ³ximos Turnos', 'Próximos Turnos'],
-    ['PrÃƒÂ³ximos Turnos', 'Próximos Turnos'],
-    ['DÃ­a', 'Día'],
-    ['DÃƒÂ­a', 'Día'],
-    ['D�a', 'Día'],
-    ['Transacción', 'Transacción'],
-    ['TransacciÃƒÂ³n', 'Transacción'],
-    ['DescripciÃ³n', 'Descripción'],
-    ['DescripciÃƒÂ³n', 'Descripción'],
-    ['DescripciÃ³n', 'Descripción'],
-    ['MÃ©dicas', 'Médicas'],
-    ['MÃƒÂ©dicas', 'Médicas'],
-    ['MÃ©dico', 'Médico'],
-    ['MÃƒÂ©dico', 'Médico'],
-    ['ClÃ­nica', 'Clínica'],
-    ['ClÃƒÂ­nica', 'Clínica'],
-    ['clÃ­nica', 'clínica'],
-    ['clÃƒÂ­nica', 'clínica'],
-    ['Ficha OdontolÃ³gica', 'Ficha Odontológica'],
-    ['Ficha OdontolÃƒÂ³gica', 'Ficha Odontológica'],
-    ['aÃ±os', 'años'],
-    ['aÃƒÂ±os', 'años'],
-    ['NÂ°', 'N°'],
-    ['NÂº', 'Nº'],
-    ['N�', 'N°'],
-    ['Circulo OdontolÃ³gico', 'Círculo Odontológico'],
-    ['CÃ­rculo OdontolÃ³gico', 'Círculo Odontológico'],
-    ['Circulo OdontolÃƒÂ³gico', 'Círculo Odontológico'],
-    ['CÃƒÂ­rculo OdontolÃƒÂ³gico', 'Círculo Odontológico'],
-    ['Ficha ClÃ­nica OdontolÃ³gica', 'Ficha Clínica Odontológica'],
-    ['Ficha ClÃƒÂ­nica OdontolÃƒÂ³gica', 'Ficha Clínica Odontológica'],
-    ['RestauraciÃ³n', 'Restauración'],
-    ['RestauraciÃƒÂ³n', 'Restauración'],
-    ['AÃ±adir', 'Añadir'],
-    ['AÃƒÂ±adir', 'Añadir'],
-    ['AutorizaciÃ³n', 'Autorización'],
-    ['AutorizaciÃƒÂ³n', 'Autorización'],
-    ['CÃ³digo', 'Código'],
-    ['CÃƒÂ³digo', 'Código'],
-    ['vacÃ­o', 'vacío'],
-    ['vacÃƒÂ­o', 'vacío'],
-    ['podrÃ¡n', 'podrán'],
-    ['podrÃƒÂ¡n', 'podrán'],
-    ['segÃºn', 'según'],
-    ['segÃƒÂºn', 'según'],
-    ['LÃ³pez', 'López'],
-    ['LÃƒÂ³pez', 'López'],
-    ['MartÃ­nez', 'Martínez'],
-    ['MartÃƒÂ­nez', 'Martínez'],
-    ['GÃ³mez', 'Gómez'],
-    ['GÃƒÂ³mez', 'Gómez'],
-    ['MarÃ­a', 'María'],
-    ['MarÃƒÂ­a', 'María'],
-    ['PÃ©rez', 'Pérez'],
-    ['PÃƒÂ©rez', 'Pérez'],
-    ['SÃ¡nchez', 'Sánchez'],
-    ['SÃƒÂ¡nchez', 'Sánchez'],
-    ['RamÃ­rez', 'Ramírez'],
-    ['RamÃƒÂ­rez', 'Ramírez'],
-    ['SofÃ­a', 'Sofía'],
-    ['SofÃƒÂ­a', 'Sofía'],
-    ['MartÃ­n', 'Martín'],
-    ['MartÃƒÂ­n', 'Martín'],
-    ['Ãlvarez', 'Álvarez'],
-    ['ÃƒÂlvarez', 'Álvarez'],
-    ['LucÃ­a', 'Lucía'],
-    ['LucÃƒÂ­a', 'Lucía'],
-    ['FernÃ¡ndez', 'Fernández'],
-    ['FernÃƒÂ¡ndez', 'Fernández'],
-    ['MedifÃ©', 'Medifé'],
-    ['MedifÃƒÂ©', 'Medifé'],
-    ['CÃ³rdoba', 'Córdoba'],
-    ['CÃƒÂ³rdoba', 'Córdoba'],
-    ['EstrÃ©s', 'Estrés'],
-    ['EstrÃƒÂ©s', 'Estrés'],
-    ['DiabÃ©tico', 'Diabético'],
-    ['DiabÃƒÂ©tico', 'Diabético'],
-    ['Especialidad', 'Especialidad'],
-    ['DuraciÃ³n', 'Duración'],
-    ['DuraciÃƒÂ³n', 'Duración'],
-    ['Observaciones Médicas / Alergias', 'Observaciones Médicas / Alergias'],
-    ['Historia ClÃ­nica', 'Historia Clínica'],
-    ['Historia ClÃƒÂ­nica', 'Historia Clínica'],
-    ['ConstrucciÃ³n', 'Construcción'],
-    ['ConstrucciÃƒÂ³n', 'Construcción'],
-    ['Ã±', 'ñ'],
-    ['ÃƒÂ±', 'ñ'],
-    ['Ã¡', 'á'],
-    ['ÃƒÂ¡', 'á'],
-    ['Ã©', 'é'],
-    ['ÃƒÂ©', 'é'],
-    ['Ã­', 'í'],
-    ['ÃƒÂ­', 'í'],
-    ['Ã³', 'ó'],
-    ['ÃƒÂ³', 'ó'],
-    ['Ãº', 'ú'],
-    ['ÃƒÂº', 'ú'],
-    ['Ã', 'Á'],
-    ['ÃƒÂ', 'Á'],
-    ['Ã‰', 'É'],
-    ['Ãƒâ€°', 'É'],
-    ['Ã', 'Í'],
-    ['ÃƒÂ', 'Í'],
-    ['Ã“', 'Ó'],
-    ['Ãƒâ€œ', 'Ó'],
-    ['Ãš', 'Ú'],
-    ['ÃƒÅ¡', 'Ú'],
-    ['Â¿', '¿'],
-    ['Â¡', '¡'],
-    ['Â·', '·'],
-    ['â†’', '→'],
-    ['â€“', '–'],
-    ['�', '']
-];
-
-function repairMojibakeString(value) {
-    if (typeof value !== 'string' || !value) return value;
-    let repaired = value;
-    for (let pass = 0; pass < 4; pass += 1) {
-        let changedInPass = false;
-        for (const [from, to] of MOJIBAKE_REPAIRS) {
-            if (repaired.includes(from)) {
-                repaired = repaired.split(from).join(to);
-                changedInPass = true;
-            }
-        }
-        if (!changedInPass) break;
-    }
-    repaired = repaired
-        .replace(/\?\s*Eliminar/g, '¿Eliminar')
-        .replace(/^\?/, '¿')
-        .replace(/\s+\?/g, '?');
-    return repaired;
-}
-
-function escapeHtml(value) {
-    return repairMojibakeString(String(value ?? '')).replace(/[&<>"']/g, (char) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[char]));
-}
-
-function repairDomText(root = document.body) {
-    if (!root) return;
-
-    const textWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let textNode = textWalker.nextNode();
-    while (textNode) {
-        const repaired = repairMojibakeString(textNode.nodeValue);
-        if (repaired !== textNode.nodeValue) {
-            textNode.nodeValue = repaired;
-        }
-        textNode = textWalker.nextNode();
-    }
-
-    root.querySelectorAll?.('*').forEach((element) => {
-        ['title', 'placeholder', 'aria-label', 'value'].forEach((attr) => {
-            if (!element.hasAttribute(attr)) return;
-            const current = element.getAttribute(attr);
-            const repaired = repairMojibakeString(current);
-            if (repaired !== current) {
-                element.setAttribute(attr, repaired);
-            }
-        });
-    });
-}
+// MOJIBAKE_REPAIRS, repairMojibakeString, repairDomText, escapeHtml,
+// BUSINESS_TIME_ZONE → js/core/utils.js
 
 let feedbackToastRoot = null;
 let feedbackDialogRoot = null;
@@ -591,127 +356,17 @@ function setupMojibakeAutoRepair() {
 }
 
 // --- Database Setup ---
-const defaultData = {
-    users: [
-        { id: 1, email: 'admin@odentara.com', name: 'Superadmin Odentara', roles: ['superadmin'], allowedProfessionals: [] },
-        { id: 2, email: 'lopez@odentara.com', name: 'Dr. LÃ³pez', roles: ['professional'], allowedProfessionals: [1] },
-        { id: 3, email: 'secretaria@odentara.com', name: 'SecretarÃ­a General', roles: ['secretary'], allowedProfessionals: [] },
-        { id: 4, email: 'administracion@odentara.com', name: 'Administrador General', roles: ['admin'], allowedProfessionals: [] }
-    ],
-    professionals: [
-        { id: 1, name: 'Dr. LÃ³pez', schedule: { 
-            1: {active: true, start: '08:00', end: '16:00'}, 2: {active: true, start: '08:00', end: '16:00'}, 
-            3: {active: true, start: '08:00', end: '16:00'}, 4: {active: true, start: '08:00', end: '16:00'}, 
-            5: {active: true, start: '08:00', end: '16:00'}, 6: {active: false, start: '08:00', end: '13:00'}, 
-            0: {active: false, start: '08:00', end: '13:00'} 
-        } },
-        { id: 2, name: 'Dra. MartÃ­nez', schedule: { 
-            1: {active: true, start: '09:00', end: '15:00'}, 2: {active: true, start: '09:00', end: '15:00'}, 
-            3: {active: false, start: '09:00', end: '15:00'}, 4: {active: true, start: '09:00', end: '15:00'}, 
-            5: {active: true, start: '09:00', end: '15:00'}, 6: {active: false, start: '', end: ''}, 
-            0: {active: false, start: '', end: ''} 
-        } },
-        { id: 3, name: 'Dr. Carlos GÃ³mez', schedule: { 
-            1: {active: true, start: '10:00', end: '18:00'}, 2: {active: true, start: '10:00', end: '18:00'}, 
-            3: {active: true, start: '10:00', end: '18:00'}, 4: {active: true, start: '10:00', end: '18:00'}, 
-            5: {active: true, start: '10:00', end: '18:00'}, 6: {active: false, start: '', end: ''}, 
-            0: {active: false, start: '', end: ''} 
-        } }
-    ],
-    appointments: [
-        { id: 1, patient: 'MarÃ­a GÃ³mez', professionalId: 1, date: '2026-03-24', time: '10:00', duration: 60, status: 'confirmed', isOverbook: false },
-        { id: 2, patient: 'Juan PÃ©rez', professionalId: 2, date: '2026-03-24', time: '11:00', duration: 30, status: 'sent', isOverbook: false },
-        { id: 3, patient: 'Carlos Ruiz', professionalId: 1, date: '2026-03-24', time: '10:15', duration: 15, status: 'confirmed', isOverbook: true },
-        { id: 4, patient: 'Laura SÃ¡nchez', professionalId: 3, date: '2026-03-24', time: '09:30', duration: 60, status: 'confirmed', isOverbook: false },
-        { id: 5, patient: 'Diego RamÃ­rez', professionalId: 2, date: '2026-03-24', time: '12:00', duration: 45, status: 'not_sent', isOverbook: false },
-        { id: 6, patient: 'SofÃ­a DÃ­az', professionalId: 1, date: '2026-03-24', time: '13:30', duration: 30, status: 'cancelled', isOverbook: false },
-        { id: 7, patient: 'MartÃ­n Torres', professionalId: 3, date: '2026-03-24', time: '14:00', duration: 60, status: 'confirmed', isOverbook: false },
-        { id: 8, patient: 'Karina LÃ³pez', professionalId: 2, date: '2026-03-24', time: '15:30', duration: 30, status: 'sent', isOverbook: false },
-        { id: 9, patient: 'Facundo Vega', professionalId: 1, date: '2026-03-24', time: '16:30', duration: 60, status: 'not_sent', isOverbook: false },
-        { id: 10, patient: 'Vanesa Ruiz', professionalId: 3, date: '2026-03-24', time: '17:45', duration: 30, status: 'confirmed', isOverbook: false },
-        { id: 11, patient: 'Martina GÃ³mez', professionalId: 1, date: '2026-03-25', time: '09:00', duration: 45, status: 'confirmed', isOverbook: false },
-        { id: 12, patient: 'Bruno Ãlvarez', professionalId: 2, date: '2026-03-25', time: '10:30', duration: 60, status: 'sent', isOverbook: false },
-        { id: 13, patient: 'LucÃ­a FernÃ¡ndez', professionalId: 3, date: '2026-03-25', time: '11:45', duration: 30, status: 'not_sent', isOverbook: false }
-    ],
-    patients: [
-        { id: 1, name: 'MarÃ­a GÃ³mez', dni: '34567890', fechaNacimiento: '1994-09-19', obraSocial: 'Sancor 4000', credencial: '1826490/00', domicilio: 'Primitivo de la Reta 513 Piso 8 Of 2 Ciudad', fichaNumero: '001', email: 'maria@example.com', phone: '261-679-1598', lastVisit: '2026-02-10', notes: 'Alergia a la penicilina', odontograma: {}, treatments: [] },
-        { id: 2, name: 'Juan PÃ©rez', dni: '23456789', fechaNacimiento: '1985-05-12', obraSocial: 'OSDE 210', credencial: '12345678', domicilio: 'San Martin 123', fichaNumero: '002', email: 'juan@example.com', phone: '098-765-4321', lastVisit: '2026-03-01', notes: 'Sin antecedentes', odontograma: {}, treatments: [] },
-        { id: 3, name: 'Laura SÃ¡nchez', dni: '45678901', fechaNacimiento: '1990-04-20', obraSocial: 'OSDE 310', credencial: '98765432', domicilio: 'Av. Libertador 1234', fichaNumero: '003', email: 'laura@example.com', phone: '261-111-2222', lastVisit: '2026-03-22', notes: '', odontograma: {}, treatments: [] },
-        { id: 4, name: 'Diego RamÃ­rez', dni: '56789012', fechaNacimiento: '1988-08-05', obraSocial: 'SWISS MEDICAL', credencial: '11122334', domicilio: 'Calle Falsa 123', fichaNumero: '004', email: 'diego@example.com', phone: '261-333-4444', lastVisit: '2026-02-05', notes: 'Control de ortodoncia', odontograma: {}, treatments: [] },
-        { id: 5, name: 'SofÃ­a DÃ­az', dni: '67890123', fechaNacimiento: '1995-12-01', obraSocial: 'Galeno', credencial: '22233445', domicilio: 'Calle Real 56', fichaNumero: '005', email: 'sofia@example.com', phone: '261-555-6666', lastVisit: '2026-01-16', notes: '', odontograma: {}, treatments: [] },
-        { id: 6, name: 'MartÃ­n Torres', dni: '78901234', fechaNacimiento: '1979-03-30', obraSocial: 'MedifÃ©', credencial: '33344556', domicilio: 'Calle Luna 90', fichaNumero: '006', email: 'martin@example.com', phone: '261-777-8888', lastVisit: '2026-04-01', notes: 'DiabÃ©tico', odontograma: {}, treatments: [] },
-        { id: 7, name: 'Karina LÃ³pez', dni: '89012345', fechaNacimiento: '1982-07-11', obraSocial: 'OSDE', credencial: '44455667', domicilio: 'Av. Mayo 321', fichaNumero: '007', email: 'karina@example.com', phone: '261-999-0000', lastVisit: '2026-03-10', notes: '', odontograma: {}, treatments: [] },
-        { id: 8, name: 'Facundo Vega', dni: '90123456', fechaNacimiento: '1987-02-18', obraSocial: 'Swiss Medical', credencial: '55566778', domicilio: 'Calle Sol 18', fichaNumero: '008', email: 'facundo@example.com', phone: '261-101-2020', lastVisit: '2026-02-20', notes: 'Bleeding gums', odontograma: {}, treatments: [] },
-        { id: 9, name: 'Vanesa Ruiz', dni: '01234567', fechaNacimiento: '1993-11-09', obraSocial: 'Galeno', credencial: '66677889', domicilio: 'Calle Mar 89', fichaNumero: '009', email: 'vanesa@example.com', phone: '261-303-4040', lastVisit: '2026-03-19', notes: '', odontograma: {}, treatments: [] },
-        { id: 10, name: 'Martina GÃ³mez', dni: '11223344', fechaNacimiento: '2000-06-12', obraSocial: 'Sancor 4000', credencial: '77788990', domicilio: 'Calle Estrella 25', fichaNumero: '010', email: 'martina@example.com', phone: '261-505-6060', lastVisit: '2026-03-24', notes: '', odontograma: {}, treatments: [] },
-        { id: 11, name: 'Bruno Ãlvarez', dni: '22334455', fechaNacimiento: '1975-09-27', obraSocial: 'OSDE', credencial: '88899001', domicilio: 'Av. CÃ³rdoba 101', fichaNumero: '011', email: 'bruno@example.com', phone: '261-707-8080', lastVisit: '2026-03-05', notes: '', odontograma: {}, treatments: [] },
-        { id: 12, name: 'LucÃ­a FernÃ¡ndez', dni: '33445566', fechaNacimiento: '1998-01-14', obraSocial: 'MedifÃ©', credencial: '99900112', domicilio: 'Calle Internal 42', fichaNumero: '012', email: 'lucia@example.com', phone: '261-909-0101', lastVisit: '2026-03-28', notes: 'EstrÃ©s dental', odontograma: {}, treatments: [] },
-        { id: 13, name: 'Agustín Herrera', dni: '44556677', fechaNacimiento: '1991-03-08', obraSocial: 'OSDE 210', credencial: '10203040', domicilio: 'Boulogne Sur Mer 450', fichaNumero: '013', email: 'agustin@example.com', phone: '261-112-2334', lastVisit: '2026-04-05', notes: '', odontograma: {}, treatments: [] },
-        { id: 14, name: 'Camila Moreno', dni: '55667788', fechaNacimiento: '1997-07-22', obraSocial: 'Sancor 4000', credencial: '20304050', domicilio: 'Av. San Martín 890', fichaNumero: '014', email: 'camila@example.com', phone: '261-223-3445', lastVisit: '2026-04-08', notes: 'Embarazada - segundo trimestre', odontograma: {}, treatments: [] },
-        { id: 15, name: 'Rodrigo Castillo', dni: '66778899', fechaNacimiento: '1983-11-15', obraSocial: 'Swiss Medical', credencial: '30405060', domicilio: 'Las Heras 234', fichaNumero: '015', email: 'rodrigo@example.com', phone: '261-334-4556', lastVisit: '2026-03-30', notes: 'Hipertenso', odontograma: {}, treatments: [] },
-        { id: 16, name: 'Valentina Aguirre', dni: '77889900', fechaNacimiento: '2001-02-28', obraSocial: 'Galeno', credencial: '40506070', domicilio: 'España 1120', fichaNumero: '016', email: 'valentina@example.com', phone: '261-445-5667', lastVisit: '2026-04-10', notes: '', odontograma: {}, treatments: [] },
-        { id: 17, name: 'Nicolás Romero', dni: '88990011', fechaNacimiento: '1978-06-03', obraSocial: 'OSDE 310', credencial: '50607080', domicilio: 'Mitre 678', fichaNumero: '017', email: 'nicolas@example.com', phone: '261-556-6778', lastVisit: '2026-02-25', notes: 'Bruxismo severo', odontograma: {}, treatments: [] },
-        { id: 18, name: 'Florencia Acosta', dni: '99001122', fechaNacimiento: '1996-09-17', obraSocial: 'Medifé', credencial: '60708090', domicilio: 'Godoy Cruz 345', fichaNumero: '018', email: 'florencia@example.com', phone: '261-667-7889', lastVisit: '2026-04-12', notes: '', odontograma: {}, treatments: [] },
-        { id: 19, name: 'Matías Vargas', dni: '10112233', fechaNacimiento: '1989-04-11', obraSocial: 'OSDE', credencial: '70809001', domicilio: 'Sarmiento 567', fichaNumero: '019', email: 'matias@example.com', phone: '261-778-8990', lastVisit: '2026-03-15', notes: 'Alérgico al látex', odontograma: {}, treatments: [] },
-        { id: 20, name: 'Julieta Benítez', dni: '20223344', fechaNacimiento: '1993-12-25', obraSocial: 'Swiss Medical', credencial: '80901012', domicilio: 'Belgrano 902', fichaNumero: '020', email: 'julieta@example.com', phone: '261-889-9001', lastVisit: '2026-04-02', notes: '', odontograma: {}, treatments: [] },
-        { id: 21, name: 'Tomás Gutiérrez', dni: '30334455', fechaNacimiento: '1986-08-19', obraSocial: 'Sancor 4000', credencial: '90012023', domicilio: 'Rivadavia 1450', fichaNumero: '021', email: 'tomas@example.com', phone: '261-990-0112', lastVisit: '2026-01-20', notes: 'Implante pieza 36', odontograma: {}, treatments: [] },
-        { id: 22, name: 'Natalia Medina', dni: '40445566', fechaNacimiento: '1999-05-06', obraSocial: 'Galeno', credencial: '01123034', domicilio: 'Colón 789', fichaNumero: '022', email: 'natalia@example.com', phone: '261-001-1223', lastVisit: '2026-04-14', notes: '', odontograma: {}, treatments: [] },
-        { id: 23, name: 'Emilio Sosa', dni: '50556677', fechaNacimiento: '1974-01-30', obraSocial: 'OSDE 210', credencial: '12034045', domicilio: 'Necochea 321', fichaNumero: '023', email: 'emilio@example.com', phone: '261-112-3345', lastVisit: '2026-03-08', notes: 'Prótesis parcial inferior', odontograma: {}, treatments: [] },
-        { id: 24, name: 'Carolina Ibáñez', dni: '60667788', fechaNacimiento: '2003-10-13', obraSocial: 'Medifé', credencial: '23045056', domicilio: 'Lavalle 210', fichaNumero: '024', email: 'carolina@example.com', phone: '261-223-4456', lastVisit: '2026-04-16', notes: 'Paciente joven, ortodoncia', odontograma: {}, treatments: [] },
-        { id: 25, name: 'Sebastián Luna', dni: '70778899', fechaNacimiento: '1981-07-07', obraSocial: 'Swiss Medical', credencial: '34056067', domicilio: 'Moreno 654', fichaNumero: '025', email: 'sebastian@example.com', phone: '261-334-5567', lastVisit: '2026-02-14', notes: '', odontograma: {}, treatments: [] },
-        { id: 26, name: 'Daniela Pereyra', dni: '80889900', fechaNacimiento: '1992-03-21', obraSocial: 'OSDE 310', credencial: '45067078', domicilio: 'Alem 1100', fichaNumero: '026', email: 'daniela@example.com', phone: '261-445-6678', lastVisit: '2026-04-18', notes: '', odontograma: {}, treatments: [] },
-        { id: 27, name: 'Ezequiel Rojas', dni: '90990011', fechaNacimiento: '1977-12-02', obraSocial: 'Galeno', credencial: '56078089', domicilio: 'Tres de Febrero 88', fichaNumero: '027', email: 'ezequiel@example.com', phone: '261-556-7789', lastVisit: '2026-03-25', notes: 'Coagulopatía leve', odontograma: {}, treatments: [] }
-    ],
-    billing: [
-        { id: 1, patientId: 2, professionalId: 2, type: 'income', amount: 12500, date: '2026-03-24', description: 'Consulta Dra. MartÃ­nez' },
-        { id: 2, patientId: 1, professionalId: 1, type: 'debt', amount: 45000, date: '2026-03-20', description: 'Tratamiento conducto' }
-    ],
-    clinic: {
-        name: 'Centro odontológico'
-    }
-};
-
 const DB = {
     getRaw(table) {
         return JSON.parse(localStorage.getItem('odentara_db_v6'))[table] || [];
     },
     init() {
         if (!localStorage.getItem('odentara_db_v6')) {
-            localStorage.setItem('odentara_db_v6', JSON.stringify(defaultData));
+            localStorage.setItem('odentara_db_v6', JSON.stringify({
+                users: [], professionals: [], patients: [],
+                appointments: [], billing: [], clinic: {}
+            }));
         }
-        this.ensureSeedData();
-    },
-    ensureSeedData() {
-        const db = JSON.parse(localStorage.getItem('odentara_db_v6'));
-        if (!db) return;
-
-        const mergeBy = (currentItems = [], seedItems = [], getKey) => {
-            const merged = [...currentItems];
-            const existingKeys = new Set(currentItems.map(item => getKey(item)));
-            let nextId = currentItems.length > 0
-                ? Math.max(...currentItems.map(item => item.id || 0)) + 1
-                : 1;
-
-            seedItems.forEach(seedItem => {
-                const key = getKey(seedItem);
-                if (!existingKeys.has(key)) {
-                    merged.push({ ...seedItem, id: nextId++ });
-                    existingKeys.add(key);
-                }
-            });
-
-            return merged;
-        };
-
-        db.users = mergeBy(db.users, defaultData.users, item => item.email);
-        db.professionals = mergeBy(db.professionals, defaultData.professionals, item => item.name);
-        db.patients = mergeBy(db.patients, defaultData.patients, item => item.dni);
-        db.clinic = {
-            ...(defaultData.clinic || {}),
-            ...(db.clinic && typeof db.clinic === 'object' ? db.clinic : {})
-        };
-
-        localStorage.setItem('odentara_db_v6', JSON.stringify(db));
     },
     get(table) {
         return this.getRaw(table).filter(item => !item?.deletedAt);
@@ -809,27 +464,6 @@ function saveClinicSettings(partialSettings = {}) {
 function getClinicDisplayName() {
     const name = String(getClinicSettings().name || '').trim();
     return name || DEFAULT_CLINIC_SETTINGS.name;
-}
-
-function normalizeHexColor(value, fallback = '#6366f1') {
-    const raw = String(value || '').trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toLowerCase();
-    if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
-        const r = raw[1];
-        const g = raw[2];
-        const b = raw[3];
-        return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
-    }
-    return fallback;
-}
-
-function getContrastingTextColor(hexColor) {
-    const normalized = normalizeHexColor(hexColor, '#6366f1');
-    const r = parseInt(normalized.slice(1, 3), 16);
-    const g = parseInt(normalized.slice(3, 5), 16);
-    const b = parseInt(normalized.slice(5, 7), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.62 ? '#111827' : '#ffffff';
 }
 
 function applyClinicBranding() {
@@ -937,26 +571,6 @@ function setSidebarOpen(isOpen) {
     syncSidebarLayout();
 }
 
-function normalizeIdentityEmail(email = '') {
-    return String(email)
-        .trim()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-}
-
-function normalizeDni(dni = '') {
-    return String(dni).replace(/\D/g, '');
-}
-
-function normalizePatientName(name = '') {
-    return String(name)
-        .trim()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+/g, ' ');
-}
 
 function mapApiUserToLegacyUser(apiUser = {}) {
     const displayName = apiUser.fullName || apiUser.name || apiUser.email || 'Usuario';
@@ -1420,9 +1034,6 @@ function upsertLocalItem(table, item) {
     DB.save(table, items);
 }
 
-function deepClone(value) {
-    return JSON.parse(JSON.stringify(value));
-}
 
 function clinicalRecordEntriesToLegacyOdontogram(entries = []) {
     const odontograma = {};
@@ -1964,66 +1575,6 @@ function buildSubdomainRedirectUrl(clinicSlug, exchangeCode) {
 
 function getPatientOptionLabel(patient) {
     return `${patient.name} | DNI ${patient.dni}`;
-}
-
-function getBusinessNowParts() {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: BUSINESS_TIME_ZONE,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23'
-    });
-
-    const parts = formatter.formatToParts(new Date());
-    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-
-    return {
-        year: Number(values.year),
-        month: Number(values.month),
-        day: Number(values.day),
-        hour: Number(values.hour),
-        minute: Number(values.minute)
-    };
-}
-
-function getTodayIsoLocal() {
-    const now = getBusinessNowParts();
-    return `${String(now.year).padStart(4, '0')}-${String(now.month).padStart(2, '0')}-${String(now.day).padStart(2, '0')}`;
-}
-
-function formatDateToLocalIso(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
-function parseLocalIsoDate(dateStr) {
-    if (!dateStr) return new Date();
-    const [year, month, day] = String(dateStr).split('-').map(Number);
-    return new Date(year, (month || 1) - 1, day || 1);
-}
-
-function timeToMinutes(timeStr = '') {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-    return (hours * 60) + minutes;
-}
-
-function getCurrentMinutes() {
-    const now = getBusinessNowParts();
-    return (now.hour * 60) + now.minute;
-}
-
-function isPastDate(dateStr) {
-    return Boolean(dateStr) && dateStr < getTodayIsoLocal();
-}
-
-function isTodayDate(dateStr) {
-    return Boolean(dateStr) && dateStr === getTodayIsoLocal();
 }
 
 // --- Events ---
@@ -2991,21 +2542,6 @@ function refreshCurrentView() {
 // Normalizes locale date strings to consistent sentence case.
 // On Windows, toLocaleDateString('es-AR') returns title-cased strings
 // like "Jueves, 14 De Mayo De 2026". This converts to "Jueves, 14 de mayo de 2026".
-function normalizeDateLabel(str) {
-    if (!str) return str;
-    const s = str.toLowerCase();
-    return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function formatDashboardDateLabel(dateStr) {
-    if (!dateStr) return '';
-    const date = parseLocalIsoDate(dateStr);
-    return normalizeDateLabel(date.toLocaleDateString('es-AR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long'
-    }));
-}
 
 async function loadView(viewId, title = 'Dashboard', options = {}) {
     const navId = ++_loadViewSeq;
