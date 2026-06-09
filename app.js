@@ -502,9 +502,6 @@ function setSidebarOpen(isOpen) {
 }
 
 
-function isSelfPlatformAdmin() {
-    return !!state.user?.isPlatformAdmin;
-}
 
 function saveAuthSession(token, apiUser) {
     state.authToken = token;
@@ -3489,165 +3486,6 @@ function getPatientByAppointment(apt) {
     return DB.get('patients').find(p => p.id === apt.patientId) || null;
 }
 
-function isSuperadmin() {
-    return !!state.user && state.user.roles.includes('superadmin');
-}
-
-function isProfessionalUser() {
-    return !!state.user && state.user.roles.includes('professional');
-}
-
-function canManagePatientBillingUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
-}
-
-function canViewPatientBillingUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
-}
-
-function canManageAppointmentsUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary'].includes(role));
-}
-
-function canViewAppointmentsUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary', 'professional'].includes(role));
-}
-
-function canEditAppointmentsUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary', 'professional'].includes(role));
-}
-
-function canCreatePatientUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary'].includes(role));
-}
-
-function canEditPatientUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary'].includes(role));
-}
-
-function canManageProfessionalSchedulesUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'secretary'].includes(role));
-}
-
-function canManageProfessionalsUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
-}
-
-function canViewBillingUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin'].includes(role));
-}
-
-function canManageUsersUi() {
-    return !!state.user && state.user.roles.includes('superadmin');
-}
-
-function canAccessSettingsUi() {
-    return !!state.user && state.user.roles.some((role) => ['superadmin', 'admin', 'secretary'].includes(role));
-}
-
-function getBillingEntriesForPatient(patientId) {
-    return DB.get('billing')
-        .filter((entry) => entry.patientId === patientId && canAccessProfessional(entry.professionalId))
-        .sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.id - a.id));
-}
-
-function getPatientCurrentAccountSummary(patientId) {
-    const patient = getAccessiblePatients().find((item) => item.id === patientId);
-    const entries = getBillingEntriesForPatient(patientId);
-    const professionals = getAccessibleProfessionals();
-    const byProfessionalMap = new Map();
-
-    entries.forEach((entry) => {
-        const professional = professionals.find((item) => item.id === entry.professionalId);
-        if (!professional) return;
-
-        if (!byProfessionalMap.has(entry.professionalId)) {
-            byProfessionalMap.set(entry.professionalId, {
-                professionalId: professional.id,
-                professionalName: professional.name,
-                deuda: 0,
-                pagado: 0
-            });
-        }
-
-        const item = byProfessionalMap.get(entry.professionalId);
-        if (entry.type === 'debt') item.deuda += entry.amount;
-        if (entry.type === 'income' || entry.type === 'payment') item.pagado += entry.amount;
-    });
-
-    const byProfessional = Array.from(byProfessionalMap.values())
-        .map((item) => ({
-            ...item,
-            balance: item.deuda - item.pagado
-        }))
-        .sort((a, b) => a.professionalName.localeCompare(b.professionalName));
-
-    const deuda = byProfessional.reduce((sum, item) => sum + item.deuda, 0);
-    const pagado = byProfessional.reduce((sum, item) => sum + item.pagado, 0);
-
-    return {
-        patient,
-        entries,
-        byProfessional,
-        deuda,
-        pagado,
-        balance: deuda - pagado
-    };
-}
-
-function getPatientCurrentAccountSummaries() {
-    return getAccessiblePatients()
-        .map((patient) => {
-            const summary = getPatientCurrentAccountSummary(patient.id);
-            return {
-                patientId: patient.id,
-                name: patient.name,
-                dni: patient.dni,
-                deuda: summary.deuda,
-                pagado: summary.pagado,
-                balance: summary.balance,
-                byProfessional: summary.byProfessional,
-                movementCount: summary.entries.length
-            };
-        })
-        .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function getPatientProfessionalAccountRows() {
-    return getAccessiblePatients()
-        .flatMap((patient) => {
-            const summary = getPatientCurrentAccountSummary(patient.id);
-            if (!summary.byProfessional.length) {
-                return [{
-                    patientId: patient.id,
-                    name: patient.name,
-                    dni: patient.dni,
-                    professionalId: null,
-                    professionalName: 'Sin movimientos',
-                    deuda: 0,
-                    pagado: 0,
-                    balance: 0
-                }];
-            }
-
-            return summary.byProfessional.map((item) => ({
-                patientId: patient.id,
-                name: patient.name,
-                dni: patient.dni,
-                professionalId: item.professionalId,
-                professionalName: item.professionalName,
-                deuda: item.deuda,
-                pagado: item.pagado,
-                balance: item.balance
-            }));
-        })
-        .sort((a, b) => {
-            const byPatient = a.name.localeCompare(b.name);
-            if (byPatient !== 0) return byPatient;
-            return a.professionalName.localeCompare(b.professionalName);
-        });
-}
-
 window.openPatientBilling = async function(patientId) {
     if (!canViewPatientBillingUi() || !canAccessPatient(patientId)) {
         showAlert('No tienes permisos para acceder a la cuenta corriente de este paciente.', { title: 'Facturación', variant: 'error' });
@@ -3663,92 +3501,6 @@ window.clearPatientBillingFilter = async function() {
     state.billingSubView = 'accounts';
     await loadView('billing', 'Cuentas Corrientes', { skipUnsavedCheck: true });
 };
-
-function getAccessibleProfessionalIds() {
-    const allProfs = DB.get('professionals');
-    if (!state.user) return [];
-    if (isSuperadmin()) return allProfs.map(p => p.id);
-
-    // Admin (con o sin rol profesional) ve todos los profesionales
-    // Solo podrá editar su propio horario, pero puede verlos todos
-    if (state.user.roles.includes('admin')) return allProfs.map(p => p.id);
-
-    const explicitAllowed = Array.isArray(state.user.allowedProfessionals) ? state.user.allowedProfessionals : [];
-
-    if (isProfessionalUser()) {
-        if (explicitAllowed.length > 0) return explicitAllowed;
-        return allProfs
-            .filter(p => p.name === state.user.name || (p.email && p.email === state.user.email))
-            .map(p => p.id);
-    }
-
-    if (explicitAllowed.length > 0) return explicitAllowed;
-
-    return allProfs.map(p => p.id);
-}
-
-function canAccessProfessional(profId) {
-    return getAccessibleProfessionalIds().includes(parseInt(profId));
-}
-
-function getAccessibleProfessionals() {
-    const allowedIds = new Set(getAccessibleProfessionalIds());
-    return DB.get('professionals').filter(p => allowedIds.has(p.id));
-}
-
-function getAccessibleAppointments() {
-    const allowedIds = new Set(getAccessibleProfessionalIds());
-    return DB.get('appointments').filter(apt => allowedIds.has(apt.professionalId));
-}
-
-function getAccessiblePatientIds() {
-    // Los pacientes pertenecen a toda la clínica — todos los roles ven todos los pacientes
-    return DB.get('patients').map(p => p.id);
-}
-
-function canAccessPatient(patientId) {
-    return getAccessiblePatientIds().includes(parseInt(patientId));
-}
-
-function getAccessiblePatients() {
-    const allowedIds = new Set(getAccessiblePatientIds());
-    return DB.get('patients').filter(p => allowedIds.has(p.id));
-}
-
-function canEditClinicalHistoryUi() {
-    if (!state.user) return false;
-    return state.user.roles.includes('professional') || state.user.roles.includes('superadmin');
-}
-
-function canViewClinicalHistoryUi() {
-    if (!state.user) return false;
-    return state.user.roles.includes('professional') || state.user.roles.includes('superadmin');
-}
-
-function getCurrentOdontoProfessionalId() {
-    // Superadmin o usuario con múltiples profesionales en scope: usa el selector
-    if (isSuperadmin() || (state.user?.allowedProfessionals || []).length > 1) {
-        return state.clinicalOdontoProfessionalId || null;
-    }
-    // Vínculo directo (Professional.userId = user.id)
-    if (state.user?.assignedProfessionalId) return state.user.assignedProfessionalId;
-    // Fallback: exactamente un profesional en el scope (mismo criterio que el backend)
-    const scoped = state.user?.allowedProfessionals || [];
-    if (scoped.length === 1) return scoped[0];
-    return null;
-}
-
-function isBlockingAppointmentStatus(status = '') {
-    const normalized = normalizeAppointmentStatus(status);
-    return normalized !== 'cancelled' && normalized !== 'rescheduled';
-}
-
-function normalizeAppointmentStatus(status = '') {
-    if (status === 'pending') return 'not_sent';
-    if (status === 'in progress') return 'sent';
-    if (status === 'reprogramado') return 'rescheduled';
-    return status || 'not_sent';
-}
 
 function getAppointmentStatusMeta(status) {
     const normalized = normalizeAppointmentStatus(status);
@@ -3874,14 +3626,6 @@ window.cyclePresence = function(aptId) {
     }
 };
 // ──────────────────────────────────────────────────────────────────────────
-
-function canManageAppointmentStatusUi() {
-    return !!state.user && state.user.roles.some(r => ['superadmin', 'secretary'].includes(r));
-}
-
-function canSendAppointmentWhatsappUi() {
-    return !!state.user && state.user.roles.some(r => ['superadmin', 'secretary'].includes(r));
-}
 
 window.updateAppointmentStatus = async function(aptId, nextStatus) {
     if (!canManageAppointmentStatusUi()) {
@@ -5907,10 +5651,6 @@ function renderAppointmentsCompact(professionals, allApts, currentDate, canEdit)
             <div class="cal-mobile-sections">${sectionsHtml}</div>
         </div>
     `;
-}
-
-function canEditCalendar() {
-    return state.user?.roles?.some(r => ['secretary', 'superadmin', 'admin'].includes(r)) ?? false;
 }
 
 // ── Acciones de turno: toggle al hacer clic ────────────────────────────────
