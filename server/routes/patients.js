@@ -3,106 +3,25 @@ const express = require("express");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
+const { parseId } = require("../lib/parse-id");
 const {
   canManagePatients,
   canEditPatient,
   canDeletePatient,
 } = require("../lib/permissions");
 const { sensitiveLimiter } = require("../middleware/rate-limit");
+const {
+  normalizeDni,
+  normalizePatientName,
+  serializePatient,
+  getPatientPayload,
+  validatePatientUniqueness,
+  PATIENT_INCLUDE,
+} = require("../services/patient.service");
 
 const router = express.Router();
 
-function normalizeDni(value = "") {
-  return String(value).replace(/\D/g, "");
-}
-
-function normalizePatientName(value = "") {
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
-}
-
-function serializePatient(patient) {
-  return {
-    id: patient.id,
-    fullName: patient.fullName,
-    normalizedName: patient.normalizedName,
-    dni: patient.dni,
-    birthDate: patient.birthDate,
-    phone: patient.phone,
-    email: patient.email,
-    address: patient.address,
-    insuranceName: patient.insuranceName,
-    insurancePlan: patient.insurancePlan,
-    credentialNumber: patient.credentialNumber,
-    chartNumber: patient.chartNumber,
-    active: patient.active,
-    createdAt: patient.createdAt,
-    updatedAt: patient.updatedAt,
-    stats: {
-      appointments: patient._count?.appointments || 0,
-      treatments: patient._count?.treatments || 0,
-      images: patient._count?.clinicalImages || 0,
-    },
-  };
-}
-
-function getPatientPayload(body = {}) {
-  return {
-    fullName: String(body.fullName || "").trim(),
-    dni: normalizeDni(body.dni || ""),
-    birthDate: (() => { if (!body.birthDate) return null; const d = new Date(body.birthDate); return isNaN(d.getTime()) ? null : d; })(),
-    phone: body.phone ? String(body.phone).trim() : null,
-    email: body.email ? String(body.email).trim().toLowerCase() : null,
-    address: body.address ? String(body.address).trim() : null,
-    insuranceName: body.insuranceName ? String(body.insuranceName).trim() : null,
-    insurancePlan: body.insurancePlan ? String(body.insurancePlan).trim() : null,
-    credentialNumber: body.credentialNumber ? String(body.credentialNumber).trim() : null,
-    chartNumber: body.chartNumber ? String(body.chartNumber).trim() : null,
-    active: body.active !== undefined ? Boolean(body.active) : true,
-    summaryNotes: body.summaryNotes ? String(body.summaryNotes).trim() : null,
-    allergies: body.allergies ? String(body.allergies).trim() : null,
-    medicalNotes: body.medicalNotes ? String(body.medicalNotes).trim() : null,
-  };
-}
-
-async function validatePatientUniqueness(prisma, payload, clinicId, currentPatientId = null) {
-  const conflicts = [];
-
-  const existingByDni = await prisma.patient.findFirst({
-    where: {
-      dni: payload.dni,
-      clinicId,
-      deletedAt: null,
-      ...(currentPatientId ? { id: { not: currentPatientId } } : {}),
-    },
-    select: { id: true, fullName: true, dni: true },
-  });
-
-  if (existingByDni) {
-    conflicts.push(`Ya existe un paciente con el DNI ${existingByDni.dni}.`);
-  }
-
-  const existingByName = await prisma.patient.findFirst({
-    where: {
-      normalizedName: normalizePatientName(payload.fullName),
-      clinicId,
-      deletedAt: null,
-      ...(currentPatientId ? { id: { not: currentPatientId } } : {}),
-    },
-    select: { id: true, fullName: true },
-  });
-
-  if (existingByName) {
-    conflicts.push(`Ya existe un paciente con el nombre ${existingByName.fullName}.`);
-  }
-
-  return conflicts;
-}
-
+// ── GET / ─────────────────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -126,96 +45,57 @@ router.get("/", requireAuth, async (req, res) => {
         ],
       },
       orderBy: [{ fullName: "asc" }],
-      include: {
-        _count: {
-          select: {
-            appointments: true,
-            treatments: true,
-            clinicalImages: true,
-          },
-        },
-      },
+      include: PATIENT_INCLUDE,
     });
 
-    return res.json({
-      ok: true,
-      patients: patients.map(serializePatient),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      error: "No se pudieron listar los pacientes.",
-    });
+    return res.json({ ok: true, patients: patients.map(serializePatient) });
+  } catch (_error) {
+    return res.status(500).json({ ok: false, error: "No se pudieron listar los pacientes." });
   }
 });
 
+// ── GET /:id ──────────────────────────────────────────────────────────────────
 router.get("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
-    const patientId = Number(req.params.id);
+    const patientId = parseId(req.params.id);
+    if (!patientId) return res.status(400).json({ ok: false, error: "ID de paciente inválido." });
 
     const patient = await prisma.patient.findFirst({
       where: {
         id: patientId,
         ...buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
-      include: {
-        _count: {
-          select: {
-            appointments: true,
-            treatments: true,
-            clinicalImages: true,
-          },
-        },
-      },
+      include: PATIENT_INCLUDE,
     });
 
     if (!patient) {
-      return res.status(404).json({
-        ok: false,
-        error: "Paciente no encontrado o sin acceso.",
-      });
+      return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
     }
 
-    return res.json({
-      ok: true,
-      patient: serializePatient(patient),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      error: "No se pudo obtener el paciente.",
-    });
+    return res.json({ ok: true, patient: serializePatient(patient) });
+  } catch (_error) {
+    return res.status(500).json({ ok: false, error: "No se pudo obtener el paciente." });
   }
 });
 
+// ── POST / ────────────────────────────────────────────────────────────────────
 router.post("/", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     if (!canManagePatients(req.permissions)) {
-      return res.status(403).json({
-        ok: false,
-        error: "No tenes permisos para crear pacientes.",
-      });
+      return res.status(403).json({ ok: false, error: "No tenes permisos para crear pacientes." });
     }
 
     const payload = getPatientPayload(req.body);
 
     if (!payload.fullName || !payload.dni) {
-      return res.status(400).json({
-        ok: false,
-        error: "Nombre completo y DNI son obligatorios.",
-      });
+      return res.status(400).json({ ok: false, error: "Nombre completo y DNI son obligatorios." });
     }
 
     const conflicts = await validatePatientUniqueness(prisma, payload, req.user.clinicId);
-
     if (conflicts.length > 0) {
-      return res.status(409).json({
-        ok: false,
-        error: conflicts[0],
-        conflicts,
-      });
+      return res.status(409).json({ ok: false, error: conflicts[0], conflicts });
     }
 
     const patient = await prisma.patient.create({
@@ -235,30 +115,16 @@ router.post("/", requireAuth, async (req, res) => {
         active: payload.active,
         deletedAt: null,
       },
-      include: {
-        _count: {
-          select: {
-            appointments: true,
-            treatments: true,
-            clinicalImages: true,
-          },
-        },
-      },
+      include: PATIENT_INCLUDE,
     });
 
-    return res.status(201).json({
-      ok: true,
-      patient: serializePatient(patient),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      error: "No se pudo crear el paciente.",
-    });
+    return res.status(201).json({ ok: true, patient: serializePatient(patient) });
+  } catch (_error) {
+    return res.status(500).json({ ok: false, error: "No se pudo crear el paciente." });
   }
 });
 
-// ── POST /api/patients/import ─────────────────────────────────────────────────
+// ── POST /import ──────────────────────────────────────────────────────────────
 router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
@@ -276,12 +142,15 @@ router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
 
     const clinicId = req.user.clinicId;
 
-    // Traer pacientes existentes (incluye soft-deleted para respetar unique constraint)
     const existingPatients = await prisma.patient.findMany({
       where: { clinicId },
-      select: { id: true, dni: true, phone: true, email: true, address: true, birthDate: true, insuranceName: true, insurancePlan: true, credentialNumber: true, deletedAt: true },
+      select: {
+        id: true, dni: true, phone: true, email: true, address: true,
+        birthDate: true, insuranceName: true, insurancePlan: true,
+        credentialNumber: true, deletedAt: true,
+      },
     });
-    const existingMap = new Map(existingPatients.map(p => [p.dni, p]));
+    const existingMap = new Map(existingPatients.map((p) => [p.dni, p]));
 
     const created = [];
     const updated = [];
@@ -292,41 +161,30 @@ router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
       const row = rows[i];
       const payload = getPatientPayload(row);
 
-      if (!payload.fullName) {
-        errors.push({ row: i + 1, reason: "Nombre vacío" });
-        continue;
-      }
-      if (!payload.dni) {
-        errors.push({ row: i + 1, name: payload.fullName, reason: "DNI vacío o inválido" });
-        continue;
-      }
-      if (!payload.phone) {
-        errors.push({ row: i + 1, name: payload.fullName, reason: "Teléfono vacío" });
-        continue;
-      }
+      if (!payload.fullName) { errors.push({ row: i + 1, reason: "Nombre vacío" }); continue; }
+      if (!payload.dni)      { errors.push({ row: i + 1, name: payload.fullName, reason: "DNI vacío o inválido" }); continue; }
+      if (!payload.phone)    { errors.push({ row: i + 1, name: payload.fullName, reason: "Teléfono vacío" }); continue; }
 
       const existing = existingMap.get(payload.dni);
 
       if (existing) {
         if (existing.deletedAt) {
-          // Paciente eliminado — restaurar y completar con datos del Excel
           const restore = {
-            deletedAt: null,
-            active:    true,
-            phone:           payload.phone           || existing.phone,
-            email:           payload.email           || existing.email,
-            address:         payload.address         || existing.address,
-            birthDate:       payload.birthDate       || existing.birthDate,
-            insuranceName:   payload.insuranceName   || existing.insuranceName,
-            insurancePlan:   payload.insurancePlan   || existing.insurancePlan,
+            deletedAt: null, active: true,
+            phone:            payload.phone            || existing.phone,
+            email:            payload.email            || existing.email,
+            address:          payload.address          || existing.address,
+            birthDate:        payload.birthDate        || existing.birthDate,
+            insuranceName:    payload.insuranceName    || existing.insuranceName,
+            insurancePlan:    payload.insurancePlan    || existing.insurancePlan,
             credentialNumber: payload.credentialNumber || existing.credentialNumber,
           };
           await prisma.patient.update({ where: { id: existing.id }, data: restore });
-          updated.push({ id: existing.id, name: payload.fullName, dni: payload.dni, fields: ['restaurado'] });
+          updated.push({ id: existing.id, name: payload.fullName, dni: payload.dni, fields: ["restaurado"] });
           continue;
         }
-        // Paciente activo — completar campos vacíos si el Excel los trae
-        const fillable = ['phone', 'email', 'address', 'birthDate', 'insuranceName', 'insurancePlan', 'credentialNumber'];
+
+        const fillable = ["phone", "email", "address", "birthDate", "insuranceName", "insurancePlan", "credentialNumber"];
         const patch = {};
         for (const field of fillable) {
           if (!existing[field] && payload[field]) patch[field] = payload[field];
@@ -344,25 +202,25 @@ router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
         const patient = await prisma.patient.create({
           data: {
             clinicId,
-            fullName:        payload.fullName,
-            normalizedName:  normalizePatientName(payload.fullName),
-            dni:             payload.dni,
-            birthDate:       payload.birthDate,
-            phone:           payload.phone,
-            email:           payload.email,
-            address:         payload.address,
-            insuranceName:   payload.insuranceName,
-            insurancePlan:   payload.insurancePlan,
+            fullName:         payload.fullName,
+            normalizedName:   normalizePatientName(payload.fullName),
+            dni:              payload.dni,
+            birthDate:        payload.birthDate,
+            phone:            payload.phone,
+            email:            payload.email,
+            address:          payload.address,
+            insuranceName:    payload.insuranceName,
+            insurancePlan:    payload.insurancePlan,
             credentialNumber: payload.credentialNumber,
-            chartNumber:     payload.chartNumber,
-            active:          true,
-            deletedAt:       null,
+            chartNumber:      payload.chartNumber,
+            active:           true,
+            deletedAt:        null,
           },
         });
         existingMap.set(payload.dni, patient);
         created.push({ id: patient.id, name: patient.fullName, dni: patient.dni });
       } catch (err) {
-        if (err.code === 'P2002') {
+        if (err.code === "P2002") {
           skipped.push({ row: i + 1, name: payload.fullName, dni: payload.dni, reason: "DNI ya existe (constraint)" });
         } else {
           errors.push({ row: i + 1, name: payload.fullName, reason: err.message });
@@ -370,24 +228,29 @@ router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
       }
     }
 
-    return res.status(201).json({ ok: true, created: created.length, updated: updated.length, skipped: skipped.length, errors: errors.length, detail: { created, updated, skipped, errors } });
+    return res.status(201).json({
+      ok: true,
+      created: created.length, updated: updated.length,
+      skipped: skipped.length, errors: errors.length,
+      detail: { created, updated, skipped, errors },
+    });
   } catch (error) {
     console.error("[patients/import]", error);
     return res.status(500).json({ ok: false, error: "No se pudo importar los pacientes." });
   }
 });
 
+// ── PUT /:id ──────────────────────────────────────────────────────────────────
 router.put("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     if (!canEditPatient(req.permissions)) {
-      return res.status(403).json({
-        ok: false,
-        error: "No tenes permisos para editar pacientes.",
-      });
+      return res.status(403).json({ ok: false, error: "No tenes permisos para editar pacientes." });
     }
 
-    const patientId = Number(req.params.id);
+    const patientId = parseId(req.params.id);
+    if (!patientId) return res.status(400).json({ ok: false, error: "ID de paciente inválido." });
+
     const existingPatient = await prisma.patient.findFirst({
       where: {
         id: patientId,
@@ -397,83 +260,57 @@ router.put("/:id", requireAuth, async (req, res) => {
     });
 
     if (!existingPatient) {
-      return res.status(404).json({
-        ok: false,
-        error: "Paciente no encontrado o sin acceso.",
-      });
+      return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
     }
 
     const payload = getPatientPayload(req.body);
 
     if (!payload.fullName || !payload.dni) {
-      return res.status(400).json({
-        ok: false,
-        error: "Nombre completo y DNI son obligatorios.",
-      });
+      return res.status(400).json({ ok: false, error: "Nombre completo y DNI son obligatorios." });
     }
 
     const conflicts = await validatePatientUniqueness(prisma, payload, req.user.clinicId, patientId);
-
     if (conflicts.length > 0) {
-      return res.status(409).json({
-        ok: false,
-        error: conflicts[0],
-        conflicts,
-      });
+      return res.status(409).json({ ok: false, error: conflicts[0], conflicts });
     }
 
     const patient = await prisma.patient.update({
       where: { id: patientId },
       data: {
-        fullName: payload.fullName,
-        normalizedName: normalizePatientName(payload.fullName),
-        dni: payload.dni,
-        birthDate: payload.birthDate,
-        phone: payload.phone,
-        email: payload.email,
-        address: payload.address,
-        insuranceName: payload.insuranceName,
-        insurancePlan: payload.insurancePlan,
+        fullName:         payload.fullName,
+        normalizedName:   normalizePatientName(payload.fullName),
+        dni:              payload.dni,
+        birthDate:        payload.birthDate,
+        phone:            payload.phone,
+        email:            payload.email,
+        address:          payload.address,
+        insuranceName:    payload.insuranceName,
+        insurancePlan:    payload.insurancePlan,
         credentialNumber: payload.credentialNumber,
-        chartNumber: payload.chartNumber,
-        active: payload.active,
-        deletedAt: null,
+        chartNumber:      payload.chartNumber,
+        active:           payload.active,
+        deletedAt:        null,
       },
-      include: {
-        _count: {
-          select: {
-            appointments: true,
-            treatments: true,
-            clinicalImages: true,
-          },
-        },
-      },
+      include: PATIENT_INCLUDE,
     });
 
-    return res.json({
-      ok: true,
-      patient: serializePatient(patient),
-    });
+    return res.json({ ok: true, patient: serializePatient(patient) });
   } catch (error) {
     console.error("[patients PUT]", error);
-    return res.status(500).json({
-      ok: false,
-      error: "No se pudo actualizar el paciente.",
-    });
+    return res.status(500).json({ ok: false, error: "No se pudo actualizar el paciente." });
   }
 });
 
+// ── DELETE /:id ───────────────────────────────────────────────────────────────
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     if (!canDeletePatient(req.permissions)) {
-      return res.status(403).json({
-        ok: false,
-        error: "Solo el superadmin puede eliminar pacientes.",
-      });
+      return res.status(403).json({ ok: false, error: "Solo el superadmin puede eliminar pacientes." });
     }
 
-    const patientId = Number(req.params.id);
+    const patientId = parseId(req.params.id);
+    if (!patientId) return res.status(400).json({ ok: false, error: "ID de paciente inválido." });
 
     const existingPatient = await prisma.patient.findFirst({
       where: { id: patientId, clinicId: req.user.clinicId },
@@ -481,38 +318,23 @@ router.delete("/:id", requireAuth, async (req, res) => {
     });
 
     if (!existingPatient || existingPatient.deletedAt) {
-      return res.status(404).json({
-        ok: false,
-        error: "Paciente no encontrado.",
-      });
+      return res.status(404).json({ ok: false, error: "Paciente no encontrado." });
     }
 
     await prisma.patient.update({
       where: { id: patientId },
-      data: {
-        active: false,
-        deletedAt: new Date(),
-      },
+      data: { active: false, deletedAt: new Date() },
     });
 
-    await logDeleteAudit(prisma, req.user.id, "Patient", patientId, {
-      patient: existingPatient,
-    });
+    await logDeleteAudit(prisma, req.user.id, "Patient", patientId, { patient: existingPatient });
 
-    return res.json({
-      ok: true,
-      message: "Paciente eliminado correctamente.",
-    });
+    return res.json({ ok: true, message: "Paciente eliminado correctamente." });
   } catch (error) {
     const message =
       error?.code === "P2003"
         ? "No se puede eliminar el paciente porque tiene registros relacionados."
         : "No se pudo eliminar el paciente.";
-
-    return res.status(400).json({
-      ok: false,
-      error: message,
-    });
+    return res.status(400).json({ ok: false, error: message });
   }
 });
 

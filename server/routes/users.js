@@ -5,35 +5,9 @@ const { logDeleteAudit } = require("../lib/audit");
 const { normalizeEmail, serializeUser, buildPermissionSummary } = require("../lib/auth");
 const { requireAuth, requireAnyRole } = require("../middleware/auth");
 const { checkAdminUserLimit } = require("../lib/plan-limits");
+const { ROLE_LABELS, normalizeRequestedRoles } = require("../services/user.service");
 
 const router = express.Router();
-
-const ROLE_LABELS = {
-  superadmin: "Superadmin",
-  admin: "Administrador",
-  secretary: "Secretario",
-  professional: "Profesional",
-};
-
-const ROLE_ALIASES = {
-  superadmin: "superadmin",
-  administrador: "admin",
-  admin: "admin",
-  secretary: "secretary",
-  secretario: "secretary",
-  professional: "professional",
-  profesional: "professional",
-};
-
-function normalizeRequestedRoles(rawRoles = []) {
-  return Array.from(
-    new Set(
-      rawRoles
-        .map((role) => ROLE_ALIASES[String(role || "").trim().toLowerCase()])
-        .filter(Boolean),
-    ),
-  );
-}
 
 router.get("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (req, res) => {
   try {
@@ -208,13 +182,9 @@ router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (re
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-
-    // Sincronizar contraseña compartida: si el email ya existe en otras clínicas,
-    // actualizar el hash allí también para mantener una única contraseña por identidad.
-    await require("../lib/prisma").user.updateMany({
-      where: { email, deletedAt: null },
-      data: { passwordHash },
-    });
+    // SEGURIDAD: No sincronizamos el hash cross-clínica al CREAR un usuario.
+    // Un admin de clínica A no debe poder sobrescribir la contraseña de un usuario
+    // que también existe en clínica B. Cada clínica gestiona sus propias credenciales.
 
     const user = await prisma.user.create({
       data: {
@@ -300,12 +270,17 @@ router.post("/", requireAuth, requireAnyRole(["superadmin", "admin"]), async (re
   }
 });
 
-router.put("/:id", requireAuth, requireAnyRole(["superadmin", "admin"]), async (req, res) => {
+router.put("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     const userId = Number(req.params.id);
     if (!Number.isInteger(userId)) {
       return res.status(400).json({ ok: false, error: "Usuario inválido." });
+    }
+
+    const isManager = req.permissions?.roles?.some(r => ["superadmin", "admin"].includes(r));
+    if (!isManager && userId !== req.user.id) {
+      return res.status(403).json({ ok: false, error: "Solo podés editar tu propio usuario." });
     }
 
     const existingUser = await prisma.user.findFirst({
@@ -363,11 +338,10 @@ router.put("/:id", requireAuth, requireAnyRole(["superadmin", "admin"]), async (
     const updateData = { fullName, email };
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
-      // Sincronizar contraseña compartida a todas las clínicas de este email
-      await require("../lib/prisma").user.updateMany({
-        where: { email, deletedAt: null, NOT: { id: userId } },
-        data: { passwordHash: updateData.passwordHash },
-      });
+      // SEGURIDAD: No sincronizamos el hash cross-clínica al editar un usuario.
+      // El cambio de contraseña aplica solo al usuario de esta clínica.
+      // (La sincronización anterior permitía a un admin de clínica A sobrescribir
+      //  la contraseña de un usuario de clínica B sin su consentimiento.)
     }
 
     const updatedUser = await prisma.user.update({
