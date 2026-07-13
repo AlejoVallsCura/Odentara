@@ -25,10 +25,10 @@ router.get("/clinics", requireAuth, requirePlatformAdmin, async (req, res) => {
       include: {
         _count: {
           select: {
-            users:         true,
-            professionals: true,
-            patients:      true,
-            appointments:  true,
+            users:         { where: { deletedAt: null, active: true } },
+            professionals: { where: { deletedAt: null } },
+            patients:      { where: { deletedAt: null } },
+            appointments:  { where: { deletedAt: null } },
           },
         },
       },
@@ -51,7 +51,7 @@ router.get("/stats", requireAuth, requirePlatformAdmin, async (req, res) => {
     const [totalClinics, activeClinics, totalUsers, totalPatients, totalProfessionals] = await Promise.all([
       prisma.clinic.count(),
       prisma.clinic.count({ where: { active: true } }),
-      prisma.user.count({ where: { isPlatformAdmin: false } }),
+      prisma.user.count({ where: { isPlatformAdmin: false, deletedAt: null, active: true } }),
       prisma.patient.count({ where: { deletedAt: null } }),
       prisma.professional.count({ where: { deletedAt: null } }),
     ]);
@@ -101,7 +101,7 @@ router.post("/clinics", requireAuth, requirePlatformAdmin, async (req, res) => {
     // Validar datos del superadmin si se proveen
     const createAdmin = adminName && adminEmail && adminPassword;
     if (createAdmin) {
-      const existingUser = await prisma.user.findUnique({ where: { email: String(adminEmail).trim().toLowerCase() } });
+      const existingUser = await prisma.user.findFirst({ where: { email: String(adminEmail).trim().toLowerCase(), deletedAt: null } });
       if (existingUser) {
         return res.status(409).json({ ok: false, error: "Ya existe un usuario con ese email de administrador." });
       }
@@ -264,7 +264,7 @@ router.post("/clinics/:id/admin", requireAuth, requirePlatformAdmin, async (req,
     const clinic = await prisma.clinic.findUnique({ where: { id: clinicId } });
     if (!clinic) return res.status(404).json({ ok: false, error: "Clínica no encontrada." });
 
-    const existingUser = await prisma.user.findUnique({ where: { email: String(email).trim().toLowerCase() } });
+    const existingUser = await prisma.user.findFirst({ where: { email: String(email).trim().toLowerCase(), deletedAt: null } });
     if (existingUser) return res.status(409).json({ ok: false, error: "Ya existe un usuario con ese email." });
 
     // Obtener el rol superadmin

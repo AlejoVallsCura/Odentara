@@ -97,6 +97,7 @@ router.post("/", requireAuth, async (req, res) => {
     const email     = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
     const phone     = req.body.phone ? String(req.body.phone).trim() : null;
     const color     = normalizeColor(req.body.color);
+    const licenseNumber = req.body.licenseNumber ? String(req.body.licenseNumber).trim().slice(0, 50) : null;
     const active    = req.body.active !== undefined ? Boolean(req.body.active) : true;
     const schedules  = normalizeSchedules(req.body.schedules || []);
     const exceptions = normalizeExceptions(req.body.exceptions || []);
@@ -131,7 +132,7 @@ router.post("/", requireAuth, async (req, res) => {
         return tx.professional.create({
           data: {
             clinicId: req.user.clinicId,
-            fullName, specialty, email, phone, color, active,
+            fullName, specialty, email, phone, color, licenseNumber, active,
             deletedAt: null,
             schedules:  schedules.length  > 0 ? { create: schedules  } : undefined,
             scheduleExceptions: exceptions.length > 0 ? { create: exceptions } : undefined,
@@ -181,6 +182,11 @@ router.put("/:id", requireAuth, async (req, res) => {
     const email     = canEditCore ? (req.body.email ? String(req.body.email).trim().toLowerCase() : null) : existing.email;
     const phone     = canEditCore ? (req.body.phone ? String(req.body.phone).trim() : null) : existing.phone;
     const color     = canEditCore ? normalizeColor(req.body.color) : existing.color;
+    // Solo tocar la matrícula si el campo viene en el body — otros callers
+    // (cambio de color, horarios) hacen PUT sin licenseNumber y no deben borrarla
+    const licenseNumber = canEditCore && req.body.licenseNumber !== undefined
+      ? (req.body.licenseNumber ? String(req.body.licenseNumber).trim().slice(0, 50) : null)
+      : existing.licenseNumber;
     const active    = canEditCore && req.body.active !== undefined ? Boolean(req.body.active) : existing.active;
     const hasSchedules  = Array.isArray(req.body.schedules);
     const hasExceptions = Array.isArray(req.body.exceptions);
@@ -203,7 +209,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     const professional = await prisma.professional.update({
       where: { id: professionalId },
       data: {
-        fullName, specialty, email, phone, color, active,
+        fullName, specialty, email, phone, color, licenseNumber, active,
         deletedAt: null,
         ...(hasSchedules  ? { schedules:          { deleteMany: {}, create: schedules  } } : {}),
         ...(hasExceptions ? { scheduleExceptions: { deleteMany: {}, create: exceptions } } : {}),

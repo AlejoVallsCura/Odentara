@@ -80,6 +80,7 @@ function mapApiProfessionalToLegacy(professional = {}) {
         id:        professional.id,
         name:      professional.fullName,
         specialty: professional.specialty || '',
+        matricula: professional.licenseNumber || '',
         email:     professional.email || '',
         phone:     professional.phone || '',
         color:     professional.color || '#6366f1',

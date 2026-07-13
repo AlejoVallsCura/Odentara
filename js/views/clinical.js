@@ -257,11 +257,13 @@ async function syncPatientClinicalData(patientId, professionalId) {
 
     const profQ = professionalId ? `&professionalId=${professionalId}` : '';
     const profQRecord = professionalId ? `?professionalId=${professionalId}` : '';
-    const [patientRes, treatmentsRes, imagesRes, clinicalRecordRes] = await Promise.all([
+    const [patientRes, treatmentsRes, imagesRes, clinicalRecordRes, prescriptionsRes, budgetsRes] = await Promise.all([
         apiFetch(`/patients/${patientId}`),
         apiFetch(`/treatments?patientId=${patientId}${profQ}`),
         apiFetch(`/clinical-images?patientId=${patientId}${profQ}`),
-        apiFetch(`/clinical-records/${patientId}${profQRecord}`)
+        apiFetch(`/clinical-records/${patientId}${profQRecord}`),
+        apiFetch(`/prescriptions?patientId=${patientId}`).catch(() => ({ prescriptions: [] })),
+        apiFetch(`/budgets?patientId=${patientId}`).catch(() => ({ budgets: [] }))
     ]);
 
     const mappedPatient = mapApiPatientToLegacy(patientRes.patient || {});
@@ -271,6 +273,8 @@ async function syncPatientClinicalData(patientId, professionalId) {
         odontograma: clinicalRecordEntriesToLegacyOdontogram(record?.odontogramEntries || []),
         treatments: (treatmentsRes.treatments || []).map(mapApiTreatmentToLegacy),
         clinicalImages: (imagesRes.images || []).map(mapApiClinicalImageToLegacy),
+        prescriptions: prescriptionsRes.prescriptions || [],
+        budgets: budgetsRes.budgets || [],
         notes: record?.summaryNotes || '',
         allergies: record?.allergies || '',
         medicalNotes: record?.medicalNotes || ''
@@ -284,6 +288,8 @@ async function syncPatientClinicalData(patientId, professionalId) {
 function getClinicalImagesForPatient(patientId) {
     const patient = getClinicalWorkingPatient(patientId);
     return ((patient?.clinicalImages) || [])
+        // El visor solo muestra imágenes reales — los PDF se abren en pestaña desde su card
+        .filter(item => item.mimeType !== 'application/pdf')
         .slice()
         .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 }
@@ -557,6 +563,10 @@ async function loadClinicalHistory(patientId, options = {}) {
             return;
         }
     }
+    // Al abrir un paciente distinto, arrancar siempre en la pestaña Clínico
+    if (state.currentPatientId !== patientId) {
+        state.clinicalActiveTab = 'clinico';
+    }
     state.currentView = 'patient-history';
     state.currentPatientId = patientId;
     pageTitle.innerText = 'Ficha Odontológica';
@@ -644,7 +654,7 @@ function enhanceClinicalPatientEditor(patientId) {
                 <strong class="text-gray-600 uppercase text-xs">Credencial</strong>
                 <input class="form-input" type="text" id="clinical-credencial" value="${patient.credencial || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
-            <div class="clinical-info-item clinical-info-item-compact">
+            <div class="clinical-info-item clinical-info-item-compact clinical-info-item-wide">
                 <strong class="text-gray-600 uppercase text-xs">Ficha N°</strong>
                 <input class="form-input" type="text" id="clinical-ficha-numero" value="${patient.fichaNumero || ''}" ${canEditClinical ? '' : 'disabled'}>
             </div>
@@ -802,6 +812,9 @@ function renderClinicalHistory(patientId) {
     const latestClinicalImage = clinicalImages[0];
     const canEditClinical = canEditClinicalHistoryUi();
     const draft = getClinicalDraft(patientId);
+    // Pestaña activa de la ficha — se conserva entre re-renders (ej: tras guardar un tratamiento)
+    const activeTab = state.clinicalActiveTab || 'clinico';
+    const hasAllergies = !!(patient.allergies && String(patient.allergies).trim());
 
     // Tratamientos filtrados por profesional seleccionado
     // Los tratamientos sin professionalId (null) se muestran para todos los profesionales
@@ -828,6 +841,7 @@ function renderClinicalHistory(patientId) {
                 </div>
             </div>
             <div class="text-right text-sm clinical-header-actions">
+                ${hasAllergies ? `<div class="clinical-allergy-badge" title="${escapeHtml(patient.allergies)}"><i class="fa-solid fa-triangle-exclamation"></i> Alergias: ${escapeHtml(patient.allergies)}</div>` : ''}
                 <div class="clinical-print-toolbar print-hidden">
                     <button type="button" class="btn btn-primary btn-sm" onclick="printClinicalHistory()">
                         <i class="fa-solid fa-print"></i> Imprimir Historia
@@ -850,6 +864,18 @@ function renderClinicalHistory(patientId) {
                 <div class="clinical-info-item col-span-full"><strong class="text-gray-600 uppercase text-xs">Domicilio</strong><div>${patient.domicilio || '-'}</div></div>
             </div>
 
+            <!-- PESTAÑAS DE LA FICHA -->
+            <div class="clinical-tabs print-hidden" role="tablist">
+                <button type="button" class="clinical-tab ${activeTab === 'clinico' ? 'is-active' : ''}" data-clinical-tab="clinico" onclick="switchClinicalTab('clinico')"><i class="fa-solid fa-tooth"></i> Clínico</button>
+                <button type="button" class="clinical-tab ${activeTab === 'tratamientos' ? 'is-active' : ''}" data-clinical-tab="tratamientos" onclick="switchClinicalTab('tratamientos')"><i class="fa-solid fa-clipboard-list"></i> Tratamientos</button>
+                <button type="button" class="clinical-tab ${activeTab === 'recetas' ? 'is-active' : ''}" data-clinical-tab="recetas" onclick="switchClinicalTab('recetas')"><i class="fa-solid fa-prescription"></i> Recetas</button>
+                <button type="button" class="clinical-tab ${activeTab === 'presupuestos' ? 'is-active' : ''}" data-clinical-tab="presupuestos" onclick="switchClinicalTab('presupuestos')"><i class="fa-solid fa-file-invoice-dollar"></i> Presupuestos</button>
+                <button type="button" class="clinical-tab ${activeTab === 'archivos' ? 'is-active' : ''}" data-clinical-tab="archivos" onclick="switchClinicalTab('archivos')"><i class="fa-solid fa-folder-open"></i> Archivos</button>
+            </div>
+
+            <div class="clinical-tab-panels">
+            <!-- PANEL: CLÍNICO -->
+            <div class="clinical-tab-panel ${activeTab === 'clinico' ? 'is-active' : ''}" data-tab="clinico">
             <!-- ODONTOGRAMA -->
             <div class="mb-10 clinical-odontogram-block">
                 <div class="odontogram-header mb-4 clinical-odontogram-section">
@@ -969,6 +995,15 @@ function renderClinicalHistory(patientId) {
                 ` : ''}
             </div>
 
+            <!-- OBSERVACIONES / ALERGIAS (dentro del panel Clínico) -->
+            <div class="mt-8 bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
+                <h3 class="font-bold text-yellow-800 mb-2 uppercase text-xs"><i class="fa-solid fa-notes-medical"></i> Observaciones Generales y Alergias</h3>
+                <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded" ${canEditClinical ? '' : 'disabled'}>${patient.notes || ''}</textarea>
+            </div>
+            </div><!-- /panel clinico -->
+
+            <!-- PANEL: TRATAMIENTOS -->
+            <div class="clinical-tab-panel ${activeTab === 'tratamientos' ? 'is-active' : ''}" data-tab="tratamientos">
             <!-- TRATAMIENTOS -->
             <div class="mb-6">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-3">
@@ -1024,6 +1059,116 @@ function renderClinicalHistory(patientId) {
                 </div>
             </div>
 
+            </div><!-- /panel tratamientos -->
+
+            <!-- PANEL: RECETAS -->
+            <div class="clinical-tab-panel ${activeTab === 'recetas' ? 'is-active' : ''}" data-tab="recetas">
+            <!-- RECETAS DIGITALES -->
+            <div class="mb-6 print-hidden">
+                <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-3">
+                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Recetas</h3>
+                    ${canEditClinical ? `<button class="btn btn-primary btn-sm whitespace-nowrap" onclick="openPrescriptionModal(${patientId})"><i class="fa-solid fa-prescription"></i> Nueva Receta</button>` : ''}
+                </div>
+                ${(patient.prescriptions || []).length ? `
+                <div class="table-container overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                    <table class="w-full text-left text-xs md:text-sm table-nowrap">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Fecha</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Profesional</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] col-hide-sm">Diagnóstico</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Rp</th>
+                                <th class="py-2.5 px-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${(patient.prescriptions || []).map(rx => `
+                                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                    <td class="py-2.5 px-3 text-gray-800 font-medium">${rx.issuedAt ? new Date(rx.issuedAt).toLocaleDateString('es-AR') : '-'}</td>
+                                    <td class="py-2.5 px-3 text-gray-600">${escapeHtml(rx.professional?.fullName || '-')}</td>
+                                    <td class="py-2.5 px-3 text-gray-500 col-hide-sm">${escapeHtml(rx.diagnosis || '-')}</td>
+                                    <td class="py-2.5 px-3 text-gray-600 max-w-xs" style="white-space:normal">${escapeHtml((rx.medications || '').split('\n')[0])}${(rx.medications || '').includes('\n') ? '…' : ''}</td>
+                                    <td class="py-2 px-2 text-right whitespace-nowrap">
+                                        <button class="btn btn-secondary btn-sm" onclick="printPrescription(${patientId}, ${rx.id})" title="Imprimir receta">
+                                            <i class="fa-solid fa-print"></i>
+                                        </button>
+                                        ${canEditClinical ? `
+                                        <button class="btn-ghost text-gray-300 hover:text-red-500 p-1 transition-colors rounded" onclick="deletePrescription(${patientId}, ${rx.id})" title="Anular receta">
+                                            <i class="fa-solid fa-trash-can text-xs"></i>
+                                        </button>` : ''}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>` : `
+                <div class="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-lg">
+                    <i class="fa-solid fa-prescription text-2xl opacity-30"></i>
+                    <p class="text-sm mt-1">No hay recetas emitidas</p>
+                </div>`}
+            </div>
+
+            </div><!-- /panel recetas -->
+
+            <!-- PANEL: PRESUPUESTOS -->
+            <div class="clinical-tab-panel ${activeTab === 'presupuestos' ? 'is-active' : ''}" data-tab="presupuestos">
+            <!-- PRESUPUESTOS DE TRATAMIENTO -->
+            <div class="mb-6 print-hidden">
+                <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-3">
+                    <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Presupuestos</h3>
+                    ${canEditClinical ? `<button class="btn btn-primary btn-sm whitespace-nowrap" onclick="openBudgetModal(${patientId})"><i class="fa-solid fa-file-invoice-dollar"></i> Nuevo Presupuesto</button>` : ''}
+                </div>
+                ${(patient.budgets || []).length ? `
+                <div class="table-container overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                    <table class="w-full text-left text-xs md:text-sm table-nowrap">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Fecha</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Título</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] col-hide-sm">Profesional</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] text-right">Total</th>
+                                <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Estado</th>
+                                <th class="py-2.5 px-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${(patient.budgets || []).map(b => `
+                                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                    <td class="py-2.5 px-3 text-gray-800 font-medium">${b.issuedAt ? new Date(b.issuedAt).toLocaleDateString('es-AR') : '-'}</td>
+                                    <td class="py-2.5 px-3 text-gray-700">${escapeHtml(b.title)}</td>
+                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${escapeHtml(b.professional?.fullName || '-')}</td>
+                                    <td class="py-2.5 px-3 text-right font-bold text-primary-700">$${Number(b.total).toLocaleString('es-AR')}</td>
+                                    <td class="py-2.5 px-3">${b.charged
+                                        ? '<span class="badge badge-success">Cargado en cta. cte.</span>'
+                                        : '<span class="badge badge-warning">Pendiente</span>'}</td>
+                                    <td class="py-2 px-2 text-right whitespace-nowrap">
+                                        <button class="btn btn-secondary btn-sm" onclick="printBudget(${patientId}, ${b.id})" title="Imprimir presupuesto">
+                                            <i class="fa-solid fa-print"></i>
+                                        </button>
+                                        ${!b.charged && canManagePatientBillingUi() ? `
+                                        <button class="btn btn-primary btn-sm" onclick="chargeBudget(${patientId}, ${b.id})" title="Cargar como deuda en cuenta corriente">
+                                            <i class="fa-solid fa-file-invoice-dollar"></i> Cargar deuda
+                                        </button>` : ''}
+                                        ${!b.charged && canEditClinical ? `
+                                        <button class="btn btn-secondary btn-sm" onclick="deleteBudget(${patientId}, ${b.id})" title="Eliminar presupuesto">
+                                            <i class="fa-solid fa-trash-can" style="font-size:0.9em"></i>
+                                        </button>` : ''}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>` : `
+                <div class="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-lg">
+                    <i class="fa-solid fa-file-invoice-dollar text-2xl opacity-30"></i>
+                    <p class="text-sm mt-1">No hay presupuestos</p>
+                </div>`}
+            </div>
+
+            </div><!-- /panel presupuestos -->
+
+            <!-- PANEL: ARCHIVOS -->
+            <div class="clinical-tab-panel ${activeTab === 'archivos' ? 'is-active' : ''}" data-tab="archivos">
             <div class="mb-4 print-hidden">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Archivos Clínicos</h3>
@@ -1053,8 +1198,8 @@ function renderClinicalHistory(patientId) {
                         const isPdf = image.mimeType === 'application/pdf';
                         const fileId = image.id ?? idx;
                         const deleteBtn = canEditClinical ? `
-                            <button type="button" class="clinical-image-action-btn clinical-image-action-delete" onclick="deleteClinicalImage(${patientId}, ${fileId})" aria-label="Eliminar archivo">
-                                <i class="fa-solid fa-trash"></i><span>Eliminar</span>
+                            <button type="button" class="clinical-image-action-btn clinical-image-action-delete clinical-image-action-icon-only" onclick="deleteClinicalImage(${patientId}, ${fileId})" aria-label="Eliminar archivo" title="Eliminar archivo">
+                                <i class="fa-solid fa-trash"></i>
                             </button>` : '';
                         if (isPdf) {
                             const name = escapeHtml(image.fileName || image.description || 'documento.pdf');
@@ -1108,11 +1253,8 @@ function renderClinicalHistory(patientId) {
                 </div>
             </div>
 
-            <!-- NOTAS -->
-            <div class="mt-8 bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
-                <h3 class="font-bold text-yellow-800 mb-2 uppercase text-xs"><i class="fa-solid fa-notes-medical"></i> Observaciones Generales y Alergias</h3>
-                <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded" ${canEditClinical ? '' : 'disabled'}>${patient.notes || ''}</textarea>
-            </div>
+            </div><!-- /panel archivos -->
+            </div><!-- /clinical-tab-panels -->
 
             ${canEditClinical ? `
             <div class="clinical-save-footer print-hidden">
@@ -1125,6 +1267,16 @@ function renderClinicalHistory(patientId) {
     </div>
     `;
 }
+
+window.switchClinicalTab = function(tab) {
+    state.clinicalActiveTab = tab;
+    document.querySelectorAll('.clinical-tab').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.clinicalTab === tab);
+    });
+    document.querySelectorAll('.clinical-tab-panel').forEach(panel => {
+        panel.classList.toggle('is-active', panel.dataset.tab === tab);
+    });
+};
 
 window.printClinicalHistory = function() {
     document.body.classList.add('printing-clinical-history');
@@ -1831,3 +1983,448 @@ function openClinicalPdfModal(patientId) {
 }
 
 
+
+// =============================================================================
+// RECETAS DIGITALES
+// =============================================================================
+
+function openPrescriptionModal(patientId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional y el superadmin pueden emitir recetas.', { title: 'Recetas', variant: 'error' });
+        return;
+    }
+
+    // Profesionales disponibles (mismo criterio que el selector del odontograma)
+    const scopedProfs = state.user?.allowedProfessionals || [];
+    const allProfs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
+    const profs = isSuperadmin() ? allProfs : allProfs.filter(p => scopedProfs.includes(p.id));
+    const defaultProfId = getCurrentOdontoProfessionalId() || profs[0]?.id || '';
+
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active">
+            <div class="modal-content modal-content-patient" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3>Nueva Receta</h3>
+                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
+                </div>
+                <form id="prescription-form">
+                    <div class="modal-body">
+                        <div class="input-group">
+                            <label>Profesional que emite</label>
+                            <select id="rx-professional" required>
+                                ${profs.map(p => `<option value="${p.id}" ${p.id === defaultProfId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Diagnóstico</label>
+                            <input type="text" id="rx-diagnosis" placeholder="Ej: Absceso periapical pieza 26">
+                        </div>
+                        <div class="input-group">
+                            <label>Rp: (un medicamento por línea)</label>
+                            <textarea id="rx-medications" rows="4" required placeholder="Amoxicilina 875mg comp. x 14 — 1 comp. cada 12hs&#10;Ibuprofeno 600mg comp. x 10 — 1 comp. cada 8hs si hay dolor"></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label>Indicaciones para el paciente</label>
+                            <textarea id="rx-instructions" rows="2" placeholder="Tomar con las comidas. Completar el tratamiento antibiótico."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-prescription"></i> Emitir Receta</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); }, { once: true });
+
+    document.getElementById('prescription-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            await withAppLoading('Emitiendo receta...', async () => {
+                await apiFetch('/prescriptions', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        patientId,
+                        professionalId: Number(document.getElementById('rx-professional').value),
+                        diagnosis: document.getElementById('rx-diagnosis').value,
+                        medications: document.getElementById('rx-medications').value,
+                        instructions: document.getElementById('rx-instructions').value
+                    })
+                });
+                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+            });
+            closeModal();
+            await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
+        } catch (error) {
+            showAlert(error.message || 'No se pudo emitir la receta.', { title: 'Recetas', variant: 'error' });
+        }
+    });
+}
+
+window.deletePrescription = async function(patientId, prescriptionId) {
+    if (!canEditClinicalHistoryUi()) return;
+    if (!await showConfirm('¿Anular esta receta? Quedará registrada en la auditoría.', { title: 'Anular receta', confirmText: 'Anular' })) return;
+    try {
+        await withAppLoading('Anulando receta...', async () => {
+            await apiFetch(`/prescriptions/${prescriptionId}`, { method: 'DELETE' });
+            await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+        });
+        await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
+    } catch (error) {
+        showAlert(error.message || 'No se pudo anular la receta.', { title: 'Recetas', variant: 'error' });
+    }
+};
+
+window.printPrescription = function(patientId, prescriptionId) {
+    const patient = getClinicalWorkingPatient(patientId);
+    const rx = (patient?.prescriptions || []).find(r => r.id === prescriptionId);
+    if (!rx) {
+        showAlert('Receta no encontrada.', { title: 'Recetas', variant: 'error' });
+        return;
+    }
+
+    const clinicName = getClinicDisplayName();
+    const issuedDate = rx.issuedAt ? new Date(rx.issuedAt).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+    const prof = rx.professional || {};
+    const pat = rx.patient || {};
+    const esc = escapeHtml;
+    const medsHtml = esc(rx.medications || '').split('\n').filter(Boolean).map(line => `<div class="rx-med">${line}</div>`).join('');
+
+    const w = window.open('', '_blank', 'width=800,height=900');
+    if (!w) {
+        showAlert('El navegador bloqueó la ventana de impresión. Habilitá los pop-ups para este sitio.', { title: 'Recetas', variant: 'warning' });
+        return;
+    }
+    w.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Receta - ${esc(pat.fullName || '')}</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; padding: 40px 48px; max-width: 720px; margin: 0 auto; }
+    .rx-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #1a1a1a; padding-bottom: 14px; }
+    .rx-clinic { font-size: 20px; font-weight: bold; letter-spacing: 0.5px; }
+    .rx-prof { font-size: 13px; margin-top: 4px; color: #333; }
+    .rx-date { font-size: 13px; text-align: right; }
+    .rx-patient { margin: 22px 0; font-size: 14px; line-height: 1.7; }
+    .rx-patient strong { display: inline-block; min-width: 110px; }
+    .rx-symbol { font-size: 34px; font-weight: bold; font-style: italic; margin: 18px 0 6px; }
+    .rx-med { font-size: 15px; padding: 7px 0 7px 26px; border-bottom: 1px dotted #bbb; }
+    .rx-diagnosis { margin-top: 20px; font-size: 13px; color: #333; }
+    .rx-instructions { margin-top: 14px; font-size: 13px; background: #f6f6f6; padding: 10px 14px; border-left: 3px solid #888; white-space: pre-wrap; }
+    .rx-footer { margin-top: 90px; display: flex; justify-content: flex-end; }
+    .rx-signature { text-align: center; width: 260px; }
+    .rx-signature-line { border-top: 1.5px solid #1a1a1a; padding-top: 6px; font-size: 12.5px; line-height: 1.6; }
+    @media print { body { padding: 20px 30px; } }
+</style>
+</head>
+<body>
+    <div class="rx-header">
+        <div>
+            <div class="rx-clinic">${esc(clinicName)}</div>
+            <div class="rx-prof">${esc(prof.fullName || '')}${prof.specialty ? ' — ' + esc(prof.specialty) : ''}<br>Matrícula: ${esc(prof.licenseNumber || '')}</div>
+        </div>
+        <div class="rx-date">Fecha: ${issuedDate}</div>
+    </div>
+    <div class="rx-patient">
+        <div><strong>Paciente:</strong> ${esc(pat.fullName || '')}</div>
+        <div><strong>DNI:</strong> ${esc(pat.dni || '-')}</div>
+        <div><strong>Obra Social:</strong> ${esc(pat.insuranceName || '-')}${pat.insurancePlan ? ' — ' + esc(pat.insurancePlan) : ''}</div>
+        ${pat.credentialNumber ? `<div><strong>Credencial:</strong> ${esc(pat.credentialNumber)}</div>` : ''}
+    </div>
+    <div class="rx-symbol">Rp/</div>
+    ${medsHtml}
+    ${rx.diagnosis ? `<div class="rx-diagnosis"><strong>Diagnóstico:</strong> ${esc(rx.diagnosis)}</div>` : ''}
+    ${rx.instructions ? `<div class="rx-instructions">${esc(rx.instructions)}</div>` : ''}
+    <div class="rx-footer">
+        <div class="rx-signature">
+            <div class="rx-signature-line">Firma y sello<br>${esc(prof.fullName || '')} — Mat. ${esc(prof.licenseNumber || '')}</div>
+        </div>
+    </div>
+    <scr` + `ipt>window.onload = () => { window.print(); };</scr` + `ipt>
+</body>
+</html>`);
+    w.document.close();
+};
+
+// =============================================================================
+// PRESUPUESTOS DE TRATAMIENTO
+// =============================================================================
+
+function _budgetItemRowHtml() {
+    return `
+    <div class="budget-item-row" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+        <input type="text" class="bg-item-desc" placeholder="Práctica / tratamiento" style="flex:3;min-width:0;" required>
+        <input type="number" class="bg-item-qty" value="1" min="1" title="Cantidad" style="flex:0 0 64px;">
+        <input type="number" class="bg-item-price" placeholder="Precio" min="0" step="0.01" title="Precio unitario" style="flex:0 0 110px;" required>
+        <button type="button" class="btn-ghost text-gray-300 hover:text-red-500 p-1 rounded bg-item-remove" title="Quitar ítem"><i class="fa-solid fa-times"></i></button>
+    </div>`;
+}
+
+function _recalcBudgetTotal() {
+    const rows = document.querySelectorAll('#budget-items .budget-item-row');
+    let subtotal = 0;
+    rows.forEach(row => {
+        const qty = Math.max(1, Number(row.querySelector('.bg-item-qty').value) || 1);
+        const price = Math.max(0, Number(row.querySelector('.bg-item-price').value) || 0);
+        subtotal += qty * price;
+    });
+    const discount = Math.max(0, Number(document.getElementById('bg-discount')?.value) || 0);
+    const total = Math.max(0, subtotal - discount);
+    const totalEl = document.getElementById('bg-total');
+    if (totalEl) totalEl.textContent = '$' + total.toLocaleString('es-AR');
+}
+
+function openBudgetModal(patientId) {
+    if (!canEditClinicalHistoryUi()) {
+        showAlert('Solo el profesional y el superadmin pueden crear presupuestos.', { title: 'Presupuestos', variant: 'error' });
+        return;
+    }
+
+    const scopedProfs = state.user?.allowedProfessionals || [];
+    const allProfs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
+    const profs = isSuperadmin() ? allProfs : allProfs.filter(p => scopedProfs.includes(p.id));
+    const defaultProfId = getCurrentOdontoProfessionalId() || profs[0]?.id || '';
+
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active">
+            <div class="modal-content modal-content-patient" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3>Nuevo Presupuesto</h3>
+                    <button class="btn-ghost" data-modal-close><i class="fa-solid fa-times"></i></button>
+                </div>
+                <form id="budget-form">
+                    <div class="modal-body">
+                        <div class="input-group">
+                            <label>Título *</label>
+                            <input type="text" id="bg-title" placeholder="Ej: Plan de tratamiento — implante pieza 26" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Profesional responsable</label>
+                            <select id="bg-professional" required>
+                                ${profs.map(p => `<option value="${p.id}" ${p.id === defaultProfId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Ítems del presupuesto *</label>
+                            <div id="budget-items">${_budgetItemRowHtml()}</div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="bg-add-item"><i class="fa-solid fa-plus"></i> Agregar ítem</button>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-end;">
+                            <div class="input-group" style="flex:1">
+                                <label>Descuento ($)</label>
+                                <input type="number" id="bg-discount" value="0" min="0" step="0.01">
+                            </div>
+                            <div class="input-group" style="flex:1;text-align:right;">
+                                <label>Total</label>
+                                <div id="bg-total" style="font-size:1.4rem;font-weight:800;color:var(--primary-600, #0d9488);">$0</div>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Observaciones</label>
+                            <textarea id="bg-notes" rows="2" placeholder="Validez, forma de pago, aclaraciones..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-file-invoice-dollar"></i> Guardar Presupuesto</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); }, { once: true });
+
+    const itemsWrap = document.getElementById('budget-items');
+    document.getElementById('bg-add-item').addEventListener('click', () => {
+        itemsWrap.insertAdjacentHTML('beforeend', _budgetItemRowHtml());
+        _recalcBudgetTotal();
+    });
+    // Delegación: recalcular total ante cualquier cambio y manejar quitar fila
+    document.getElementById('budget-form').addEventListener('input', _recalcBudgetTotal);
+    itemsWrap.addEventListener('click', (e) => {
+        const btn = e.target.closest('.bg-item-remove');
+        if (!btn) return;
+        if (itemsWrap.querySelectorAll('.budget-item-row').length > 1) {
+            btn.closest('.budget-item-row').remove();
+        }
+        _recalcBudgetTotal();
+    });
+
+    document.getElementById('budget-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const items = Array.from(document.querySelectorAll('#budget-items .budget-item-row')).map(row => ({
+            description: row.querySelector('.bg-item-desc').value.trim(),
+            quantity: Math.max(1, Number(row.querySelector('.bg-item-qty').value) || 1),
+            unitPrice: Math.max(0, Number(row.querySelector('.bg-item-price').value) || 0)
+        })).filter(item => item.description);
+
+        if (!items.length) {
+            showAlert('Agregá al menos un ítem con descripción y precio.', { title: 'Presupuestos', variant: 'warning' });
+            return;
+        }
+
+        try {
+            await withAppLoading('Guardando presupuesto...', async () => {
+                await apiFetch('/budgets', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        patientId,
+                        professionalId: Number(document.getElementById('bg-professional').value),
+                        title: document.getElementById('bg-title').value,
+                        items,
+                        discount: Number(document.getElementById('bg-discount').value) || 0,
+                        notes: document.getElementById('bg-notes').value
+                    })
+                });
+                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+            });
+            closeModal();
+            await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
+        } catch (error) {
+            showAlert(error.message || 'No se pudo guardar el presupuesto.', { title: 'Presupuestos', variant: 'error' });
+        }
+    });
+}
+
+window.chargeBudget = async function(patientId, budgetId) {
+    const patient = getClinicalWorkingPatient(patientId);
+    const budget = (patient?.budgets || []).find(b => b.id === budgetId);
+    if (!budget) return;
+
+    const ok = await showConfirm(
+        `Se va a generar una deuda de $${Number(budget.total).toLocaleString('es-AR')} en la cuenta corriente de ${escapeHtml(patient.name || 'este paciente')}. ¿Continuar?`,
+        { title: 'Cargar presupuesto como deuda', confirmText: 'Cargar deuda' }
+    );
+    if (!ok) return;
+
+    try {
+        await withAppLoading('Cargando deuda en cuenta corriente...', async () => {
+            await apiFetch(`/budgets/${budgetId}/charge`, { method: 'POST' });
+            await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+            await syncBackendSnapshotToLocalDb(); // refresca billing local
+        });
+        await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
+        showToast('Deuda cargada en la cuenta corriente del paciente.');
+    } catch (error) {
+        showAlert(error.message || 'No se pudo cargar la deuda.', { title: 'Presupuestos', variant: 'error' });
+    }
+};
+
+window.deleteBudget = async function(patientId, budgetId) {
+    if (!canEditClinicalHistoryUi()) return;
+    if (!await showConfirm('¿Eliminar este presupuesto?', { title: 'Eliminar presupuesto', confirmText: 'Eliminar' })) return;
+    try {
+        await withAppLoading('Eliminando presupuesto...', async () => {
+            await apiFetch(`/budgets/${budgetId}`, { method: 'DELETE' });
+            await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+        });
+        await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
+    } catch (error) {
+        showAlert(error.message || 'No se pudo eliminar el presupuesto.', { title: 'Presupuestos', variant: 'error' });
+    }
+};
+
+window.printBudget = function(patientId, budgetId) {
+    const patient = getClinicalWorkingPatient(patientId);
+    const budget = (patient?.budgets || []).find(b => b.id === budgetId);
+    if (!budget) {
+        showAlert('Presupuesto no encontrado.', { title: 'Presupuestos', variant: 'error' });
+        return;
+    }
+
+    const clinicName = getClinicDisplayName();
+    const issuedDate = budget.issuedAt ? new Date(budget.issuedAt).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+    const prof = budget.professional || {};
+    const pat = budget.patient || {};
+    const esc = escapeHtml;
+    const money = (n) => '$' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const subtotal = (budget.items || []).reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+
+    const itemRows = (budget.items || []).map(item => `
+        <tr>
+            <td>${esc(item.description)}</td>
+            <td class="num">${item.quantity}</td>
+            <td class="num">${money(item.unitPrice)}</td>
+            <td class="num">${money(item.quantity * item.unitPrice)}</td>
+        </tr>`).join('');
+
+    const w = window.open('', '_blank', 'width=800,height=900');
+    if (!w) {
+        showAlert('El navegador bloqueó la ventana de impresión. Habilitá los pop-ups para este sitio.', { title: 'Presupuestos', variant: 'warning' });
+        return;
+    }
+    w.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Presupuesto - ${esc(pat.fullName || '')}</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 40px 48px; max-width: 760px; margin: 0 auto; font-size: 14px; }
+    .bg-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #1a1a1a; padding-bottom: 14px; }
+    .bg-clinic { font-size: 20px; font-weight: bold; letter-spacing: 0.5px; }
+    .bg-doc-type { font-size: 13px; color: #555; margin-top: 3px; text-transform: uppercase; letter-spacing: 2px; }
+    .bg-meta { text-align: right; font-size: 13px; line-height: 1.7; }
+    .bg-patient { margin: 20px 0; font-size: 13.5px; line-height: 1.7; background: #f8f8f8; padding: 12px 16px; border-radius: 6px; }
+    .bg-title { font-size: 16px; font-weight: bold; margin: 18px 0 12px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #666; border-bottom: 2px solid #1a1a1a; padding: 8px 10px; }
+    td { padding: 9px 10px; border-bottom: 1px solid #ddd; }
+    .num { text-align: right; white-space: nowrap; }
+    th.num, th:nth-child(2), th:nth-child(3), th:nth-child(4) { text-align: right; }
+    .bg-totals { margin-top: 14px; display: flex; justify-content: flex-end; }
+    .bg-totals-box { min-width: 260px; font-size: 14px; }
+    .bg-totals-box div { display: flex; justify-content: space-between; padding: 5px 10px; }
+    .bg-total-final { font-size: 17px; font-weight: bold; border-top: 2px solid #1a1a1a; margin-top: 4px; padding-top: 8px !important; }
+    .bg-notes { margin-top: 22px; font-size: 12.5px; color: #444; background: #f6f6f6; padding: 10px 14px; border-left: 3px solid #888; white-space: pre-wrap; }
+    .bg-validity { margin-top: 18px; font-size: 11.5px; color: #888; }
+    .bg-footer { margin-top: 70px; display: flex; justify-content: flex-end; }
+    .bg-signature { text-align: center; width: 260px; border-top: 1.5px solid #1a1a1a; padding-top: 6px; font-size: 12.5px; line-height: 1.6; }
+    @media print { body { padding: 20px 30px; } }
+</style>
+</head>
+<body>
+    <div class="bg-header">
+        <div>
+            <div class="bg-clinic">${esc(clinicName)}</div>
+            <div class="bg-doc-type">Presupuesto de Tratamiento</div>
+        </div>
+        <div class="bg-meta">
+            <div><strong>Fecha:</strong> ${issuedDate}</div>
+            <div><strong>N°:</strong> ${String(budget.id).padStart(6, '0')}</div>
+        </div>
+    </div>
+    <div class="bg-patient">
+        <div><strong>Paciente:</strong> ${esc(pat.fullName || '')} — DNI ${esc(pat.dni || '-')}</div>
+        <div><strong>Obra Social:</strong> ${esc(pat.insuranceName || '-')}${pat.insurancePlan ? ' — ' + esc(pat.insurancePlan) : ''}</div>
+        <div><strong>Profesional:</strong> ${esc(prof.fullName || '')}${prof.specialty ? ' — ' + esc(prof.specialty) : ''}${prof.licenseNumber ? ' — Mat. ' + esc(prof.licenseNumber) : ''}</div>
+    </div>
+    <div class="bg-title">${esc(budget.title)}</div>
+    <table>
+        <thead>
+            <tr><th>Descripción</th><th>Cant.</th><th>Precio Unit.</th><th>Importe</th></tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+    </table>
+    <div class="bg-totals">
+        <div class="bg-totals-box">
+            <div><span>Subtotal</span><span>${money(subtotal)}</span></div>
+            ${budget.discount > 0 ? `<div><span>Descuento</span><span>− ${money(budget.discount)}</span></div>` : ''}
+            <div class="bg-total-final"><span>TOTAL</span><span>${money(budget.total)}</span></div>
+        </div>
+    </div>
+    ${budget.notes ? `<div class="bg-notes">${esc(budget.notes)}</div>` : ''}
+    <div class="bg-validity">Presupuesto válido por 30 días desde la fecha de emisión. Los valores pueden ajustarse vencido ese plazo.</div>
+    <div class="bg-footer">
+        <div class="bg-signature">Firma y sello<br>${esc(prof.fullName || '')}</div>
+    </div>
+    <scr` + `ipt>window.onload = () => { window.print(); };</scr` + `ipt>
+</body>
+</html>`);
+    w.document.close();
+};

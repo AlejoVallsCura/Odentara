@@ -5,15 +5,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Odentara</title>
-    <link rel="stylesheet" href="/css/variables.css">
-    <link rel="stylesheet" href="/css/base.css">
-    <link rel="stylesheet" href="/css/components.css">
-    <link rel="stylesheet" href="/css/layout.css">
-    <link rel="stylesheet" href="/css/calendar.css">
-    <link rel="stylesheet" href="/css/refresh.css">
-    <link rel="stylesheet" href="/css/dark-theme.css">
-    <link rel="stylesheet" href="/css/patches.css">
+    <!-- Preconnect a CDNs externos: abre la conexión TLS en paralelo con el parse del HTML -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="stylesheet" href="/css/variables.css?v=20260703j">
+    <link rel="stylesheet" href="/css/base.css?v=20260703j">
+    <link rel="stylesheet" href="/css/components.css?v=20260703j">
+    <link rel="stylesheet" href="/css/layout.css?v=20260703j">
+    <link rel="stylesheet" href="/css/calendar.css?v=20260703j">
+    <link rel="stylesheet" href="/css/refresh.css?v=20260703j">
+    <link rel="stylesheet" href="/css/dark-theme.css?v=20260703j">
+    <link rel="stylesheet" href="/css/patches.css?v=20260703j">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <!-- PWA: manifest + íconos de instalación -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- _turnstileOnLoad debe existir antes de que el script de CF lo llame (async).
@@ -293,26 +301,34 @@
         }
     })();
     </script>
-    <script src="/xlsx.full.min.js"></script>
+    <!-- PWA: registro del service worker (no bloquea la carga) -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+    }
+    </script>
+    <script src="/xlsx.full.min.js?v=20260703j"></script>
     <!-- core modules (orden importa) -->
-    <script src="/js/core/state.js"></script>
-    <script src="/js/core/utils.js"></script>
-    <script src="/js/core/mappers.js"></script>
-    <script src="/js/core/permissions.js"></script>
-    <script src="/js/core/ui.js"></script>
-    <script src="/js/core/api.js"></script>
-    <script src="/js/core/db-local.js"></script>
-    <script src="/js/core/auth.js"></script>
-    <script src="/js/core/helpers.js"></script>
-    <script src="/js/core/router.js"></script>
-    <script src="/js/views/platform.js"></script>
-    <script src="/js/views/clinical.js"></script>
-    <script src="/js/views/appointments.js"></script>
-    <script src="/js/views/patients.js"></script>
-    <script src="/js/views/billing.js"></script>
-    <script src="/js/views/dashboard.js"></script>
-    <script src="/js/views/settings.js"></script>
-    <script src="app.js" onerror="(function(){
+    <script src="/js/core/state.js?v=20260703j"></script>
+    <script src="/js/core/utils.js?v=20260703j"></script>
+    <script src="/js/core/mappers.js?v=20260703j"></script>
+    <script src="/js/core/permissions.js?v=20260703j"></script>
+    <script src="/js/core/ui.js?v=20260703j"></script>
+    <script src="/js/core/api.js?v=20260703j"></script>
+    <script src="/js/core/db-local.js?v=20260703j"></script>
+    <script src="/js/core/auth.js?v=20260703j"></script>
+    <script src="/js/core/helpers.js?v=20260703j"></script>
+    <script src="/js/core/router.js?v=20260703j"></script>
+    <script src="/js/views/platform.js?v=20260703j"></script>
+    <script src="/js/views/clinical.js?v=20260703j"></script>
+    <script src="/js/views/appointments.js?v=20260703j"></script>
+    <script src="/js/views/patients.js?v=20260703j"></script>
+    <script src="/js/views/billing.js?v=20260703j"></script>
+    <script src="/js/views/dashboard.js?v=20260703j"></script>
+    <script src="/js/views/settings.js?v=20260703j"></script>
+    <script src="app.js?v=20260703j" onerror="(function(){
         clearTimeout(window.__clinicFallback);
         var parts = window.location.hostname.split('.');
         var PLATFORM = ['www','admin','platform','api','app'];

@@ -131,6 +131,8 @@ model User {
   uploadedClinicalImages   ClinicalImage[]
   createdTreatments        Treatment[]
   createdBillingEntries    BillingEntry[]
+  createdPrescriptions     Prescription[]
+  createdBudgets           Budget[]
   auditLogs                AuditLog[]
   passwordResetTokens      PasswordResetToken[]
 
@@ -168,6 +170,7 @@ model Professional {
   email               String?
   phone               String?
   color               String?
+  licenseNumber       String?                        // matrícula profesional (MN/MP) — obligatoria en recetas
   active              Boolean                        @default(true)
   deletedAt           DateTime?
   userId              Int?                           @unique
@@ -183,6 +186,8 @@ model Professional {
   scopedUsers         UserProfessionalScope[]
   clinicalRecords     ClinicalRecord[]
   clinicalImages      ClinicalImage[]
+  prescriptions       Prescription[]
+  budgets             Budget[]
 
   @@index([clinicId])
   @@index([clinicId, active])
@@ -226,6 +231,8 @@ model Patient {
   treatments       Treatment[]
   clinicalImages   ClinicalImage[]
   billingEntries   BillingEntry[]
+  prescriptions    Prescription[]
+  budgets          Budget[]
 
   @@unique([clinicId, dni])
   @@unique([clinicId, chartNumber])
@@ -367,6 +374,8 @@ model ClinicalImage {
   professionalId   Int?
   uploadedByUserId Int?
   imageUrl         String        @db.LongText
+  mimeType         String        @default("image/jpeg") @db.VarChar(50)
+  fileName         String?       @db.VarChar(255)
   description      String?       @db.Text
   takenAt          DateTime?
   deletedAt        DateTime?
@@ -378,6 +387,7 @@ model ClinicalImage {
 
   @@index([patientId, createdAt])
   @@index([patientId, professionalId])
+  @@index([mimeType])
   @@index([deletedAt])
 }
 
@@ -399,10 +409,57 @@ model BillingEntry {
   professional     Professional     @relation(fields: [professionalId], references: [id], onDelete: Restrict)
   appointment      Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   createdByUser    User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  budget           Budget?
 
   @@index([patientId, date])
   @@index([professionalId, date])
   @@index([type, date])
+  @@index([deletedAt])
+}
+
+model Budget {
+  id              Int           @id @default(autoincrement())
+  patientId       Int
+  professionalId  Int
+  createdByUserId Int?
+  billingEntryId  Int?          @unique // deuda generada en cuenta corriente (null = no cargado)
+  title           String
+  items           String        @db.Text // JSON: [{ description, quantity, unitPrice }]
+  discount        Decimal       @default(0) @db.Decimal(12, 2)
+  total           Decimal       @db.Decimal(12, 2)
+  currency        String        @default("ARS") @db.VarChar(3)
+  notes           String?       @db.Text
+  issuedAt        DateTime      @default(now())
+  deletedAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional    Professional  @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  createdByUser   User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  billingEntry    BillingEntry? @relation(fields: [billingEntryId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, issuedAt])
+  @@index([deletedAt])
+}
+
+model Prescription {
+  id              Int          @id @default(autoincrement())
+  patientId       Int
+  professionalId  Int
+  createdByUserId Int?
+  diagnosis       String?      @db.Text
+  medications     String       @db.Text // Rp: una línea por medicamento (droga, presentación, cantidad)
+  instructions    String?      @db.Text // indicaciones para el paciente
+  issuedAt        DateTime     @default(now())
+  deletedAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  patient         Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional    Professional @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  createdByUser   User?        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, issuedAt])
+  @@index([professionalId, issuedAt])
   @@index([deletedAt])
 }
 

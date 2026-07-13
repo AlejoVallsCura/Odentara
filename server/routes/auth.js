@@ -302,7 +302,13 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
           data: { userId: user.id, token, expiresAt },
         });
 
-        const appUrl = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3001}`).replace(/\/$/, "");
+        // RESET_PASSWORD_URL permite apuntar al subdominio de la app (app.odentara.com)
+        // independientemente de APP_URL (que puede apuntar a la landing odentara.com).
+        const appUrl = (
+          process.env.RESET_PASSWORD_URL ||
+          process.env.APP_URL ||
+          `http://localhost:${process.env.PORT || 3001}`
+        ).replace(/\/$/, "");
         const resetUrl = `${appUrl}?resetToken=${token}`;
 
         try {
@@ -324,7 +330,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
 });
 
 // ── POST /api/auth/reset-password ─────────────────────────────────────────────
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", forgotPasswordLimiter, async (req, res) => {
   try {
     const { token, password } = req.body;
 

@@ -71,7 +71,9 @@ function parseDateTime(dateStr, timeStr) {
 
 function timeToMinutes(timeStr = "") {
   const [hours, minutes] = String(timeStr).split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  // isFinite (y no isNaN) porque un string sin ":" deja minutes en undefined,
+  // y Number.isNaN(undefined) es false → devolvía NaN en vez de null
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
   return hours * 60 + minutes;
 }
 

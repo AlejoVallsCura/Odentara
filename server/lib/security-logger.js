@@ -29,11 +29,9 @@ function sanitize(obj) {
  * @param {object} [details]
  */
 function logSecurityEvent(type, req, details = {}) {
-  const ip =
-    req.headers?.["x-forwarded-for"]?.split(",")[0]?.trim() ||
-    req.socket?.remoteAddress ||
-    req.ip ||
-    "unknown";
+  // Usar req.ip (resuelto por Express con trust proxy) en lugar de leer
+  // X-Forwarded-For manualmente — evita IP spoofing en los logs de auditoría.
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
 
   const entry = {
     timestamp: new Date().toISOString(),

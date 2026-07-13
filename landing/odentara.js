@@ -1,4 +1,12 @@
 (function () {
+  /* ── Redirect: si llega un resetToken a la landing, redirigir a la app ── */
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _resetToken = _urlParams.get("resetToken");
+  if (_resetToken) {
+    window.location.replace("https://app.odentara.com/?resetToken=" + encodeURIComponent(_resetToken));
+    return; // detener ejecución del resto del script
+  }
+
   /* ═══════════════════════════════════════════════════════════════
      LENIS  — smooth scroll
      GSAP   — hero entrance + ScrollTrigger reveals

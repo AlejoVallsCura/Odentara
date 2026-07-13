@@ -1,21 +1,26 @@
 const express = require("express");
 
-const mainPrisma = require("../lib/prisma"); // para /serve/:id (sin auth)
+const mainPrisma = require("../lib/prisma");
 const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
 const { canEditClinicalData, canViewClinicalData, canAccessWholeClinic } = require("../lib/permissions");
 const { checkClinicalImagesFeature } = require("../lib/plan-limits");
-const { uploadImage, getImageStream, deleteImage, isR2Key, isStorageConfigured } = require("../lib/storage");
+const { uploadFile, getFileStream, deleteFile, isR2Key, isStorageConfigured, ALLOWED_MIME_TYPES } = require("../lib/storage");
 const crypto = require("crypto");
 
 const router = express.Router();
 
-/** Genera un token HMAC de 1 hora para servir una imagen sin necesitar el header de auth */
+function getServeSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("[FATAL] JWT_SECRET no configurado.");
+  return secret;
+}
+
 function signServeToken(imageId) {
-  const exp = Math.floor(Date.now() / 1000) + 3600; // 1 hora
+  const exp = Math.floor(Date.now() / 1000) + 3600;
   const sig = crypto
-    .createHmac("sha256", process.env.JWT_SECRET || "fallback")
+    .createHmac("sha256", getServeSecret())
     .update(`serve:${imageId}:${exp}`)
     .digest("hex")
     .slice(0, 32);
@@ -27,20 +32,15 @@ function verifyServeToken(imageId, token) {
   const [exp, sig] = token.split(".");
   if (!exp || !sig || Date.now() / 1000 > Number(exp)) return false;
   const expected = crypto
-    .createHmac("sha256", process.env.JWT_SECRET || "fallback")
+    .createHmac("sha256", getServeSecret())
     .update(`serve:${imageId}:${exp}`)
     .digest("hex")
     .slice(0, 32);
   return sig === expected;
 }
 
-/**
- * Serializa una imagen.
- * - Si es key de R2 → devuelve URL proxy con token HMAC firmado
- * - Si es base64 legacy → la devuelve tal cual
- */
 function serializeImage(image) {
-  const imageUrl = isR2Key(image.imageUrl)
+  const fileUrl = isR2Key(image.imageUrl)
     ? `/api/clinical-images/serve/${image.id}?t=${signServeToken(image.id)}`
     : image.imageUrl;
 
@@ -49,7 +49,9 @@ function serializeImage(image) {
     patientId:        image.patientId,
     professionalId:   image.professionalId ?? null,
     uploadedByUserId: image.uploadedByUserId,
-    imageUrl,
+    imageUrl:         fileUrl,
+    mimeType:         image.mimeType || "image/jpeg",
+    fileName:         image.fileName || null,
     description:      image.description,
     takenAt:          image.takenAt,
     createdAt:        image.createdAt,
@@ -60,16 +62,14 @@ function getProfessionalIdFilter(permissions, overrideId) {
   if (canAccessWholeClinic(permissions)) {
     return overrideId ? Number(overrideId) : null;
   }
-  if (permissions.assignedProfessionalId) {
-    return permissions.assignedProfessionalId;
-  }
+  if (permissions.assignedProfessionalId) return permissions.assignedProfessionalId;
   const scoped = permissions.allowedProfessionalIds || [];
   if (scoped.length === 1) return scoped[0];
   return null;
 }
 
 // ── GET /api/clinical-images/serve/:id ───────────────────────────────────────
-// Proxy seguro: verifica token HMAC (no necesita header JWT — es una petición de <img src>).
+// Proxy seguro con token HMAC. Para PDFs agrega Content-Disposition.
 router.get("/serve/:id", async (req, res) => {
   try {
     const imageId = Number(req.params.id);
@@ -82,17 +82,25 @@ router.get("/serve/:id", async (req, res) => {
     });
 
     if (!image || !isR2Key(image.imageUrl)) {
-      return res.status(404).send("Imagen no encontrada.");
+      return res.status(404).send("Archivo no encontrado.");
     }
 
-    const { body, contentType } = await getImageStream(image.imageUrl);
+    const { body, contentType } = await getFileStream(image.imageUrl);
+    const isPdf = (image.mimeType || contentType) === "application/pdf";
 
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "private, max-age=3600");
+
+    if (isPdf) {
+      const name = image.fileName || `documento-${image.id}.pdf`;
+      const disposition = req.query.download === "1" ? "attachment" : "inline";
+      res.setHeader("Content-Disposition", `${disposition}; filename="${encodeURIComponent(name)}"`);
+    }
+
     return res.send(body);
   } catch (e) {
     console.error("[clinical-images serve]", e.message);
-    return res.status(500).send("Error al obtener la imagen.");
+    return res.status(500).send("Error al obtener el archivo.");
   }
 });
 
@@ -100,15 +108,16 @@ router.get("/", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     if (!canViewClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver imágenes clínicas." });
+      return res.status(403).json({ ok: false, error: "No tenes permisos para ver archivos clínicos." });
     }
 
-    const patientId = req.query.patientId ? Number(req.query.patientId) : null;
+    const patientId      = req.query.patientId ? Number(req.query.patientId) : null;
     const professionalId = getProfessionalIdFilter(req.permissions, req.query.professionalId);
+
     const images = await prisma.clinicalImage.findMany({
       where: {
         deletedAt: null,
-        ...(patientId ? { patientId } : {}),
+        ...(patientId      ? { patientId }      : {}),
         ...(professionalId ? { professionalId } : {}),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
@@ -117,7 +126,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     return res.json({ ok: true, images: images.map(serializeImage) });
   } catch (_error) {
-    return res.status(500).json({ ok: false, error: "No se pudieron listar las imágenes clínicas." });
+    return res.status(500).json({ ok: false, error: "No se pudieron listar los archivos clínicos." });
   }
 });
 
@@ -125,23 +134,22 @@ router.post("/", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para cargar imágenes clínicas." });
+      return res.status(403).json({ ok: false, error: "No tenes permisos para cargar archivos clínicos." });
     }
 
-    // ── Verificar feature de plan ─────────────────────────────────────────────
     const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
     const planCheck = checkClinicalImagesFeature(clinic?.plan);
     if (!planCheck.allowed) {
       return res.status(403).json({ ok: false, error: planCheck.error, code: "PLAN_LIMIT" });
     }
 
-    const patientId = Number(req.body.patientId);
+    const patientId      = Number(req.body.patientId);
     const professionalId = getProfessionalIdFilter(req.permissions, req.body.professionalId);
+
     const patient = await prisma.patient.findFirst({
       where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
       select: { id: true },
     });
-
     if (!patient) {
       return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
     }
@@ -153,28 +161,44 @@ router.post("/", requireAuth, async (req, res) => {
       if (!item?.imageUrl) continue;
 
       let storedUrl = String(item.imageUrl).trim();
+      let detectedMime = item.mimeType || "image/jpeg";
+      const fileName = item.fileName ? String(item.fileName).slice(0, 255) : null;
 
-      // Si R2 está configurado y la imagen llega como base64, subirla a R2
+      // Detectar MIME desde data URL
+      if (storedUrl.startsWith("data:")) {
+        const mimeMatch = storedUrl.match(/^data:([^;]+);base64,/);
+        detectedMime = mimeMatch?.[1] || detectedMime;
+        if (!ALLOWED_MIME_TYPES.has(detectedMime)) {
+          return res.status(400).json({
+            ok: false,
+            error: "Tipo de archivo no permitido. Se aceptan imágenes (JPEG, PNG, WebP, GIF) y PDFs.",
+          });
+        }
+      }
+
       if (isStorageConfigured() && storedUrl.startsWith("data:")) {
-        storedUrl = await uploadImage({
+        const result = await uploadFile({
           base64:    storedUrl,
           clinicId:  req.user.clinicId,
           patientId,
         });
+        storedUrl    = result.key;
+        detectedMime = result.mimeType;
       } else if (!isStorageConfigured() && storedUrl.startsWith("data:")) {
-        // R2 no configurado: rechazar para no llenar la DB con base64
-        return res.status(503).json({ ok: false, error: "El almacenamiento de imágenes no está configurado en el servidor." });
+        return res.status(503).json({ ok: false, error: "El almacenamiento de archivos no está configurado en el servidor." });
       }
 
       const created = await prisma.clinicalImage.create({
         data: {
           patientId,
-          professionalId: professionalId || null,
+          professionalId:   professionalId || null,
           uploadedByUserId: req.user.id,
-          imageUrl:    storedUrl,
-          description: item.description ? String(item.description).trim() : null,
-          takenAt:     item.takenAt ? new Date(item.takenAt) : null,
-          deletedAt:   null,
+          imageUrl:         storedUrl,
+          mimeType:         detectedMime,
+          fileName:         fileName,
+          description:      item.description ? String(item.description).trim() : null,
+          takenAt:          item.takenAt ? new Date(item.takenAt) : null,
+          deletedAt:        null,
         },
       });
 
@@ -184,7 +208,7 @@ router.post("/", requireAuth, async (req, res) => {
     return res.status(201).json({ ok: true, images: createdItems });
   } catch (error) {
     console.error("[clinical-images POST]", error);
-    return res.status(500).json({ ok: false, error: "No se pudieron guardar las imágenes clínicas." });
+    return res.status(500).json({ ok: false, error: "No se pudieron guardar los archivos clínicos." });
   }
 });
 
@@ -192,7 +216,7 @@ router.put("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para editar imágenes clínicas." });
+      return res.status(403).json({ ok: false, error: "No tenes permisos para editar archivos clínicos." });
     }
 
     const existing = await prisma.clinicalImage.findFirst({
@@ -202,23 +226,28 @@ router.put("/:id", requireAuth, async (req, res) => {
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
-
     if (!existing) {
-      return res.status(404).json({ ok: false, error: "Imagen clínica no encontrada o sin acceso." });
+      return res.status(404).json({ ok: false, error: "Archivo clínico no encontrado o sin acceso." });
     }
 
     const updated = await prisma.clinicalImage.update({
       where: { id: existing.id },
       data: {
-        description: req.body.description !== undefined ? (req.body.description ? String(req.body.description).trim() : null) : existing.description,
-        takenAt:     req.body.takenAt !== undefined ? (req.body.takenAt ? new Date(req.body.takenAt) : null) : existing.takenAt,
-        deletedAt:   null,
+        description: req.body.description !== undefined
+          ? (req.body.description ? String(req.body.description).trim() : null)
+          : existing.description,
+        takenAt: req.body.takenAt !== undefined
+          ? (req.body.takenAt ? new Date(req.body.takenAt) : null)
+          : existing.takenAt,
+        fileName: req.body.fileName !== undefined
+          ? (req.body.fileName ? String(req.body.fileName).slice(0, 255) : null)
+          : existing.fileName,
       },
     });
 
     return res.json({ ok: true, image: serializeImage(updated) });
   } catch (_error) {
-    return res.status(500).json({ ok: false, error: "No se pudo actualizar la imagen clínica." });
+    return res.status(500).json({ ok: false, error: "No se pudo actualizar el archivo clínico." });
   }
 });
 
@@ -226,7 +255,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
   try {
     const prisma = req.prisma;
     if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar imágenes clínicas." });
+      return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar archivos clínicos." });
     }
 
     const existing = await prisma.clinicalImage.findFirst({
@@ -236,14 +265,12 @@ router.delete("/:id", requireAuth, async (req, res) => {
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
-
     if (!existing) {
-      return res.status(404).json({ ok: false, error: "Imagen clínica no encontrada o sin acceso." });
+      return res.status(404).json({ ok: false, error: "Archivo clínico no encontrado o sin acceso." });
     }
 
-    // Eliminar de R2 si es una key
     if (isR2Key(existing.imageUrl)) {
-      await deleteImage(existing.imageUrl).catch((err) =>
+      await deleteFile(existing.imageUrl).catch((err) =>
         console.error("[clinical-images] Error eliminando de R2:", err.message)
       );
     }
@@ -255,9 +282,9 @@ router.delete("/:id", requireAuth, async (req, res) => {
 
     await logDeleteAudit(prisma, req.user.id, "ClinicalImage", existing.id, { image: existing });
 
-    return res.json({ ok: true, message: "Imagen clínica eliminada correctamente." });
+    return res.json({ ok: true, message: "Archivo clínico eliminado correctamente." });
   } catch (_error) {
-    return res.status(400).json({ ok: false, error: "No se pudo eliminar la imagen clínica." });
+    return res.status(400).json({ ok: false, error: "No se pudo eliminar el archivo clínico." });
   }
 });
 

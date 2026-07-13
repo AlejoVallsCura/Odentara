@@ -1508,7 +1508,6 @@ function renderAppointments() {
         days.forEach(d => {
             const iso = formatDateToLocalIso(d);
             const isToday = iso === getTodayIsoLocal();
-            const dayName = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d.getDay()];
             const dayNum = d.getDate();
 
             // ¿Trabaja el profesional seleccionado este día?
@@ -1529,15 +1528,12 @@ function renderAppointments() {
                 summaryContent = `<div class="cal-month-dayempty">Sin turnos</div>`;
             }
 
-            const schedLabel = profScheduleDay ? `<div class="cal-week-sched-line">${profScheduleDay.start}–${profScheduleDay.end}</div>` : '';
             dayCols += `
             <div class="cal-month-cell${!profWorksDay && weekSelectedProf ? ' cal-month-cell-no-work' : ''}" data-calendar-date="${iso}" style="cursor:pointer;">
-                <button type="button" class="cal-month-dayhead cal-week-dayhead ${isToday ? 'is-today' : ''}" data-calendar-date="${iso}">
-                    <span class="cal-week-dayname">${dayName}</span>
+                <button type="button" class="cal-month-dayhead ${isToday ? 'is-today' : ''}" data-calendar-date="${iso}">
                     <span class="cal-month-daynum">${dayNum}</span>
                 </button>
                 <div class="cal-month-daybody">
-                    ${schedLabel}
                     ${summaryContent}
                 </div>
             </div>`;
@@ -1553,7 +1549,16 @@ function renderAppointments() {
                 ${legendHtml}
                 <div class="cal-scroll-wrap cal-scroll-wrap-month">
                     <div class="cal-month-board">
-                        <div class="cal-month-grid cal-week-grid">
+                        <div class="cal-month-weekdays">
+                            <div class="cal-month-weekday">Dom</div>
+                            <div class="cal-month-weekday">Lun</div>
+                            <div class="cal-month-weekday">Mar</div>
+                            <div class="cal-month-weekday">Mié</div>
+                            <div class="cal-month-weekday">Jue</div>
+                            <div class="cal-month-weekday">Vie</div>
+                            <div class="cal-month-weekday">Sáb</div>
+                        </div>
+                        <div class="cal-month-grid">
                             ${dayCols}
                         </div>
                     </div>

@@ -13,6 +13,16 @@
 
 const nodemailer = require("nodemailer");
 
+/** Escapa caracteres HTML para evitar XSS en templates de email */
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function isEmailConfigured() {
   return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
@@ -166,15 +176,15 @@ async function sendContactEmail({ name, email, phone, clinic, message }) {
         <tr><td style="padding:32px 40px 28px;">
           <p style="margin:0 0 20px;font-size:14px;color:#64748b;">Recibiste una consulta desde odentara.com</p>
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-            <tr><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#94a3b8;width:110px;">Nombre</td><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:600;color:#0f172a;">${name}</td></tr>
-            <tr><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#94a3b8;">Email</td><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#0f172a;"><a href="mailto:${email}" style="color:#0f766e;">${email}</a></td></tr>
-            <tr><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#94a3b8;">Teléfono</td><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#0f172a;">${phone || "No indicado"}</td></tr>
-            <tr><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#94a3b8;">Consultorio</td><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:600;color:#0f172a;">${clinic}</td></tr>
+            <tr><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#94a3b8;width:110px;">Nombre</td><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:600;color:#0f172a;">${escapeHtml(name)}</td></tr>
+            <tr><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#94a3b8;">Email</td><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#0f172a;"><a href="mailto:${escapeHtml(email)}" style="color:#0f766e;">${escapeHtml(email)}</a></td></tr>
+            <tr><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#94a3b8;">Teléfono</td><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#0f172a;">${escapeHtml(phone) || "No indicado"}</td></tr>
+            <tr><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px;color:#94a3b8;">Consultorio</td><td style="padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:600;color:#0f172a;">${escapeHtml(clinic)}</td></tr>
           </table>
-          ${message ? `<div style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:8px;border-left:3px solid #0f766e;"><p style="margin:0;font-size:14px;color:#334155;line-height:1.6;">${message.replace(/\n/g, "<br>")}</p></div>` : ""}
+          ${message ? `<div style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:8px;border-left:3px solid #0f766e;"><p style="margin:0;font-size:14px;color:#334155;line-height:1.6;">${escapeHtml(message).replace(/\n/g, "<br>")}</p></div>` : ""}
         </td></tr>
         <tr><td style="padding:16px 40px 24px;border-top:1px solid #f1f5f9;">
-          <p style="margin:0;color:#cbd5e1;font-size:12px;">Podés responder directamente a este email para contactar a ${name}.</p>
+          <p style="margin:0;color:#cbd5e1;font-size:12px;">Podés responder directamente a este email para contactar a ${escapeHtml(name)}.</p>
         </td></tr>
       </table>
     </td></tr>

@@ -5050,3 +5050,103 @@ body.theme-dark .cal-now-time-badge {
     border-color: rgba(248,113,113,.35);
     box-shadow:  0 1px 4px rgba(248,113,113,.15);
 }
+
+/* ── Ficha clínica: pestañas ──────────────────────────────────────────────── */
+.clinical-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 32px;
+    margin-bottom: 26px;
+    padding: 6px;
+    background: var(--gray-100, #f3f4f6);
+    border: 1px solid var(--gray-200, #e5e7eb);
+    border-radius: 14px;
+}
+.clinical-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--gray-500, #6b7280);
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color .15s, background .15s, box-shadow .15s;
+}
+.clinical-tab:hover {
+    color: var(--primary-600, #0d9488);
+    background: rgba(124,58,237,.06);
+}
+.clinical-tab.is-active {
+    color: var(--primary-700, #0f766e);
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.10), 0 0 0 1px rgba(0,0,0,.02);
+}
+.clinical-tab i {
+    font-size: 14px;
+    opacity: .85;
+}
+.clinical-tab-panel {
+    display: none;
+    animation: clinicalTabFade .18s ease;
+}
+.clinical-tab-panel.is-active {
+    display: block;
+}
+@keyframes clinicalTabFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Badge de alergias — siempre visible, alerta de seguridad */
+.clinical-allergy-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 320px;
+    margin-bottom: 8px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1.5px solid #fecaca;
+    border-radius: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.clinical-allergy-badge i { flex-shrink: 0; }
+
+/* Al imprimir la historia: mostrar todos los paneles y ocultar la barra de tabs */
+.printing-clinical-history .clinical-tab-panel { display: block !important; }
+.printing-clinical-history .clinical-tabs { display: none !important; }
+
+/* Dark mode */
+body.theme-dark .clinical-tabs { background: #172234; border-color: rgba(255,255,255,.07); }
+body.theme-dark .clinical-tab { color: var(--gray-400, #9ca3af); }
+body.theme-dark .clinical-tab:hover { background: rgba(45,212,191,.10); color: #2dd4bf; }
+body.theme-dark .clinical-tab.is-active {
+    color: #2dd4bf;
+    background: #0f1729;
+    box-shadow: 0 1px 3px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.04);
+}
+body.theme-dark .clinical-allergy-badge {
+    color: #fca5a5;
+    background: rgba(153,27,27,.18);
+    border-color: rgba(248,113,113,.35);
+}
+
+/* Archivos clínicos: botón eliminar solo-ícono (sin texto) — compacto y cuadrado */
+.clinical-image-action-btn.clinical-image-action-icon-only {
+    gap: 0;
+    padding: 0.42rem;
+    width: 30px;
+    height: 30px;
+    justify-content: center;
+}

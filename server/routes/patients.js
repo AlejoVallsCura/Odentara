@@ -157,13 +157,24 @@ router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
     const skipped = [];
     const errors  = [];
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const payload = getPatientPayload(row);
+    // Fase 1 — clasificar todas las filas en memoria (sin queries)
+    const toCreate = []; // { row, payload }
+    const toUpdate = []; // { row, payload, id, data, fields }
+    const seenDnis = new Set();
 
-      if (!payload.fullName) { errors.push({ row: i + 1, reason: "Nombre vacío" }); continue; }
-      if (!payload.dni)      { errors.push({ row: i + 1, name: payload.fullName, reason: "DNI vacío o inválido" }); continue; }
-      if (!payload.phone)    { errors.push({ row: i + 1, name: payload.fullName, reason: "Teléfono vacío" }); continue; }
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum  = i + 1;
+      const payload = getPatientPayload(rows[i]);
+
+      if (!payload.fullName) { errors.push({ row: rowNum, reason: "Nombre vacío" }); continue; }
+      if (!payload.dni)      { errors.push({ row: rowNum, name: payload.fullName, reason: "DNI vacío o inválido" }); continue; }
+      if (!payload.phone)    { errors.push({ row: rowNum, name: payload.fullName, reason: "Teléfono vacío" }); continue; }
+
+      if (seenDnis.has(payload.dni)) {
+        skipped.push({ row: rowNum, name: payload.fullName, dni: payload.dni, reason: "DNI duplicado en el archivo" });
+        continue;
+      }
+      seenDnis.add(payload.dni);
 
       const existing = existingMap.get(payload.dni);
 
@@ -179,8 +190,7 @@ router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
             insurancePlan:    payload.insurancePlan    || existing.insurancePlan,
             credentialNumber: payload.credentialNumber || existing.credentialNumber,
           };
-          await prisma.patient.update({ where: { id: existing.id }, data: restore });
-          updated.push({ id: existing.id, name: payload.fullName, dni: payload.dni, fields: ["restaurado"] });
+          toUpdate.push({ row: rowNum, payload, id: existing.id, data: restore, fields: ["restaurado"] });
           continue;
         }
 
@@ -190,42 +200,65 @@ router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
           if (!existing[field] && payload[field]) patch[field] = payload[field];
         }
         if (Object.keys(patch).length > 0) {
-          await prisma.patient.update({ where: { id: existing.id }, data: patch });
-          updated.push({ id: existing.id, name: payload.fullName, dni: payload.dni, fields: Object.keys(patch) });
+          toUpdate.push({ row: rowNum, payload, id: existing.id, data: patch, fields: Object.keys(patch) });
         } else {
-          skipped.push({ row: i + 1, name: payload.fullName, dni: payload.dni, reason: "Sin datos nuevos" });
+          skipped.push({ row: rowNum, name: payload.fullName, dni: payload.dni, reason: "Sin datos nuevos" });
         }
         continue;
       }
 
-      try {
-        const patient = await prisma.patient.create({
-          data: {
-            clinicId,
-            fullName:         payload.fullName,
-            normalizedName:   normalizePatientName(payload.fullName),
-            dni:              payload.dni,
-            birthDate:        payload.birthDate,
-            phone:            payload.phone,
-            email:            payload.email,
-            address:          payload.address,
-            insuranceName:    payload.insuranceName,
-            insurancePlan:    payload.insurancePlan,
-            credentialNumber: payload.credentialNumber,
-            chartNumber:      payload.chartNumber,
-            active:           true,
-            deletedAt:        null,
-          },
-        });
-        existingMap.set(payload.dni, patient);
-        created.push({ id: patient.id, name: patient.fullName, dni: patient.dni });
-      } catch (err) {
-        if (err.code === "P2002") {
-          skipped.push({ row: i + 1, name: payload.fullName, dni: payload.dni, reason: "DNI ya existe (constraint)" });
-        } else {
-          errors.push({ row: i + 1, name: payload.fullName, reason: err.message });
+      toCreate.push({ row: rowNum, payload });
+    }
+
+    // Fase 2 — ejecutar en chunks paralelos (25 queries simultáneas por chunk)
+    const CHUNK_SIZE = 25;
+    const chunks = (arr) => {
+      const out = [];
+      for (let i = 0; i < arr.length; i += CHUNK_SIZE) out.push(arr.slice(i, i + CHUNK_SIZE));
+      return out;
+    };
+
+    for (const chunk of chunks(toCreate)) {
+      await Promise.all(chunk.map(async ({ row, payload }) => {
+        try {
+          const patient = await prisma.patient.create({
+            data: {
+              clinicId,
+              fullName:         payload.fullName,
+              normalizedName:   normalizePatientName(payload.fullName),
+              dni:              payload.dni,
+              birthDate:        payload.birthDate,
+              phone:            payload.phone,
+              email:            payload.email,
+              address:          payload.address,
+              insuranceName:    payload.insuranceName,
+              insurancePlan:    payload.insurancePlan,
+              credentialNumber: payload.credentialNumber,
+              chartNumber:      payload.chartNumber,
+              active:           true,
+              deletedAt:        null,
+            },
+          });
+          created.push({ id: patient.id, name: patient.fullName, dni: patient.dni });
+        } catch (err) {
+          if (err.code === "P2002") {
+            skipped.push({ row, name: payload.fullName, dni: payload.dni, reason: "DNI ya existe (constraint)" });
+          } else {
+            errors.push({ row, name: payload.fullName, reason: err.message });
+          }
         }
-      }
+      }));
+    }
+
+    for (const chunk of chunks(toUpdate)) {
+      await Promise.all(chunk.map(async ({ row, payload, id, data, fields }) => {
+        try {
+          await prisma.patient.update({ where: { id }, data });
+          updated.push({ id, name: payload.fullName, dni: payload.dni, fields });
+        } catch (err) {
+          errors.push({ row, name: payload.fullName, reason: err.message });
+        }
+      }));
     }
 
     return res.status(201).json({

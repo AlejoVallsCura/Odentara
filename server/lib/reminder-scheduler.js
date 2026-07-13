@@ -68,16 +68,24 @@ async function sendPendingReminders() {
         continue;
       }
 
-      await sendAppointmentReminderEmail({
-        to: appt.patient.email,
-        patientName: appt.patient.fullName,
-        professionalName: appt.professional.fullName,
-        clinicName: appt.clinic.name,
-        clinicPhone: appt.clinic.phone ?? undefined,
-        startTime: appt.startTime,
-      });
-
-      console.log(`[reminders] ✓ ${appt.patient.fullName} <${appt.patient.email}>`);
+      try {
+        await sendAppointmentReminderEmail({
+          to: appt.patient.email,
+          patientName: appt.patient.fullName,
+          professionalName: appt.professional.fullName,
+          clinicName: appt.clinic.name,
+          clinicPhone: appt.clinic.phone ?? undefined,
+          startTime: appt.startTime,
+        });
+        console.log(`[reminders] ✓ ${appt.patient.fullName} <${appt.patient.email}>`);
+      } catch (emailErr) {
+        // Si el envío falla, revertir para que el scheduler lo reintente
+        console.error(`[reminders] Error enviando email para turno ${appt.id}:`, emailErr.message);
+        await prisma.appointment.updateMany({
+          where: { id: appt.id },
+          data: { confirmationSentAt: null, confirmationChannel: null, status: "pending" },
+        }).catch((e) => console.error(`[reminders] Error al revertir turno ${appt.id}:`, e.message));
+      }
     } catch (err) {
       console.error(`[reminders] Error en turno ${appt.id}:`, err.message);
     }

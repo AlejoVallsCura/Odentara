@@ -597,6 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const name      = document.getElementById('p-name').value.trim();
             const lastName  = document.getElementById('p-lastname').value.trim();
             const specialty = document.getElementById('p-specialty').value.trim();
+            const license   = document.getElementById('p-license')?.value.trim() || '';
             const phone     = document.getElementById('p-phone').value.trim();
             const email     = document.getElementById('p-email').value.trim();
             const status    = document.getElementById('p-status').value;
@@ -605,7 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Nombre, apellido y especialidad son obligatorios para un profesional.');
                 return;
             }
-            const payload = { fullName: `${name} ${lastName}`.trim(), specialty, phone, email, active: (status || 'activo') === 'activo' };
+            const payload = { fullName: `${name} ${lastName}`.trim(), specialty, licenseNumber: license, phone, email, active: (status || 'activo') === 'activo' };
 
             try {
                 await withAppLoading(isEditing ? 'Actualizando profesional...' : 'Guardando profesional...', async () => {

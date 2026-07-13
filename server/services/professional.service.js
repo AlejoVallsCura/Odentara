@@ -17,6 +17,7 @@ function serializeProfessional(professional) {
     email: professional.email,
     phone: professional.phone,
     color: professional.color,
+    licenseNumber: professional.licenseNumber,
     active: professional.active,
     userId: professional.userId,
     createdAt: professional.createdAt,

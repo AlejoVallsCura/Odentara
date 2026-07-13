@@ -311,9 +311,8 @@
 
 .clinical-info-item-wide {
     grid-column: span 2;
-    justify-self: start;
+    justify-self: stretch;
     width: 100%;
-    max-width: 540px;
 }
 
 .clinical-edit-actions {
