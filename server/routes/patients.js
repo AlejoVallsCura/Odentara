@@ -45,7 +45,8 @@ router.get("/", requireAuth, async (req, res) => {
         ],
       },
       orderBy: [{ fullName: "asc" }],
-      include: PATIENT_INCLUDE,
+      // Sin _count: la lista no usa las stats por paciente (turnos/tratamientos/imágenes).
+      // Evita 3 subconsultas por paciente en cada carga. Las stats se calculan en GET /:id.
     });
 
     return res.json({ ok: true, patients: patients.map(serializePatient) });
