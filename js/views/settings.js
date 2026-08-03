@@ -65,6 +65,7 @@ function renderSettingsSubpages() {
                     <button class="btn btn-icon btn-edit-prof" data-id="${p.id}" title="Editar"><i class="fa-solid fa-pen"></i></button>
                     ${canViewAppointmentsUi() ? `<button class="btn btn-icon" onclick="viewProfessionalCalendar(${p.id})" title="Calendario"><i class="fa-solid fa-calendar-days"></i></button>` : ''}
                     ${canManageProfessionalSchedulesUi() ? `<button class="btn btn-icon btn-edit-schedule" data-id="${p.id}" title="Horarios"><i class="fa-solid fa-clock"></i></button>` : ''}
+                    ${canManageProfessionalsUi() ? `<button class="btn btn-icon" onclick="deleteProfessional(${p.id})" title="Desactivar" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}
                 </div>
             </div>`;
     }).join('');

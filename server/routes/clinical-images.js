@@ -1,10 +1,9 @@
 const express = require("express");
 
 const mainPrisma = require("../lib/prisma");
-const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
-const { canEditClinicalData, canViewClinicalData, canAccessWholeClinic } = require("../lib/permissions");
+const { canEditClinicalData, canViewClinicalData, canAccessWholeClinic, getAccessibleProfessionalIds } = require("../lib/permissions");
 const { checkClinicalImagesFeature } = require("../lib/plan-limits");
 const { uploadFile, getFileStream, deleteFile, isR2Key, isStorageConfigured, ALLOWED_MIME_TYPES } = require("../lib/storage");
 const crypto = require("crypto");
@@ -111,14 +110,18 @@ router.get("/", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, error: "No tenes permisos para ver archivos clínicos." });
     }
 
-    const patientId      = req.query.patientId ? Number(req.query.patientId) : null;
-    const professionalId = getProfessionalIdFilter(req.permissions, req.query.professionalId);
+    const patientId = req.query.patientId ? Number(req.query.patientId) : null;
+    // Los archivos clínicos son parte de la ficha del paciente: se comparten
+    // con toda la clínica (a diferencia de recetas/presupuestos). El query
+    // param professionalId acá es solo un filtro opcional de visualización,
+    // no una restricción de acceso.
+    const professionalIdFilter = req.query.professionalId ? Number(req.query.professionalId) : null;
 
     const images = await prisma.clinicalImage.findMany({
       where: {
         deletedAt: null,
-        ...(patientId      ? { patientId }      : {}),
-        ...(professionalId ? { professionalId } : {}),
+        ...(patientId ? { patientId } : {}),
+        ...(professionalIdFilter ? { professionalId: professionalIdFilter } : {}),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       orderBy: [{ createdAt: "desc" }],
@@ -223,6 +226,12 @@ router.put("/:id", requireAuth, async (req, res) => {
       where: {
         id: Number(req.params.id),
         deletedAt: null,
+        // Un archivo asignado a un profesional puntual no lo puede tocar otro
+        // colega — los archivos sin profesional (professionalId null) siguen
+        // siendo compartidos y cualquiera con permiso de edición los maneja.
+        ...(canAccessWholeClinic(req.permissions)
+          ? {}
+          : { OR: [{ professionalId: { in: getAccessibleProfessionalIds(req.permissions) } }, { professionalId: null }] }),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
@@ -262,6 +271,12 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: {
         id: Number(req.params.id),
         deletedAt: null,
+        // Un archivo asignado a un profesional puntual no lo puede tocar otro
+        // colega — los archivos sin profesional (professionalId null) siguen
+        // siendo compartidos y cualquiera con permiso de edición los maneja.
+        ...(canAccessWholeClinic(req.permissions)
+          ? {}
+          : { OR: [{ professionalId: { in: getAccessibleProfessionalIds(req.permissions) } }, { professionalId: null }] }),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
@@ -279,8 +294,6 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: { id: existing.id },
       data: { deletedAt: new Date() },
     });
-
-    await logDeleteAudit(prisma, req.user.id, "ClinicalImage", existing.id, { image: existing });
 
     return res.json({ ok: true, message: "Archivo clínico eliminado correctamente." });
   } catch (_error) {

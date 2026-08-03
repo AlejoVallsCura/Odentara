@@ -107,6 +107,7 @@ function mapApiPatientToLegacy(patient = {}) {
         notes:          '',
         allergies:      '',
         medicalNotes:   '',
+        medicalHistory: patient.medicalHistory || null,
         odontograma:    {},
         treatments:     [],
         clinicalImages: [],

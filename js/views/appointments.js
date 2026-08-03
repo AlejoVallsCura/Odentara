@@ -265,6 +265,35 @@ function viewProfessionalCalendar(profId) {
     loadView('appointments');
 }
 
+// Desactiva (soft-delete) un profesional: deja de aparecer en selectores de
+// turnos/odontograma/horarios, pero conserva intacto su historial de turnos,
+// tratamientos y cuenta corriente (el backend nunca borra la fila).
+window.deleteProfessional = async function(profId) {
+    if (!canManageProfessionalsUi()) {
+        showAlert('Solo el superadmin o el admin pueden desactivar profesionales.', { title: 'Profesionales', variant: 'error' });
+        return;
+    }
+    const prof = DB.get('professionals').find(p => p.id === profId);
+    if (!prof) return;
+
+    const confirmed = await showConfirm(
+        `¿Desactivar a ${prof.name}? Ya no va a poder recibir turnos nuevos ni aparecer en el odontograma, pero su historial clínico y de turnos se conserva.`,
+        { title: 'Desactivar profesional', confirmText: 'Desactivar' }
+    );
+    if (!confirmed) return;
+
+    try {
+        await deleteViaApiOrLocal({
+            path: `/professionals/${profId}`,
+            localTable: 'professionals',
+            localId: profId
+        });
+        refreshCurrentView();
+    } catch (error) {
+        showAlert(error.message || 'No se pudo desactivar el profesional.', { title: 'Profesionales', variant: 'error' });
+    }
+};
+
 // --- Modal System & Forms ---
 function closeModal() {
     state.clinicalImageViewer = null;
@@ -361,12 +390,176 @@ function getContiguousAvailabilityMinutes(professionalId, dateStr, startTime, is
     return Math.max(0, cursor - startMinutes);
 }
 
+/**
+ * Combobox de búsqueda de paciente para el modal de turnos.
+ *
+ * Reemplaza al <datalist> nativo, que en móviles (especialmente iOS Safari)
+ * no despliega nada. Mantiene intacto el formato del valor del input
+ * ("Nombre | DNI 12345678") para que la lógica de guardado no cambie.
+ */
+function setupPatientCombobox(patients) {
+    const input  = document.getElementById('apt-patient');
+    const panel  = document.getElementById('apt-patient-panel');
+    const toggle = document.getElementById('apt-patient-toggle');
+    if (!input || !panel) return;
+
+    let activeIndex = -1;
+    let visible = [];
+
+    // .modal-content tiene un transform (animación de apertura) y un ancestro
+    // transformado hace que position:fixed se posicione respecto a ÉL y no a la
+    // pantalla, descolocando el panel. Moviéndolo al <body> queda fuera de ese
+    // contexto y las coordenadas fixed vuelven a ser las de la ventana.
+    document.body.appendChild(panel);
+
+    // Como el panel ya no vive dentro del modal, hay que sacarlo a mano cuando
+    // el modal se cierra (closeModal vacía su contenedor, no el <body>).
+    const modalHost = document.getElementById('modals-container') || document.body;
+    const observer = new MutationObserver(() => {
+        if (!input.isConnected) {
+            panel.remove();
+            observer.disconnect();
+        }
+    });
+    observer.observe(modalHost, { childList: true, subtree: true });
+
+    const matches = (patient, query) => {
+        if (!query) return true;
+        const q = normalizePatientName(query);
+        const qDni = normalizeDni(query);
+        return normalizePatientName(patient.name).includes(q)
+            || (!!qDni && normalizeDni(patient.dni).includes(qDni));
+    };
+
+    // El panel se posiciona con position:fixed para que no lo recorte el
+    // scroll del cuerpo del modal.
+    const positionPanel = () => {
+        const r = input.getBoundingClientRect();
+        panel.style.left  = `${r.left}px`;
+        panel.style.width = `${r.width}px`;
+
+        // En el celular el teclado tapa la mitad inferior de la pantalla. Si
+        // abajo no entra, el panel se abre HACIA ARRIBA; si no, quedaba
+        // desplegado detrás del teclado y parecía que no pasaba nada.
+        // visualViewport refleja el alto real disponible con el teclado abierto.
+        const viewportH = window.visualViewport?.height || window.innerHeight;
+        const below = viewportH - r.bottom;
+        const above = r.top;
+
+        if (below < 160 && above > below) {
+            const maxH = Math.max(140, Math.min(280, above - 12));
+            panel.style.maxHeight = `${maxH}px`;
+            panel.style.top = `${Math.max(4, r.top - Math.min(maxH, above - 12) - 4)}px`;
+        } else {
+            const maxH = Math.max(140, Math.min(280, below - 12));
+            panel.style.maxHeight = `${maxH}px`;
+            panel.style.top = `${r.bottom + 4}px`;
+        }
+    };
+
+    const close = () => {
+        panel.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+        activeIndex = -1;
+    };
+
+    const highlight = (i) => {
+        activeIndex = i;
+        [...panel.querySelectorAll('.combo-option')].forEach((el, idx) => {
+            el.classList.toggle('is-active', idx === i);
+            if (idx === i) el.scrollIntoView({ block: 'nearest' });
+        });
+    };
+
+    const choose = (patient) => {
+        input.value = getPatientOptionLabel(patient);
+        close();
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const open = (query) => {
+        visible = patients.filter(p => matches(p, query)).slice(0, 60);
+        if (!visible.length) {
+            panel.innerHTML = '<div class="combo-empty">Sin pacientes que coincidan</div>';
+        } else {
+            panel.innerHTML = visible.map((p, i) => `
+                <div class="combo-option" role="option" data-idx="${i}">
+                    <span class="combo-option-name">${escapeHtml(p.name)}</span>
+                    <span class="combo-option-dni">DNI ${escapeHtml(p.dni || '-')}</span>
+                </div>`).join('');
+        }
+        panel.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+        positionPanel();
+        highlight(-1);
+    };
+
+    // Si el input ya trae un paciente (modo edición), al enfocarlo se listan
+    // todos en vez de filtrar por el texto completo ya cargado.
+    const openAll = () => open('');
+
+    const openFromUser = () => open(input.value.includes(' | DNI ') ? '' : input.value);
+
+    input.addEventListener('input', () => open(input.value));
+    input.addEventListener('focus', openFromUser);
+    // Además del focus: si el campo ya estaba enfocado, un segundo toque no
+    // dispara focus de nuevo y el desplegable no volvería a abrirse.
+    input.addEventListener('click', () => { if (panel.hidden) openFromUser(); });
+
+    // El teclado del celular cambia el alto visible al abrirse/cerrarse: hay que
+    // recolocar el panel o queda flotando lejos del campo.
+    window.visualViewport?.addEventListener('resize', () => { if (!panel.hidden) positionPanel(); });
+    toggle?.addEventListener('click', () => {
+        if (panel.hidden) { input.focus(); openAll(); } else { close(); }
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (panel.hidden) return open(input.value);
+            if (!visible.length) return;
+            const dir = e.key === 'ArrowDown' ? 1 : -1;
+            highlight((activeIndex + dir + visible.length) % visible.length);
+        } else if (e.key === 'Enter') {
+            if (!panel.hidden && activeIndex >= 0 && visible[activeIndex]) {
+                e.preventDefault();
+                choose(visible[activeIndex]);
+            }
+        } else if (e.key === 'Escape') {
+            if (!panel.hidden) { e.stopPropagation(); close(); }
+        }
+    });
+
+    // pointerdown (no click): se dispara antes del blur del input, así la
+    // selección no se pierde al tocar en el celular.
+    panel.addEventListener('pointerdown', (e) => {
+        const opt = e.target.closest('.combo-option');
+        if (!opt) return;
+        e.preventDefault();
+        const p = visible[Number(opt.dataset.idx)];
+        if (p) choose(p);
+    });
+
+    document.addEventListener('pointerdown', (e) => {
+        if (!panel.hidden && !panel.contains(e.target) && e.target !== input && !toggle?.contains(e.target)) close();
+    });
+
+    window.addEventListener('resize', () => { if (!panel.hidden) positionPanel(); });
+    document.addEventListener('scroll', () => { if (!panel.hidden) positionPanel(); }, true);
+}
+
 function openAppointmentModal(editId = null) {
     const apt = editId ? getAccessibleAppointments().find(a => a.id === editId) : null;
     if (editId && !apt) return;
     const patients = getAccessiblePatients();
-    const professionals = getAccessibleProfessionals();
-    
+    const professionals = getActiveAccessibleProfessionals();
+    // Si el turno editado ya estaba asignado a un profesional desactivado,
+    // lo mantenemos en la lista para no perder la asignación existente.
+    if (apt && !professionals.some(p => p.id === apt.professionalId)) {
+        const assignedProf = getAccessibleProfessionals().find(p => p.id === apt.professionalId);
+        if (assignedProf) professionals.push(assignedProf);
+    }
+
     if (patients.length === 0) {
         alert("Atención: Necesitas crear al menos un paciente en el directorio antes de agendar un turno.");
         return;
@@ -382,10 +575,13 @@ function openAppointmentModal(editId = null) {
                     <div class="modal-body">
                         <div class="input-group">
                             <label>Paciente (Solo pacientes registrados)</label>
-                            <input type="search" id="apt-patient" class="form-input" list="apt-patient-list" placeholder="Buscar por nombre o DNI..." value="${apt ? getPatientOptionLabel(patients.find(patient => patient.name === apt.patient) || { name: apt.patient, dni: '' }) : ''}" required>
-                            <datalist id="apt-patient-list">
-                                ${patients.map(patient => `<option value="${getPatientOptionLabel(patient)}"></option>`).join('')}
-                            </datalist>
+                            <!-- Combobox propio en vez de <datalist>: el nativo no se
+                                 despliega de forma confiable en móviles (sobre todo iOS). -->
+                            <div class="combo-wrap">
+                                <input type="search" id="apt-patient" class="form-input" placeholder="Buscar por nombre o DNI..." autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="apt-patient-panel" value="${apt ? getPatientOptionLabel(patients.find(patient => patient.name === apt.patient) || { name: apt.patient, dni: '' }) : ''}" required>
+                                <button type="button" class="combo-toggle" id="apt-patient-toggle" tabindex="-1" aria-label="Mostrar pacientes"><i class="fa-solid fa-chevron-down"></i></button>
+                                <div class="combo-panel" id="apt-patient-panel" role="listbox" hidden></div>
+                            </div>
                         </div>
                         <div class="input-group">
                             <label>Profesional *</label>
@@ -439,6 +635,7 @@ function openAppointmentModal(editId = null) {
     const dGroup = document.getElementById('duration-group');
     const durSelect = document.getElementById('apt-duration');
     const patientInput = document.getElementById('apt-patient');
+    setupPatientCombobox(patients);
 
     const renderDurationOptions = () => {
         const isOverbook = sCheck.checked;
@@ -1317,7 +1514,7 @@ function renderCalendarViewSwitcher() {
 
 function renderAppointments() {
     closeCalAptPopup(); // cerrar popup si quedó abierto de una vista anterior
-    const professionals = getAccessibleProfessionals();
+    const professionals = getActiveAccessibleProfessionals();
     const selectedProfessionalId = ensureSingleCalendarProfessional(professionals);
 
     const allApts = getAccessibleAppointments();
@@ -1416,7 +1613,6 @@ function renderAppointments() {
         // Build professional columns
         let profCols = '';
         [activeProfessional].forEach(p => {
-            const color = getProfColor(p.id);
             const dayApts = allApts
                 .filter(a => a.date === currentDate && a.professionalId === p.id)
                 .sort((a, b) => {
@@ -1654,7 +1850,7 @@ function renderAppointments() {
 }
 
 function renderProfessionals() {
-    const profs = getAccessibleProfessionals();
+    const profs = getActiveAccessibleProfessionals();
     return `
         <div class="card mb-6 section-hero-card section-hero-inline">
             <div class="section-hero-copy">

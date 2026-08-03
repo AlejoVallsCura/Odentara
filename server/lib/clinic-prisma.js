@@ -12,6 +12,7 @@
 
 const mainPrisma = require("./prisma");
 const { createPrismaClient } = require("./prisma-client");
+const { attachAuditLogging } = require("./audit-log-extension");
 
 // clinicId (number) → PrismaClient
 const clientCache = new Map();
@@ -37,7 +38,7 @@ async function getClinicPrisma(clinicId) {
   }
 
   // Crear cliente dedicado y cachearlo
-  const dedicatedClient = createPrismaClient(clinic.databaseUrl);
+  const dedicatedClient = attachAuditLogging(createPrismaClient(clinic.databaseUrl));
   clientCache.set(clinicId, dedicatedClient);
   return dedicatedClient;
 }

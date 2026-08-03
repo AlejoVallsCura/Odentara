@@ -35,6 +35,8 @@ const treatmentRoutes = require("./routes/treatments");
 const userRoutes = require("./routes/users");
 const platformRoutes = require("./routes/platform");
 const { startReminderScheduler, sendPendingReminders } = require("./lib/reminder-scheduler");
+const { purgeExpiredRevokedTokens } = require("./lib/token-revocation");
+const { getMissingEmailVars } = require("./lib/email");
 
 const app = express();
 app.set("trust proxy", 1); // necesario para rate-limit detrás de reverse proxy (Hostinger, nginx)
@@ -109,10 +111,17 @@ app.use(
     credentials: true,
   })
 );
-// Límite grande solo para imágenes base64 — el resto usa 200kb para prevenir DoS por RAM
+// Límite grande solo para rutas con imágenes base64 — el resto usa 200kb para prevenir DoS por RAM.
+// extract-photo manda HASTA 10 fotos en un solo request (a diferencia de
+// clinical-images, que sube de a una): con 2000px de ancho máx. y calidad
+// 0.85 cada JPEG puede rondar 3-4MB, y en base64 eso suma ~33% más — 10 fotos
+// superaban fácil los 12mb y el request se rechazaba con "Error interno del
+// servidor" (un PayloadTooLargeError genérico, ver el error handler abajo).
 app.use((req, res, next) => {
+  const isPhotoImport = req.path.startsWith("/api/patients/extract-photo");
   const isImageRoute = req.path.startsWith("/api/clinical-images");
-  express.json({ limit: isImageRoute ? "10mb" : "200kb" })(req, res, next);
+  const limit = isPhotoImport ? "40mb" : isImageRoute ? "12mb" : "200kb";
+  express.json({ limit })(req, res, next);
 });
 app.use(express.urlencoded({ extended: true, limit: "200kb" }));
 
@@ -258,6 +267,18 @@ app.use((req, res) => {
 app.use((err, req, res, _next) => {
   const isProd = process.env.NODE_ENV === "production";
   console.error("[ERROR]", err);
+
+  // El body-parser rechaza el request con esto cuando supera el límite de
+  // express.json({limit}) — sin este caso especial, llegaba al cliente como
+  // "Error interno del servidor" sin explicar qué pasó ni qué hacer.
+  if (err.type === "entity.too.large" || err.status === 413) {
+    return res.status(413).json({
+      ok: false,
+      error: "Las imágenes son demasiado pesadas para enviar juntas. Probá con menos fotos por tanda, o con fotos de menor resolución.",
+      code: "PAYLOAD_TOO_LARGE",
+    });
+  }
+
   res.status(err.status || 500).json({
     ok: false,
     error: isProd ? "Error interno del servidor." : (err.message || "Error desconocido."),
@@ -267,6 +288,23 @@ app.use((err, req, res, _next) => {
 app.listen(PORT, HOST, () => {
   console.log(`Odentara escuchando en http://${HOST}:${PORT}`);
   startReminderScheduler();
+  // Las revocaciones de tokens ya vencidos no sirven para nada: se limpian acá
+  // en vez de dejar la tabla creciendo para siempre.
+  purgeExpiredRevokedTokens();
+
+  // El envío de mails falla en silencio por diseño (recuperar contraseña
+  // devuelve 200 aunque no mande nada, para no revelar qué mails existen). Si
+  // este worker arrancó sin las variables de SMTP, hay que enterarse acá y no
+  // cuando alguien no pueda recuperar su cuenta.
+  const missingEmailVars = getMissingEmailVars();
+  if (missingEmailVars.length > 0) {
+    console.error(
+      `[email] SMTP INCOMPLETO — faltan ${missingEmailVars.join(", ")}. ` +
+      "No se van a enviar mails de recuperación de contraseña ni recordatorios."
+    );
+  } else {
+    console.log(`[email] SMTP configurado (${process.env.SMTP_HOST})`);
+  }
 });
 
 // ── Prevenir crashes silenciosos ──────────────────────────────────────────────

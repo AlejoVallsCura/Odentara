@@ -1035,6 +1035,14 @@ tr:hover td {
     box-shadow: 0 0 0 4px rgba(217,119,6,0.12) !important;
 }
 
+/* En dark mode el foco de las barras de búsqueda usa celeste, no violeta
+   (el violeta queda reservado a botones/nav/badges) */
+body.theme-dark #search-patient:focus,
+body.theme-dark #apt-patient:focus {
+    border-color: rgba(56,189,248,0.55) !important;
+    box-shadow: 0 0 0 4px rgba(56,189,248,0.14) !important;
+}
+
 .dashboard-date-filter:focus {
     border-color: var(--primary-500) !important;
     box-shadow: 0 0 0 3px rgba(217,119,6,0.14) !important;
@@ -1060,17 +1068,20 @@ tr:hover td {
 
 .clinical-print-toolbar {
     display: flex;
-    justify-content: flex-end;
+    justify-content: center;
+    gap: 0.6rem;
     margin-bottom: 0.65rem;
 }
 
 .clinical-header-actions {
-    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 @page {
-    size: A4 landscape;
-    margin: 10mm;
+    size: A4 portrait;
+    margin: 9mm;
 }
 
 @media print {
@@ -1149,6 +1160,12 @@ tr:hover td {
         margin-bottom: 0.75rem !important;
         padding-bottom: 0.6rem !important;
         gap: 0.32rem !important;
+        page-break-inside: avoid;
+    }
+
+    /* El domicilio ocupa todo el ancho para no recortar direcciones largas */
+    body.printing-clinical-history .clinical-info-item-wide:has(#clinical-domicilio) {
+        grid-column: 1 / -1 !important;
     }
 
     body.printing-clinical-history .clinical-info-summary,
@@ -1202,12 +1219,37 @@ tr:hover td {
         max-width: none !important;
     }
 
+    /* Bloque completo del odontograma (título + gráfico) no se corta entre páginas */
+    body.printing-clinical-history .clinical-odontogram-block {
+        page-break-inside: avoid;
+    }
+
     body.printing-clinical-history .odontogram-wrapper {
         overflow: visible !important;
-        zoom: 0.82 !important;
+        zoom: 0.72 !important;
         padding: 0.4rem !important;
         margin-bottom: 0.55rem !important;
+        display: flex !important;
+        justify-content: center !important;
         page-break-inside: avoid;
+    }
+
+    /* Dentición infantil: el botón-toggle se imprime como separador de
+       sección (no como control interactivo) — la regla genérica de arriba
+       (.clinical-history-card button) oculta todos los <button> y tiene
+       más especificidad (2 clases + 2 tags) que un simple ".odonto-infantil-toggle"
+       (2 clases + 1 tag), por eso hay que igualar el scope ".clinical-history-card"
+       para poder revertirla. La flecha se oculta siempre; el botón entero se
+       oculta si la sección no tiene datos ni está expandida (ver printClinicalHistory). */
+    body.printing-clinical-history .clinical-history-card .odonto-infantil-toggle {
+        display: flex !important;
+        cursor: default !important;
+    }
+    body.printing-clinical-history .odonto-infantil-toggle #odonto-infantil-icon {
+        display: none !important;
+    }
+    body.printing-clinical-history .clinical-history-card .odonto-infantil-toggle.odonto-infantil-toggle-print-hide {
+        display: none !important;
     }
 
     body.printing-clinical-history #treatments-table th:last-child,
@@ -1223,6 +1265,17 @@ tr:hover td {
     body.printing-clinical-history #treatments-table tr,
     body.printing-clinical-history .table-container tr {
         page-break-inside: avoid;
+    }
+
+    /* Nunca recortar texto de la tabla de tratamientos (ej: Observaciones largas).
+       overflow-wrap (no word-break) para que solo parta palabras cuando de verdad
+       no entran — evita partir encabezados cortos como "DIENTE" letra por letra. */
+    body.printing-clinical-history #treatments-table th,
+    body.printing-clinical-history #treatments-table td,
+    body.printing-clinical-history .table-container th,
+    body.printing-clinical-history .table-container td {
+        white-space: normal !important;
+        overflow-wrap: break-word !important;
     }
 
     body.printing-clinical-history textarea {
@@ -1275,7 +1328,7 @@ body.theme-dark .patient-search-shell::before {
 
 body.theme-dark .billing-patient-search-card {
     background: rgba(15, 23, 42, 0.42);
-    border-color: rgba(99, 102, 241, 0.16);
+    border-color: rgba(148, 163, 184, 0.18);
 }
 
 body.theme-dark .billing-patient-search-head h4 {

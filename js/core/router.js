@@ -173,6 +173,7 @@ function renderSidebar() {
         const PLATFORM_NAV = [
             { id: 'platform-clinics', icon: 'fa-hospital',   label: 'Clínicas' },
             { id: 'platform-stats',   icon: 'fa-chart-bar',  label: 'Estadísticas' },
+            { id: 'platform-audit',   icon: 'fa-clipboard-list', label: 'Auditoría' },
         ];
         PLATFORM_NAV.forEach(item => {
             const link = document.createElement('a');
@@ -351,6 +352,12 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
         content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
         mainContent.appendChild(content);
         renderPlatformStats(content);
+        return true;
+    } else if (viewId === 'platform-audit') {
+        applyPlatformTheme(true);
+        content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
+        mainContent.appendChild(content);
+        renderPlatformAudit(content);
         return true;
     } else {
         applyPlatformTheme(false);

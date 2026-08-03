@@ -1,6 +1,5 @@
 const express = require("express");
 
-const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
 const { parseId } = require("../lib/parse-id");
@@ -223,17 +222,10 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Movimiento no encontrado o sin acceso." });
     }
 
-    const beforeData = await prisma.billingEntry.findUnique({
-      where: { id: existing.id },
-      include: { patient: true, professional: true },
-    });
-
     await prisma.billingEntry.update({
       where: { id: existing.id },
       data: { deletedAt: new Date() },
     });
-
-    await logDeleteAudit(prisma, req.user.id, "BillingEntry", existing.id, { entry: beforeData });
 
     return res.json({ ok: true, message: "Movimiento eliminado correctamente." });
   } catch (_error) {

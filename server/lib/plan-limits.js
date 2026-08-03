@@ -14,28 +14,78 @@ const PLAN_CONFIG = {
     adminUsers: false,        // no puede crear usuarios admin/secretary
     clinicalImages: false,    // sin imágenes clínicas
     billing: false,           // sin facturación
+    aiExtractions: 0,         // sin importación con IA — solo carga manual
   },
   clinica: {
     professionals: 3,
     adminUsers: true,
     clinicalImages: true,
     billing: true,
+    aiExtractions: 100,       // hasta 100 pacientes/mes por foto con IA
   },
   pro: {
     professionals: Infinity,
     adminUsers: true,
     clinicalImages: true,
     billing: true,
+    aiExtractions: 500,       // hasta 500 pacientes/mes por foto con IA
   },
+};
+
+// Clínicas sin plan (prueba/desarrollo) — sin límites.
+const UNLIMITED_CONFIG = {
+  professionals: Infinity,
+  adminUsers: true,
+  clinicalImages: true,
+  billing: true,
+  aiExtractions: Infinity,
 };
 
 /** Devuelve la config del plan, o defaults sin límites si no tiene plan asignado. */
 function getPlanConfig(plan) {
-  return PLAN_CONFIG[plan] || {
-    professionals: Infinity,
-    adminUsers: true,
-    clinicalImages: true,
-    billing: true,
+  return PLAN_CONFIG[plan] || UNLIMITED_CONFIG;
+}
+
+/** Límite mensual de extracciones por IA del plan (0 = no incluido, Infinity = sin plan). */
+function getAiExtractionLimit(plan) {
+  return getPlanConfig(plan).aiExtractions;
+}
+
+/** Mes actual en formato "YYYY-MM" (para resetear la cuota mensual). */
+function currentUsageMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Normaliza el objeto aiUsage al mes actual. Si el mes guardado no es el actual,
+ * arranca de cero. Devuelve { month, count }.
+ */
+function normalizeAiUsage(rawUsage) {
+  const month = currentUsageMonth();
+  if (rawUsage && typeof rawUsage === "object" && rawUsage.month === month) {
+    return { month, count: Number(rawUsage.count) || 0 };
+  }
+  return { month, count: 0 };
+}
+
+/**
+ * Estado de la cuota de IA de una clínica.
+ * @returns {{ allowed: boolean, limit: number, used: number, remaining: number, reason?: string }}
+ */
+function getAiQuotaStatus(plan, rawUsage) {
+  const limit = getAiExtractionLimit(plan);
+  if (limit === 0) {
+    return { allowed: false, limit: 0, used: 0, remaining: 0, reason: "plan-not-included" };
+  }
+  const usage = normalizeAiUsage(rawUsage);
+  const remaining = limit === Infinity ? Infinity : Math.max(0, limit - usage.count);
+  return {
+    allowed: remaining > 0,
+    limit,
+    used: usage.count,
+    remaining,
+    ...(remaining > 0 ? {} : { reason: "monthly-limit-reached" }),
   };
 }
 
@@ -116,4 +166,8 @@ module.exports = {
   checkAdminUserLimit,
   checkClinicalImagesFeature,
   checkBillingFeature,
+  getAiExtractionLimit,
+  getAiQuotaStatus,
+  normalizeAiUsage,
+  currentUsageMonth,
 };

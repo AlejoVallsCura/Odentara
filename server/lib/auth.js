@@ -54,23 +54,29 @@ function serializeUser(user) {
 function buildPermissionSummary(user) {
   const roles = getRoleCodes(user);
   const allowedProfessionalIds = getAllowedProfessionalIds(user);
+  const assignedProfessionalId = user.assignedProfessional?.id || null;
   const isSuperadmin = roles.includes("superadmin");
   const isAdmin = roles.includes("admin");
   const isSecretary = roles.includes("secretary");
   const isProfessional = roles.includes("professional");
   const isPlatformAdmin = user.isPlatformAdmin || false;
 
+  // Si el usuario tiene algún profesional asignado (por "Asignar Profesionales"
+  // o por el vínculo directo del rol Profesional), queda restringido a esos
+  // profesionales — el rol Admin ya NO pisa esa restricción. Solo ve toda la
+  // clínica si no se le asignó ningún profesional, igual que Secretaria.
+  const hasProfessionalScope = allowedProfessionalIds.length > 0 || Boolean(assignedProfessionalId);
+
   return {
     roles,
     allowedProfessionalIds,
-    assignedProfessionalId: user.assignedProfessional?.id || null,
+    assignedProfessionalId,
     assignedProfessionalName: user.assignedProfessional?.fullName || null,
     clinicId: user.clinicId || null,
     isPlatformAdmin,
     canAccessWholeClinic:
       isSuperadmin ||
-      isAdmin ||   // admin siempre ve toda la clínica, aunque tenga profesional asignado
-      (isSecretary && allowedProfessionalIds.length === 0),
+      ((isAdmin || isSecretary) && !hasProfessionalScope),
     isSuperadmin,
     isAdmin,
     isSecretary,

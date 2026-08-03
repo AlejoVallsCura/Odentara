@@ -1076,11 +1076,8 @@ body.app-loading-active {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.55rem 0;
-    border-bottom: 1px solid var(--gray-100);
-}
-.prof-color-row:last-child {
-    border-bottom: none;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.65rem;
 }
 .prof-color-swatch-label {
     display: flex;

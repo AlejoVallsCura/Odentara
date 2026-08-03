@@ -39,7 +39,7 @@ function clinicalRecordEntriesToLegacyOdontogram(entries = []) {
         }
     });
 
-    // Segundo paso: procesar caras y marcador de color (face='L' = azul)
+    // Segundo paso: procesar caras y marcadores especiales (L=color azul, I=endodoncia overlay)
     entries.forEach((entry) => {
         const toothNumber = String(entry.toothNumber || '');
         if (!toothNumber) return;
@@ -52,6 +52,13 @@ function clinicalRecordEntriesToLegacyOdontogram(entries = []) {
             if (odontograma[toothNumber].estado && status === 'restaurado') {
                 odontograma[toothNumber].color = 'azul';
             }
+            return;
+        }
+
+        // 'I' es el marcador de endodoncia como capa independiente del sustrato
+        // (implante, corona-implante, corona, o diente normal) — ver legacyOdontogramToEntries.
+        if (entry.face === 'I' && status === 'endodoncia') {
+            odontograma[toothNumber].endodoncia = true;
             return;
         }
 
@@ -95,6 +102,18 @@ function legacyOdontogramToEntries(odontograma = {}) {
 
     Object.entries(odontograma || {}).forEach(([toothNumber, toothData]) => {
         if (!toothData || typeof toothData !== 'object') return;
+
+        // Endodoncia como capa independiente (ver drawTeethRow): se guarda como
+        // face='I' (nunca emitida por ninguna cara real), separada del estado de
+        // base. Aplica sobre cualquier sustrato salvo "ausente", y se omite si el
+        // estado de base ya es 'endodoncia' (dato legacy, ya cubierto por face=null).
+        if (toothData.endodoncia === true && toothData.estado !== 'ausente' && toothData.estado !== 'endodoncia') {
+            entries.push({
+                toothNumber: String(toothNumber),
+                face: 'I',
+                status: statusMap.endodoncia
+            });
+        }
 
         if (toothStateEstados.has(toothData.estado)) {
             entries.push({
@@ -163,6 +182,7 @@ function createClinicalDraftFromPatient(patient) {
             notes: patient.notes || '',
             allergies: patient.allergies || '',
             medicalNotes: patient.medicalNotes || '',
+            medicalHistory: patient.medicalHistory || null,
             odontograma: deepClone(patient.odontograma || {}),
             showChildDentition: Boolean(patient.showChildDentition || hasChildDentitionData(patient))
         }
@@ -203,8 +223,6 @@ function updateClinicalDraft(patientId, updater) {
 
 function clearClinicalDraft() {
     state.clinicalDraft = null;
-    // Resetear el profesional seleccionado para que al abrir otro paciente quede en blanco
-    if (isSuperadmin()) state.clinicalOdontoProfessionalId = null;
 }
 
 function hasUnsavedClinicalDraft() {
@@ -250,18 +268,20 @@ function syncClinicalHistorySaveState() {
     }
 }
 
-async function syncPatientClinicalData(patientId, professionalId) {
+// La ficha clínica (odontograma, notas, tratamientos, archivos) es compartida
+// por toda la clínica — no hay un "profesional activo" que filtre qué se ve.
+// Recetas y presupuestos siguen siendo privados, pero el backend ya los
+// scopea solo con el usuario autenticado (sin necesitar un query param acá).
+async function syncPatientClinicalData(patientId) {
     if (!state.authToken) {
         return DB.get('patients').find((item) => item.id === patientId) || null;
     }
 
-    const profQ = professionalId ? `&professionalId=${professionalId}` : '';
-    const profQRecord = professionalId ? `?professionalId=${professionalId}` : '';
     const [patientRes, treatmentsRes, imagesRes, clinicalRecordRes, prescriptionsRes, budgetsRes] = await Promise.all([
         apiFetch(`/patients/${patientId}`),
-        apiFetch(`/treatments?patientId=${patientId}${profQ}`),
-        apiFetch(`/clinical-images?patientId=${patientId}${profQ}`),
-        apiFetch(`/clinical-records/${patientId}${profQRecord}`),
+        apiFetch(`/treatments?patientId=${patientId}`),
+        apiFetch(`/clinical-images?patientId=${patientId}`),
+        apiFetch(`/clinical-records/${patientId}`),
         apiFetch(`/prescriptions?patientId=${patientId}`).catch(() => ({ prescriptions: [] })),
         apiFetch(`/budgets?patientId=${patientId}`).catch(() => ({ budgets: [] }))
     ]);
@@ -437,6 +457,39 @@ function _bindViewerZoomEvents() {
         }
     }, { passive: false });
     wrap.addEventListener('touchend', () => { touchDragging = false; });
+
+    // ── Confinar el zoom al visor ──────────────────────────────────────────
+    // El pinch solo estaba contemplado sobre la imagen. Si el gesto arrancaba
+    // en cualquier otro lado del visor (fondo, encabezado, márgenes), lo tomaba
+    // el navegador y hacía zoom de LA PÁGINA. Como el visor es position:fixed y
+    // ocupa toda la pantalla, después no había forma de deshacer ese zoom: el
+    // usuario quedaba atrapado.
+    // Acá se bloquea el zoom nativo en toda la superficie del visor, para que
+    // ampliar solo sea posible con los botones del propio visor.
+    const overlay = document.querySelector('.clinical-image-viewer-overlay');
+    if (overlay && !overlay.dataset.zoomGuard) {
+        overlay.dataset.zoomGuard = '1';
+
+        // Safari en iOS no cancela el zoom de página con touchmove: usa sus
+        // propios eventos gesture*, que hay que frenar explícitamente.
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach((evt) => {
+            overlay.addEventListener(evt, (e) => e.preventDefault());
+        });
+
+        // Cualquier pinch iniciado fuera de la imagen tampoco debe llegar al
+        // navegador (dentro de la imagen ya lo maneja el handler de arriba).
+        overlay.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+
+        // Doble toque: en iOS también dispara zoom de página.
+        let lastTap = 0;
+        overlay.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTap < 300 && e.touches.length === 0) e.preventDefault();
+            lastTap = now;
+        }, { passive: false });
+    }
 }
 
 function renderClinicalImageViewer() {
@@ -475,6 +528,7 @@ function renderClinicalImageViewer() {
                             <button type="button" class="clinical-image-viewer-zoom-btn" onclick="event.stopPropagation(); adjustViewerZoom(0)" aria-label="Tamaño original"><i class="fa-solid fa-expand"></i></button>
                             <button type="button" class="clinical-image-viewer-zoom-btn" onclick="event.stopPropagation(); adjustViewerZoom(0.5)" aria-label="Acercar"><i class="fa-solid fa-plus"></i></button>
                         </div>
+                        <a href="${escapeHtml(image.dataUrl)}" download="${escapeHtml(image.fileName || label)}" class="clinical-image-viewer-zoom-btn clinical-image-viewer-download" onclick="event.stopPropagation()" aria-label="Descargar imagen" title="Descargar"><i class="fa-solid fa-download"></i></a>
                         <button type="button" class="clinical-image-viewer-close" onclick="event.stopPropagation(); closeModal();" aria-label="Cerrar visor">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
@@ -549,7 +603,7 @@ function renderClinicalImageViewer() {
 }
 
 
-// --- Ficha ClÃ­nica y Odontograma ---
+// --- Ficha Clínica y Odontograma ---
 
 async function loadClinicalHistory(patientId, options = {}) {
     if (!canAccessPatient(patientId)) return;
@@ -571,21 +625,10 @@ async function loadClinicalHistory(patientId, options = {}) {
     state.currentPatientId = patientId;
     pageTitle.innerText = 'Ficha Odontológica';
     mainContent.innerHTML = '<div class="card p-6 text-center text-gray-500">Cargando historia clínica...</div>';
-    
-    // Determinar qué profesional se usa para el odontograma
-    const scopedProfs = state.user?.allowedProfessionals || [];
-    const needsSelector = isSuperadmin() || scopedProfs.length > 1;
-    if (needsSelector && !state.clinicalOdontoProfessionalId) {
-        const allProfs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
-        const candidates = isSuperadmin() ? allProfs : allProfs.filter(p => scopedProfs.includes(p.id));
-        if (candidates.length > 0) {
-            state.clinicalOdontoProfessionalId = candidates[0].id;
-        }
-    }
 
     try {
         if (!options.skipSync) {
-            await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+            await syncPatientClinicalData(patientId);
         }
     } catch (error) {
         showAlert(error.message || 'No se pudo cargar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
@@ -784,6 +827,19 @@ function drawTeethRow(teethArray, patientOdontograma, isUpper = true) {
             `;
         }
 
+        // Endodoncia como capa independiente del sustrato (implante, corona-implante,
+        // corona, o diente normal): no borra el estado de base al aplicarse. Solo se
+        // bloquea sobre "ausente" (diente extraído) y se evita duplicar el dibujo si
+        // el estado de base YA es 'endodoncia' (dato legacy sin capa independiente).
+        if (toothData.endodoncia === true && estado !== 'ausente' && estado !== 'endodoncia') {
+            const ec = tColor === 'azul' ? '#2563eb' : '#dc2626';
+            facesHtml += `
+                <rect x="24" y="16" width="52" height="12" fill="${ec}"/>
+                <rect x="44" y="28" width="12" height="44" fill="${ec}"/>
+                <rect x="24" y="72" width="52" height="12" fill="${ec}"/>
+            `;
+        }
+
         const numSpan = `<span class="text-[9px] md:text-[11px] font-bold text-gray-600 w-full text-center leading-tight">${id}</span>`;
         const svgBox = `<div class="relative tooth-svg-box">
                 <svg viewBox="0 0 100 100" class="w-full h-full" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.12));">
@@ -805,6 +861,88 @@ function drawTeethRow(teethArray, patientOdontograma, isUpper = true) {
     }).join('');
 }
 
+// ── Antecedentes médicos (cuestionario de la ficha) ───────────────
+// Fuente única de verdad para las claves — debe coincidir con patient.service.js
+// del backend y con el schema de extracción por IA.
+const MEDICAL_BOOL_FIELDS = [
+    { key: 'cardiacos',          label: 'Problemas cardíacos' },
+    { key: 'presionAlta',        label: 'Presión sanguínea alta' },
+    { key: 'presionBaja',        label: 'Presión sanguínea baja' },
+    { key: 'hepatitis',          label: 'Hepatitis' },
+    { key: 'ulcerasEstomago',    label: 'Úlceras de estómago' },
+    { key: 'diabetes',           label: 'Diabetes' },
+    { key: 'asma',               label: 'Asma' },
+    { key: 'venereasSida',       label: 'Enfermedades venéreas / SIDA' },
+    { key: 'fiebreReumatica',    label: 'Fiebre reumática' },
+    { key: 'epilepsia',          label: 'Epilepsia / Convulsiones' },
+    { key: 'desmayos',           label: 'Desmayos' },
+    { key: 'problemasHepaticos', label: 'Problemas hepáticos' },
+    { key: 'embarazo',           label: 'Embarazo' },
+    { key: 'examenHiv',          label: 'Examen de HIV' },
+    { key: 'problemasRenales',   label: 'Problemas renales' },
+    { key: 'servicioUrgencia',   label: '¿Está asociado a servicio de urgencia?' },
+    { key: 'sangradoExcesivo',   label: '¿Sangra en exceso al lastimarse o extraer un diente?' },
+    { key: 'fuma',               label: '¿Fuma?' },
+];
+// Casilleros Sí/No con un campo de texto asociado ("¿cuál?")
+const MEDICAL_BOOL_WITH_TEXT = [
+    { key: 'bajoTratamiento',  textKey: 'bajoTratamientoCual',  label: '¿Bajo tratamiento médico por alguna enfermedad?', textLabel: '¿Cuál?' },
+    { key: 'reaccionAlergica', textKey: 'reaccionAlergicaCual', label: '¿Tuvo reacciones alérgicas a medicamentos (aspirina, penicilina, anestésicos)?', textLabel: '¿Cuál?' },
+    { key: 'tomaMedicamentos', textKey: 'medicamentosCuales',   label: '¿Toma algún medicamento (incluso de venta libre)?', textLabel: '¿Cuáles?' },
+];
+
+// Solo los campos del cuestionario (grilla Sí/No + los que llevan texto),
+// sin el wrapper de pestaña — se reutiliza tanto en la Historia Clínica
+// (dentro de la pestaña "Antecedentes") como en el modal de Nuevo/Editar
+// Paciente (donde no hay pestañas, así que el wrapper .clinical-tab-panel
+// quedaría oculto por CSS al no tener la clase .is-active).
+function renderMedicalHistoryFields(patient, canEdit) {
+    const mh = patient.medicalHistory || {};
+    const dis = canEdit ? '' : 'disabled';
+    const yesNo = (f) => `
+        <label class="mh-row">
+            <span class="mh-label">${f.label}</span>
+            <span class="mh-toggle">
+                <label class="mh-opt"><input type="radio" name="mh-${f.key}" value="si" ${mh[f.key] === true ? 'checked' : ''} ${dis}> Sí</label>
+                <label class="mh-opt"><input type="radio" name="mh-${f.key}" value="no" ${mh[f.key] === false ? 'checked' : ''} ${dis}> No</label>
+            </span>
+        </label>`;
+    const half = Math.ceil(MEDICAL_BOOL_FIELDS.length / 2);
+    const col1 = MEDICAL_BOOL_FIELDS.slice(0, half).map(yesNo).join('');
+    const col2 = MEDICAL_BOOL_FIELDS.slice(half).map(yesNo).join('');
+    const withText = MEDICAL_BOOL_WITH_TEXT.map(f => `
+        <div class="mh-row-text">
+            <label class="mh-row mh-row-inline">
+                <span class="mh-label">${f.label}</span>
+                <span class="mh-toggle">
+                    <label class="mh-opt"><input type="radio" name="mh-${f.key}" value="si" ${mh[f.key] === true ? 'checked' : ''} ${dis}> Sí</label>
+                    <label class="mh-opt"><input type="radio" name="mh-${f.key}" value="no" ${mh[f.key] === false ? 'checked' : ''} ${dis}> No</label>
+                </span>
+            </label>
+            <input type="text" class="form-input mh-text" id="mh-text-${f.textKey}" placeholder="${f.textLabel}" value="${escapeHtml(mh[f.textKey] || '')}" ${dis}>
+        </div>`).join('');
+
+    return `
+        <div class="mh-grid">
+            <div class="mh-col">${col1}</div>
+            <div class="mh-col">${col2}</div>
+        </div>
+        <div class="mh-text-section">${withText}</div>`;
+}
+
+function renderMedicalHistoryPanel(patient, canEdit) {
+    return `
+    <div class="clinical-tab-panel ${( state.clinicalActiveTab || 'clinico') === 'antecedentes' ? 'is-active' : ''}" data-tab="antecedentes">
+        <div class="mb-4">
+            <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-3">
+                <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Antecedentes Médicos</h3>
+            </div>
+            <p class="text-xs text-gray-500 mb-4 print-hidden"><i class="fa-solid fa-circle-info"></i> Cuestionario de salud del paciente. Marcá Sí/No en cada ítem.</p>
+            ${renderMedicalHistoryFields(patient, canEdit)}
+        </div>
+    </div>`;
+}
+
 function renderClinicalHistory(patientId) {
     const patient = getClinicalWorkingPatient(patientId);
     if(!patient) return '<p>Paciente no encontrado</p>';
@@ -816,12 +954,9 @@ function renderClinicalHistory(patientId) {
     const activeTab = state.clinicalActiveTab || 'clinico';
     const hasAllergies = !!(patient.allergies && String(patient.allergies).trim());
 
-    // Tratamientos filtrados por profesional seleccionado
-    // Los tratamientos sin professionalId (null) se muestran para todos los profesionales
-    const selectedProfId = getCurrentOdontoProfessionalId();
-    const visibleTreatments = selectedProfId
-        ? (patient.treatments || []).filter(t => !t.professionalId || t.professionalId === selectedProfId)
-        : (patient.treatments || []);
+    // Los tratamientos son parte de la ficha compartida: se ven todos,
+    // sin importar qué profesional los cargó.
+    const visibleTreatments = patient.treatments || [];
 
     let age = '-';
     if(patient.fechaNacimiento) {
@@ -843,7 +978,10 @@ function renderClinicalHistory(patientId) {
             <div class="text-right text-sm clinical-header-actions">
                 ${hasAllergies ? `<div class="clinical-allergy-badge" title="${escapeHtml(patient.allergies)}"><i class="fa-solid fa-triangle-exclamation"></i> Alergias: ${escapeHtml(patient.allergies)}</div>` : ''}
                 <div class="clinical-print-toolbar print-hidden">
-                    <button type="button" class="btn btn-primary btn-sm" onclick="printClinicalHistory()">
+                    <button type="button" class="btn btn-ia btn-sm" onclick="showPatientAiSummary(${patientId})">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Resumen IA
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="printClinicalHistory(${patientId})">
                         <i class="fa-solid fa-print"></i> Imprimir Historia
                     </button>
                 </div>
@@ -867,7 +1005,7 @@ function renderClinicalHistory(patientId) {
             <!-- PESTAÑAS DE LA FICHA -->
             <div class="clinical-tabs print-hidden" role="tablist">
                 <button type="button" class="clinical-tab ${activeTab === 'clinico' ? 'is-active' : ''}" data-clinical-tab="clinico" onclick="switchClinicalTab('clinico')"><i class="fa-solid fa-tooth"></i> Clínico</button>
-                <button type="button" class="clinical-tab ${activeTab === 'tratamientos' ? 'is-active' : ''}" data-clinical-tab="tratamientos" onclick="switchClinicalTab('tratamientos')"><i class="fa-solid fa-clipboard-list"></i> Tratamientos</button>
+                <button type="button" class="clinical-tab ${activeTab === 'antecedentes' ? 'is-active' : ''}" data-clinical-tab="antecedentes" onclick="switchClinicalTab('antecedentes')"><i class="fa-solid fa-notes-medical"></i> Antecedentes</button>
                 <button type="button" class="clinical-tab ${activeTab === 'recetas' ? 'is-active' : ''}" data-clinical-tab="recetas" onclick="switchClinicalTab('recetas')"><i class="fa-solid fa-prescription"></i> Recetas</button>
                 <button type="button" class="clinical-tab ${activeTab === 'presupuestos' ? 'is-active' : ''}" data-clinical-tab="presupuestos" onclick="switchClinicalTab('presupuestos')"><i class="fa-solid fa-file-invoice-dollar"></i> Presupuestos</button>
                 <button type="button" class="clinical-tab ${activeTab === 'archivos' ? 'is-active' : ''}" data-clinical-tab="archivos" onclick="switchClinicalTab('archivos')"><i class="fa-solid fa-folder-open"></i> Archivos</button>
@@ -880,25 +1018,7 @@ function renderClinicalHistory(patientId) {
             <div class="mb-10 clinical-odontogram-block">
                 <div class="odontogram-header mb-4 clinical-odontogram-section">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm bg-gray-100 py-1 px-3 rounded inline-block border-l-4 border-primary-600">Odontograma</h3>
-                    ${(() => {
-                        const _scopedProfs = state.user?.allowedProfessionals || [];
-                        const _needsSelector = isSuperadmin() || _scopedProfs.length > 1;
-                        if (_needsSelector) {
-                            const allProfs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
-                            const profs = isSuperadmin() ? allProfs : allProfs.filter(p => _scopedProfs.includes(p.id));
-                            const selectedId = state.clinicalOdontoProfessionalId;
-                            return `<div class="odonto-prof-selector print-hidden">
-                                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Profesional:</label>
-                                <select id="odonto-prof-select" class="odonto-prof-select-input" onchange="window.changeOdontoProfessional(${patientId}, this.value)">
-                                    <option value="">— Seleccionar —</option>
-                                    ${profs.map(p => `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name)}${p.specialty ? ' · ' + escapeHtml(p.specialty) : ''}</option>`).join('')}
-                                </select>
-                            </div>`;
-                        }
-                        const profName = state.user?.assignedProfessionalName || '';
-                        const profLabel = profName && !/^Dr\.?\/?(Dra\.?)?|^Dr\.?\s/i.test(profName) ? `Dr/Dra. ${profName}` : profName;
-                        return profLabel ? `<span class="text-xs text-gray-500 font-medium print-hidden">${profLabel}</span>` : '';
-                    })()}
+                    <span class="text-xs text-gray-400 font-medium print-hidden"><i class="fa-solid fa-users"></i> Compartido con toda la clínica</span>
                 </div>
                 
                 <div class="odontogram-wrapper overflow-x-auto pb-4">
@@ -995,17 +1115,8 @@ function renderClinicalHistory(patientId) {
                 ` : ''}
             </div>
 
-            <!-- OBSERVACIONES / ALERGIAS (dentro del panel Clínico) -->
-            <div class="mt-8 bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
-                <h3 class="font-bold text-yellow-800 mb-2 uppercase text-xs"><i class="fa-solid fa-notes-medical"></i> Observaciones Generales y Alergias</h3>
-                <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded" ${canEditClinical ? '' : 'disabled'}>${patient.notes || ''}</textarea>
-            </div>
-            </div><!-- /panel clinico -->
-
-            <!-- PANEL: TRATAMIENTOS -->
-            <div class="clinical-tab-panel ${activeTab === 'tratamientos' ? 'is-active' : ''}" data-tab="tratamientos">
-            <!-- TRATAMIENTOS -->
-            <div class="mb-6">
+            <!-- TRATAMIENTOS (dentro del panel Clínico, vinculado al odontograma) -->
+            <div class="mt-8 mb-6">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-3">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Registro de Tratamientos</h3>
                     ${canEditClinical ? '<button class="btn btn-primary btn-sm whitespace-nowrap print-hidden" id="btn-add-treatment"><i class="fa-solid fa-plus"></i> Añadir</button>' : ''}
@@ -1039,8 +1150,8 @@ function renderClinicalHistory(patientId) {
                                     <td class="py-2.5 px-3 text-gray-500 max-w-xs col-hide-xs">${t.observaciones || '-'}</td>
                                     <td class="py-2 px-2 print-hidden">
                                         ${canEditClinical ? `
-                                        <button class="btn-ghost text-gray-300 hover:text-red-500 p-1 transition-colors rounded" onclick="deleteTreatment(${patientId}, ${t.id ?? idx})" title="Eliminar">
-                                            <i class="fa-solid fa-trash-can text-xs"></i>
+                                        <button class="btn btn-icon btn-icon-danger" onclick="deleteTreatment(${patientId}, ${t.id ?? idx})" title="Eliminar">
+                                            <i class="fa-solid fa-trash-can"></i>
                                         </button>` : ''}
                                     </td>
                                 </tr>
@@ -1059,7 +1170,18 @@ function renderClinicalHistory(patientId) {
                 </div>
             </div>
 
-            </div><!-- /panel tratamientos -->
+            <!-- OBSERVACIONES / ALERGIAS (dentro del panel Clínico) -->
+            <div class="mt-8 bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-yellow-800 uppercase text-xs"><i class="fa-solid fa-notes-medical"></i> Observaciones Generales y Alergias</h3>
+                    ${canEditClinical ? `<button type="button" class="btn btn-ia print-hidden" onclick="startDictation('p-general-notes', ${patientId})"><i class="fa-solid fa-microphone"></i> Dictar</button>` : ''}
+                </div>
+                <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded" ${canEditClinical ? '' : 'disabled'}>${patient.notes || ''}</textarea>
+            </div>
+            </div><!-- /panel clinico -->
+
+            <!-- PANEL: ANTECEDENTES MÉDICOS -->
+            ${renderMedicalHistoryPanel(patient, canEditClinical)}
 
             <!-- PANEL: RECETAS -->
             <div class="clinical-tab-panel ${activeTab === 'recetas' ? 'is-active' : ''}" data-tab="recetas">
@@ -1093,8 +1215,8 @@ function renderClinicalHistory(patientId) {
                                             <i class="fa-solid fa-print"></i>
                                         </button>
                                         ${canEditClinical ? `
-                                        <button class="btn-ghost text-gray-300 hover:text-red-500 p-1 transition-colors rounded" onclick="deletePrescription(${patientId}, ${rx.id})" title="Anular receta">
-                                            <i class="fa-solid fa-trash-can text-xs"></i>
+                                        <button class="btn btn-icon btn-icon-danger" onclick="deletePrescription(${patientId}, ${rx.id})" title="Anular receta">
+                                            <i class="fa-solid fa-trash-can"></i>
                                         </button>` : ''}
                                     </td>
                                 </tr>
@@ -1278,19 +1400,183 @@ window.switchClinicalTab = function(tab) {
     });
 };
 
-window.printClinicalHistory = function() {
-    document.body.classList.add('printing-clinical-history');
+window.printClinicalHistory = function(patientId) {
+    if (!patientId) {
+        const match = window.location.hash.match(/clinical\/(\d+)/);
+        patientId = match ? Number(match[1]) : null;
+    }
+    const patient = getClinicalWorkingPatient(patientId);
+    if (!patient) {
+        showAlert('Paciente no encontrado.', { title: 'Historia clínica', variant: 'error' });
+        return;
+    }
 
-    const cleanup = () => {
-        document.body.classList.remove('printing-clinical-history');
-    };
+    const esc = escapeHtml;
+    const clinicName = getClinicDisplayName();
 
-    window.addEventListener('afterprint', cleanup, { once: true });
-    window.print();
+    let age = '-';
+    if (patient.fechaNacimiento) {
+        const diff = Date.now() - new Date(patient.fechaNacimiento).getTime();
+        age = Math.abs(new Date(diff).getUTCFullYear() - 1970);
+    }
 
-    setTimeout(() => {
-        document.body.classList.remove('printing-clinical-history');
-    }, 1200);
+    const visibleTreatments = (patient.treatments || [])
+        .slice()
+        .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+
+    const showInfantil = hasChildDentitionData(patient);
+
+    const odontogramaHtml = `
+        <div class="hx-odonto-block">
+            <div class="hx-odonto-label">Dentición Adulta</div>
+            <div class="hx-odonto-row">
+                <div class="hx-odonto-arch">${drawTeethRow([18,17,16,15,14,13,12,11], patient.odontograma, true)}</div>
+                <div class="hx-odonto-arch hx-odonto-arch-split">${drawTeethRow([21,22,23,24,25,26,27,28], patient.odontograma, true)}</div>
+            </div>
+            <div class="hx-odonto-row">
+                <div class="hx-odonto-arch">${drawTeethRow([48,47,46,45,44,43,42,41], patient.odontograma, false)}</div>
+                <div class="hx-odonto-arch hx-odonto-arch-split">${drawTeethRow([31,32,33,34,35,36,37,38], patient.odontograma, false)}</div>
+            </div>
+        </div>
+        ${showInfantil ? `
+        <div class="hx-odonto-block">
+            <div class="hx-odonto-label">Dentición Infantil</div>
+            <div class="hx-odonto-row">
+                <div class="hx-odonto-arch">${drawTeethRow([55,54,53,52,51], patient.odontograma, true)}</div>
+                <div class="hx-odonto-arch hx-odonto-arch-split">${drawTeethRow([61,62,63,64,65], patient.odontograma, true)}</div>
+            </div>
+            <div class="hx-odonto-row">
+                <div class="hx-odonto-arch">${drawTeethRow([85,84,83,82,81], patient.odontograma, false)}</div>
+                <div class="hx-odonto-arch hx-odonto-arch-split">${drawTeethRow([71,72,73,74,75], patient.odontograma, false)}</div>
+            </div>
+        </div>` : ''}
+    `;
+
+    const treatmentsSectionHtml = visibleTreatments.length ? `
+    <div class="hx-section-title">Registro de Tratamientos</div>
+    <table class="hx-table">
+        <thead>
+            <tr>
+                <th>Diente</th><th>Cara</th><th>Sector</th><th>Autorización</th><th>Código</th><th>Fecha</th><th>Observaciones</th>
+            </tr>
+        </thead>
+        <tbody>${visibleTreatments.map(t => `
+            <tr>
+                <td class="hx-td-strong">${esc(t.diente ?? '-')}</td>
+                <td>${esc(t.cara || '-')}</td>
+                <td>${esc(t.sector || '-')}</td>
+                <td>${esc(t.autorizacion || '-')}</td>
+                <td class="hx-td-mono">${esc(t.codigo || '-')}</td>
+                <td>${t.fecha ? esc(t.fecha.split('-').reverse().join('/')) : '-'}${t.firma ? `<div class="hx-td-sub">${esc(t.firma)}</div>` : ''}</td>
+                <td>${esc(t.observaciones || '-')}</td>
+            </tr>`).join('')}</tbody>
+    </table>` : '';
+
+    // Antecedentes médicos: solo los ítems marcados "Sí" y los textos cargados —
+    // si no hay ningún antecedente cargado, la sección entera no se imprime.
+    const mh = patient.medicalHistory || {};
+    const positiveConditions = MEDICAL_BOOL_FIELDS.filter(f => mh[f.key] === true).map(f => f.label);
+    const textAnswers = MEDICAL_BOOL_WITH_TEXT.filter(f => mh[f.key] === true || mh[f.textKey]);
+    const hasMedicalHistory = positiveConditions.length > 0 || textAnswers.length > 0;
+    const medicalHistorySectionHtml = hasMedicalHistory ? `
+    <div class="hx-section-title">Antecedentes Médicos</div>
+    <div class="hx-mh">
+        ${positiveConditions.length ? `<ul class="hx-mh-list">${positiveConditions.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
+        ${textAnswers.map(f => `<div class="hx-mh-text"><strong>${esc(f.label)}</strong> ${esc(mh[f.textKey] || '-')}</div>`).join('')}
+    </div>` : '';
+
+    const observationsSectionHtml = patient.notes ? `
+    <div class="hx-section-title">Observaciones Generales y Alergias</div>
+    <div class="hx-notes">${esc(patient.notes)}</div>` : '';
+
+    const w = window.open('', '_blank', 'width=900,height=1000');
+    if (!w) {
+        showAlert('El navegador bloqueó la ventana de impresión. Habilitá los pop-ups para este sitio.', { title: 'Historia clínica', variant: 'warning' });
+        return;
+    }
+    w.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Historia Clínica - ${esc(patient.name || '')}</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px 40px; max-width: 900px; margin: 0 auto; }
+    .hx-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #1a1a1a; padding-bottom: 14px; margin-bottom: 20px; }
+    .hx-clinic { font-size: 20px; font-weight: 900; letter-spacing: 0.3px; text-transform: uppercase; }
+    .hx-subtitle { font-size: 12.5px; color: #444; margin-top: 3px; font-weight: 600; }
+    .hx-allergy { font-size: 12px; font-weight: 700; color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; padding: 5px 10px; border-radius: 6px; text-align: right; max-width: 260px; }
+    .hx-section-title { font-size: 11.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; color: #333; background: #f3f4f6; border-left: 3px solid #1a1a1a; padding: 4px 10px; margin: 22px 0 10px; }
+    .hx-info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 20px; font-size: 12.5px; padding-bottom: 14px; border-bottom: 1px dashed #bbb; }
+    .hx-info-grid div.hx-wide { grid-column: 1 / -1; }
+    .hx-info-label { display: block; font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #666; letter-spacing: 0.05em; margin-bottom: 2px; }
+    .hx-info-value { font-weight: 600; color: #1a1a1a; }
+    .hx-odonto-block { margin-bottom: 16px; }
+    .hx-odonto-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; text-align: center; margin-bottom: 8px; }
+    .hx-odonto-row { display: flex; justify-content: center; gap: 22px; margin-bottom: 6px; }
+    .hx-odonto-arch { display: flex; gap: 4px; }
+    .hx-odonto-arch-split { border-left: 1.5px solid #ccc; padding-left: 18px; }
+    /* Compatibilidad con el markup Tailwind que devuelve drawTeethRow() */
+    .hx-odonto-arch .flex { display: flex; }
+    .hx-odonto-arch .flex-col { flex-direction: column; }
+    .hx-odonto-arch .items-center { align-items: center; }
+    .hx-odonto-arch .relative { position: relative; }
+    .hx-odonto-arch .tooth-box { width: 30px; }
+    .hx-odonto-arch .tooth-svg-box { width: 100%; height: 30px; }
+    .hx-odonto-arch .tooth-svg-box svg { width: 100%; height: 100%; }
+    .hx-odonto-arch .tooth-ind-slot { display: flex; align-items: center; justify-content: center; height: 12px; gap: 2px; }
+    .hx-odonto-arch .tooth-box span { font-size: 7.5px; font-weight: 700; color: #555; text-align: center; display: block; line-height: 1.1; }
+    table.hx-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    table.hx-table th { text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #555; background: #f3f4f6; padding: 6px 8px; border-bottom: 1.5px solid #ccc; }
+    table.hx-table td { padding: 6px 8px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+    .hx-td-strong { font-weight: 700; }
+    .hx-td-mono { font-family: 'Courier New', monospace; }
+    .hx-td-sub { font-size: 9.5px; color: #888; margin-top: 1px; }
+    .hx-empty { text-align: center; color: #999; padding: 16px; }
+    .hx-notes { font-size: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; min-height: 20px; }
+    .hx-mh { font-size: 12px; }
+    .hx-mh-list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; margin-bottom: 8px; }
+    .hx-mh-list li { padding-left: 14px; position: relative; }
+    .hx-mh-list li::before { content: '⚠'; position: absolute; left: 0; color: #b45309; }
+    .hx-mh-text { margin-top: 4px; }
+    .hx-mh-text strong { font-weight: 700; margin-right: 4px; }
+    @page { size: portrait; margin: 14mm; }
+    @media print { body { padding: 16px 24px; } }
+</style>
+</head>
+<body>
+    <div class="hx-header">
+        <div>
+            <div class="hx-clinic">${esc(clinicName)}</div>
+            <div class="hx-subtitle">Ficha Clínica Odontológica</div>
+        </div>
+        ${patient.allergies ? `<div class="hx-allergy">⚠ Alergias: ${esc(patient.allergies)}</div>` : ''}
+    </div>
+
+    <div class="hx-info-grid">
+        <div><span class="hx-info-label">Nombre</span><span class="hx-info-value">${esc(patient.name || '-')}</span></div>
+        <div><span class="hx-info-label">DNI</span><span class="hx-info-value">${esc(patient.dni || '-')}</span></div>
+        <div><span class="hx-info-label">Ficha N°</span><span class="hx-info-value">${esc(patient.fichaNumero || '-')}</span></div>
+        <div><span class="hx-info-label">Nacimiento</span><span class="hx-info-value">${patient.fechaNacimiento ? esc(patient.fechaNacimiento.split('-').reverse().join('/')) : '-'}</span></div>
+        <div><span class="hx-info-label">Edad</span><span class="hx-info-value">${age} años</span></div>
+        <div><span class="hx-info-label">Teléfono</span><span class="hx-info-value">${esc(patient.phone || '-')}</span></div>
+        <div><span class="hx-info-label">Obra Social / Plan</span><span class="hx-info-value">${esc(patient.obraSocial || '-')}</span></div>
+        <div><span class="hx-info-label">Credencial</span><span class="hx-info-value">${esc(patient.credencial || '-')}</span></div>
+        <div><span class="hx-info-label">Email</span><span class="hx-info-value">${esc(patient.email || '-')}</span></div>
+        <div class="hx-wide"><span class="hx-info-label">Domicilio</span><span class="hx-info-value">${esc(patient.domicilio || '-')}</span></div>
+    </div>
+
+    ${medicalHistorySectionHtml}
+
+    <div class="hx-section-title">Odontograma</div>
+    ${odontogramaHtml}
+    ${treatmentsSectionHtml}
+    ${observationsSectionHtml}
+
+    <scr` + `ipt>window.onload = () => { window.print(); };</scr` + `ipt>
+</body>
+</html>`);
+    w.document.close();
 };
 
 function bindClinicalToothEvents(patientId) {
@@ -1326,6 +1612,22 @@ function bindClinicalToothEvents(patientId) {
                     delete draft.data.odontograma[tooth];
                 } else {
                     draft.data.odontograma[tooth] = { estado: 'ausente', color };
+                }
+            } else if (treatment === 'endodoncia') {
+                // Endodoncia es una capa independiente del sustrato (implante,
+                // corona-implante, corona, o diente normal) — no reemplaza el
+                // estado de base, para que ambos convivan. No aplica sobre un
+                // diente marcado como ausente.
+                if (toothState.estado !== 'ausente') {
+                    const hasEndo = toothState.estado === 'endodoncia' || toothState.endodoncia === true;
+                    if (hasEndo) {
+                        delete toothState.endodoncia;
+                        if (toothState.estado === 'endodoncia') delete toothState.estado;
+                        if (!Object.keys(toothState).length) delete draft.data.odontograma[tooth];
+                    } else {
+                        toothState.endodoncia = true;
+                        toothState.color = color;
+                    }
                 }
             } else if (treatment && treatment !== '') {
                 // Apply treatment to whole tooth
@@ -1449,6 +1751,25 @@ function attachClinicalHistoryEvents(patientId) {
     bindDraftInput('#clinical-domicilio', 'domicilio');
     bindDraftInput('#p-general-notes', 'notes');
 
+    // Antecedentes médicos: cualquier cambio en los radios/textos marca la
+    // ficha como dirty, igual que el resto de los campos — se guarda todo
+    // junto con "Guardar Historia Clínica", sin un botón aparte.
+    const medicalHistoryForm = document.querySelector('[data-tab="antecedentes"]');
+    if (medicalHistoryForm) {
+        medicalHistoryForm.addEventListener('change', () => {
+            updateClinicalDraft(patientId, (draft) => {
+                draft.medicalHistory = readMedicalHistoryForm();
+            });
+        });
+        medicalHistoryForm.querySelectorAll('.mh-text').forEach((input) => {
+            input.oninput = () => {
+                updateClinicalDraft(patientId, (draft) => {
+                    draft.medicalHistory = readMedicalHistoryForm();
+                });
+            };
+        });
+    }
+
     bindClinicalToothEvents(patientId);
     attachOdontogramToolbar(patientId);
 
@@ -1525,19 +1846,6 @@ window.savePatientDetails = async function(patientId) {
     return window.saveClinicalHistory(patientId);
 };
 
-window.changeOdontoProfessional = async function(patientId, professionalId) {
-    const profId = professionalId ? Number(professionalId) : null;
-    state.clinicalOdontoProfessionalId = profId;
-    if (!profId) return;
-    try {
-        await syncPatientClinicalData(patientId, profId);
-        setClinicalDraftFromPatient(DB.get('patients').find(p => p.id === patientId));
-        await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
-    } catch (error) {
-        showAlert(error.message || 'No se pudo cargar el odontograma.', { title: 'Odontograma', variant: 'error' });
-    }
-};
-
 window.saveClinicalHistory = async function(patientId) {
     if (!canEditClinicalHistoryUi()) {
         showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
@@ -1579,7 +1887,7 @@ window.saveClinicalHistory = async function(patientId) {
                         odontogramEntries: legacyOdontogramToEntries(mergedValues.odontograma || {})
                     })
                 });
-                await syncPatientClinicalData(patientId, odontoProfessionalId);
+                await syncPatientClinicalData(patientId);
             } else {
                 DB.update('patients', patientId, mergedValues);
             }
@@ -1593,6 +1901,234 @@ window.saveClinicalHistory = async function(patientId) {
     } catch (error) {
         showAlert(error.message || 'No se pudo guardar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
     }
+};
+
+// Lee el formulario de antecedentes del DOM y devuelve el objeto medicalHistory.
+function readMedicalHistoryForm() {
+    const mh = {};
+    const readBool = (key) => {
+        const checked = document.querySelector(`input[name="mh-${key}"]:checked`);
+        if (checked) mh[key] = checked.value === 'si';
+    };
+    MEDICAL_BOOL_FIELDS.forEach(f => readBool(f.key));
+    MEDICAL_BOOL_WITH_TEXT.forEach(f => {
+        readBool(f.key);
+        const txt = document.getElementById(`mh-text-${f.textKey}`);
+        if (txt && txt.value.trim()) mh[f.textKey] = txt.value.trim();
+    });
+    return mh;
+}
+
+
+// ── Resumen pre-consulta con IA ───────────────────────────────────────────────
+window.showPatientAiSummary = async function(patientId) {
+    const patient = getClinicalWorkingPatient(patientId) || DB.get('patients').find(p => p.id === patientId) || {};
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active">
+            <div class="modal-content" style="max-width:560px;width:94vw" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-wand-magic-sparkles" style="color:#6366f1"></i> Resumen IA — ${escapeHtml(patient.name || '')}</h3>
+                    <button class="modal-close-x" onclick="closeModal()" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body" id="ai-summary-body" style="min-height:120px">
+                    <div style="text-align:center;color:#6b7280;padding:28px"><i class="fa-solid fa-spinner fa-spin" style="font-size:1.4rem;color:#6366f1"></i><div style="margin-top:10px;font-size:13px">Analizando la ficha del paciente…</div></div>
+                </div>
+                <div class="modal-footer">
+                    <span style="font-size:11px;color:#9ca3af;margin-right:auto"><i class="fa-solid fa-circle-info"></i> Generado por IA desde la ficha. Verificá siempre.</span>
+                    <button class="btn btn-ghost" onclick="closeModal()">Cerrar</button>
+                </div>
+            </div>
+        </div>`;
+    const overlay = modalsContainer.querySelector('.modal-overlay');
+    if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    try {
+        const res = await withAppLoading('Analizando la ficha del paciente…', () =>
+            apiFetch(`/patients/${patientId}/ai-summary`, { method: 'POST', body: JSON.stringify({}) })
+        );
+        const body = document.getElementById('ai-summary-body');
+        if (body) body.innerHTML = `<div style="white-space:pre-wrap;line-height:1.65;font-size:14px;color:var(--gray-800,#1f2937)">${escapeHtml(res.summary || 'Sin datos suficientes.').replace(/\n/g, '<br>')}</div>`;
+    } catch (error) {
+        const body = document.getElementById('ai-summary-body');
+        if (body) body.innerHTML = `<div style="color:#ef4444;padding:12px;font-size:13px">${escapeHtml(error.message || 'No se pudo generar el resumen.')}</div>`;
+    }
+};
+
+// ── Dictado por voz → nota clínica (Web Speech API + IA que la estructura) ─────
+// Aplica al odontograma las acciones detectadas por la IA en el dictado
+// (ej: "pieza 26, arreglo pendiente" → pinta caries en rojo). Misma lógica
+// que bindClinicalToothEvents para que ambos caminos queden consistentes.
+function applyDictationOdontogramActions(patientId, actions) {
+    if (!Array.isArray(actions) || !actions.length) return 0;
+    const draft = getClinicalDraft(patientId);
+    if (!draft) return 0;
+    if (!draft.data.odontograma) draft.data.odontograma = {};
+
+    let applied = 0;
+    for (const action of actions) {
+        const tooth = String(action.tooth || '').trim();
+        const kind = action.kind;
+        const color = action.color === 'azul' ? 'azul' : 'rojo';
+        if (!tooth || !kind) continue;
+
+        if (!draft.data.odontograma[tooth]) draft.data.odontograma[tooth] = {};
+        const toothState = draft.data.odontograma[tooth];
+
+        if (kind === 'ausente') {
+            draft.data.odontograma[tooth] = { estado: 'ausente', color };
+        } else if (kind === 'endodoncia') {
+            if (toothState.estado !== 'ausente') {
+                toothState.endodoncia = true;
+                toothState.color = color;
+            }
+        } else {
+            draft.data.odontograma[tooth] = { estado: kind, color };
+        }
+        applied++;
+    }
+
+    if (applied) {
+        draft.isDirty = true;
+        renderClinicalOdontogram(patientId);
+        syncClinicalHistorySaveState();
+    }
+    return applied;
+}
+
+let _dictationRec = null;
+window.startDictation = function(targetId, patientId) {
+    if (_dictationRec) { try { _dictationRec.onend = null; _dictationRec.stop(); } catch (_e) {} }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        showAlert('Tu navegador no soporta el dictado por voz. Usá Google Chrome en la computadora o en Android.', { title: 'Dictado', variant: 'warning' });
+        return;
+    }
+    const target = document.getElementById(targetId);
+    if (!target) return;
+
+    let finalTranscript = '';
+    let stopped = false;
+    let restartCount = 0;
+    const rec = new SR();
+    _dictationRec = rec;
+    rec.lang = 'es-AR';
+    rec.continuous = true;
+    rec.interimResults = true;
+
+    // Overlay de grabación
+    modalsContainer.innerHTML = `
+        <div class="modal-overlay active">
+            <div class="modal-content" style="max-width:480px;width:92vw;text-align:center" onclick="event.stopPropagation()">
+                <div class="modal-header"><h3><i class="fa-solid fa-microphone" style="color:#ef4444"></i> Dictando nota…</h3></div>
+                <div class="modal-body">
+                    <div class="dictation-pulse" style="width:64px;height:64px;border-radius:50%;background:#fee2e2;color:#ef4444;display:flex;align-items:center;justify-content:center;margin:6px auto 14px;font-size:1.6rem"><i class="fa-solid fa-microphone"></i></div>
+                    <p style="font-size:13px;color:#6b7280;margin-bottom:10px">Hablá con claridad. Cuando termines, tocá "Terminar" y la IA arma la nota.</p>
+                    <div id="dictation-live" style="min-height:60px;max-height:160px;overflow-y:auto;text-align:left;font-size:13px;color:#374151;background:var(--gray-50,#f9fafb);border:1px solid var(--border,#e5e7eb);border-radius:8px;padding:10px"></div>
+                </div>
+                <div class="modal-footer" style="justify-content:center;gap:10px">
+                    <button class="btn btn-ghost" id="dictation-cancel">Cancelar</button>
+                    <button class="btn btn-primary" id="dictation-stop"><i class="fa-solid fa-stop"></i> Terminar y estructurar</button>
+                </div>
+            </div>
+        </div>`;
+    const live = document.getElementById('dictation-live');
+
+    let pendingInterim = '';
+    rec.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+            if (e.results[i].isFinal) finalTranscript += e.results[i][0].transcript + ' ';
+            else interim += e.results[i][0].transcript;
+        }
+        pendingInterim = interim;
+        if (live) live.innerHTML = escapeHtml(finalTranscript) + `<span style="color:#9ca3af">${escapeHtml(interim)}</span>`;
+    };
+    rec.onerror = (e) => {
+        console.warn('[dictado] speech recognition error:', e.error);
+        if (e.error === 'no-speech' || e.error === 'aborted') return; // rec.onend reinicia solo
+        if (e.error === 'network') {
+            // El reconocimiento de voz del navegador necesita conectarse a los
+            // servidores de Google — falla en HTTP/localhost de prueba; en el
+            // sitio real (https://) con conexión a internet funciona normal.
+            stopped = true;
+            showToast('El dictado necesita conexión a internet y un sitio con https:// — no funciona en este entorno de prueba local.', { type: 'warning' });
+            return;
+        }
+        if (e.error === 'not-allowed' || e.error === 'permission-denied') {
+            stopped = true;
+            showToast('Dale permiso al micrófono en tu navegador para poder dictar.', { type: 'warning' });
+            return;
+        }
+        if (e.error === 'audio-capture') {
+            stopped = true;
+            showToast('No se detectó ningún micrófono disponible.', { type: 'warning' });
+            return;
+        }
+        showToast('Error de dictado: ' + e.error, { type: 'warning' });
+    };
+    rec.onend = () => {
+        // Chrome corta la sesión de reconocimiento tras un silencio (aunque
+        // continuous=true) SIN llegar a marcar como "final" lo último que se
+        // venía transcribiendo — si no lo rescatamos acá, esa parte se pierde
+        // apenas arranca la sesión nueva (el texto gris "desaparece").
+        if (pendingInterim.trim()) {
+            finalTranscript += pendingInterim.trim() + ' ';
+            pendingInterim = '';
+        }
+        if (stopped) return;
+        restartCount++;
+        // Si nunca capturó ni una palabra y ya reintentó muchas veces seguidas,
+        // algo está mal (mic bloqueado, driver, etc.) — mejor avisar que quedar
+        // reintentando en silencio para siempre.
+        if (restartCount > 8 && !finalTranscript.trim()) {
+            stopped = true;
+            showToast('No se pudo mantener activo el micrófono. Cerrá y probá dictar de nuevo.', { type: 'warning' });
+            closeModal();
+            return;
+        }
+        setTimeout(() => {
+            if (stopped) return;
+            try { rec.start(); } catch (_e) { console.warn('[dictado] no se pudo reiniciar el micrófono:', _e); }
+        }, 250);
+    };
+
+    const finish = async (useIt) => {
+        stopped = true;
+        if (pendingInterim.trim()) {
+            finalTranscript += pendingInterim.trim() + ' ';
+            pendingInterim = '';
+        }
+        try { rec.stop(); } catch (_e) {}
+        _dictationRec = null;
+        if (!useIt) { closeModal(); return; }
+        const raw = finalTranscript.trim();
+        if (!raw) { closeModal(); showToast('No se captó audio.', { type: 'warning' }); return; }
+        closeModal();
+        try {
+            const res = await withAppLoading('Estructurando la nota con IA…', async () =>
+                apiFetch(`/patients/${patientId}/ai-structure-note`, { method: 'POST', body: JSON.stringify({ transcript: raw }) })
+            );
+            const note = (res && res.note) ? res.note : raw;
+            const t = document.getElementById(targetId);
+            if (t) {
+                t.value = (t.value ? t.value.trim() + '\n' : '') + note;
+                t.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            const paintedCount = applyDictationOdontogramActions(patientId, res && res.odontogramActions);
+            showToast(paintedCount
+                ? `Nota agregada y ${paintedCount} pieza${paintedCount !== 1 ? 's' : ''} marcada${paintedCount !== 1 ? 's' : ''} en el odontograma.`
+                : 'Nota dictada agregada.', { type: 'success' });
+        } catch (error) {
+            // Si la IA falla, al menos pegamos la transcripción cruda
+            const t = document.getElementById(targetId);
+            if (t) { t.value = (t.value ? t.value.trim() + '\n' : '') + raw; t.dispatchEvent(new Event('input', { bubbles: true })); }
+            showAlert(error.message || 'No se pudo estructurar la nota, se pegó el texto dictado.', { title: 'Dictado', variant: 'warning' });
+        }
+    };
+    document.getElementById('dictation-stop').onclick = () => finish(true);
+    document.getElementById('dictation-cancel').onclick = () => finish(false);
+
+    try { rec.start(); } catch (_e) { showToast('No se pudo iniciar el micrófono.', { type: 'warning' }); closeModal(); }
 };
 
 window.deleteUser = async function(userId) {
@@ -1630,7 +2166,7 @@ window.deleteTreatment = async function(patientId, treatmentId) {
         try {
             if (state.authToken && Number.isInteger(Number(treatmentId))) {
                 await apiFetch(`/treatments/${treatmentId}`, { method: 'DELETE' });
-                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+                await syncPatientClinicalData(patientId);
             } else {
                 const treatments = (p.treatments || []).filter((item, index) => (item.id ?? index) !== treatmentId);
                 DB.update('patients', patientId, { treatments });
@@ -1660,7 +2196,7 @@ window.deleteClinicalImage = async function(patientId, imageId) {
         try {
             if (state.authToken && Number.isInteger(Number(imageId))) {
                 await apiFetch(`/clinical-images/${imageId}`, { method: 'DELETE' });
-                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+                await syncPatientClinicalData(patientId);
             } else {
                 const images = (p.clinicalImages || []).filter((item, index) => (item.id ?? index) !== imageId);
                 DB.update('patients', patientId, { clinicalImages: images });
@@ -1752,7 +2288,7 @@ function openTreatmentModal(patientId) {
                             performedAt: new Date().toISOString()
                         })
                     });
-                    await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+                    await syncPatientClinicalData(patientId);
                 } else {
                     p.treatments.push(treatment);
                     DB.update('patients', patientId, { treatments: p.treatments });
@@ -1869,7 +2405,7 @@ function openClinicalImageModal(patientId) {
                             }))
                         })
                     });
-                    await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+                    await syncPatientClinicalData(patientId);
                 } else if (p) {
                     const images = (p.clinicalImages || []).slice();
                     images.push(...newImages);
@@ -1971,7 +2507,7 @@ function openClinicalPdfModal(patientId) {
                         images,
                     })
                 });
-                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+                await syncPatientClinicalData(patientId);
             });
             closeModal();
             loadClinicalHistory(patientId);
@@ -1994,7 +2530,7 @@ function openPrescriptionModal(patientId) {
         return;
     }
 
-    // Profesionales disponibles (mismo criterio que el selector del odontograma)
+    // Las recetas sí son privadas por profesional: hay que elegir quién la emite.
     const scopedProfs = state.user?.allowedProfessionals || [];
     const allProfs = DB.get('professionals').filter(p => p.active !== false && p.status !== 'inactivo');
     const profs = isSuperadmin() ? allProfs : allProfs.filter(p => scopedProfs.includes(p.id));
@@ -2053,7 +2589,7 @@ function openPrescriptionModal(patientId) {
                         instructions: document.getElementById('rx-instructions').value
                     })
                 });
-                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+                await syncPatientClinicalData(patientId);
             });
             closeModal();
             await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
@@ -2069,7 +2605,7 @@ window.deletePrescription = async function(patientId, prescriptionId) {
     try {
         await withAppLoading('Anulando receta...', async () => {
             await apiFetch(`/prescriptions/${prescriptionId}`, { method: 'DELETE' });
-            await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+            await syncPatientClinicalData(patientId);
         });
         await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
     } catch (error) {
@@ -2160,7 +2696,7 @@ function _budgetItemRowHtml() {
         <input type="text" class="bg-item-desc" placeholder="Práctica / tratamiento" style="flex:3;min-width:0;" required>
         <input type="number" class="bg-item-qty" value="1" min="1" title="Cantidad" style="flex:0 0 64px;">
         <input type="number" class="bg-item-price" placeholder="Precio" min="0" step="0.01" title="Precio unitario" style="flex:0 0 110px;" required>
-        <button type="button" class="btn-ghost text-gray-300 hover:text-red-500 p-1 rounded bg-item-remove" title="Quitar ítem"><i class="fa-solid fa-times"></i></button>
+        <button type="button" class="btn btn-icon btn-icon-danger bg-item-remove" title="Quitar ítem"><i class="fa-solid fa-times"></i></button>
     </div>`;
 }
 
@@ -2281,7 +2817,7 @@ function openBudgetModal(patientId) {
                         notes: document.getElementById('bg-notes').value
                     })
                 });
-                await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+                await syncPatientClinicalData(patientId);
             });
             closeModal();
             await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
@@ -2305,7 +2841,7 @@ window.chargeBudget = async function(patientId, budgetId) {
     try {
         await withAppLoading('Cargando deuda en cuenta corriente...', async () => {
             await apiFetch(`/budgets/${budgetId}/charge`, { method: 'POST' });
-            await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+            await syncPatientClinicalData(patientId);
             await syncBackendSnapshotToLocalDb(); // refresca billing local
         });
         await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
@@ -2321,7 +2857,7 @@ window.deleteBudget = async function(patientId, budgetId) {
     try {
         await withAppLoading('Eliminando presupuesto...', async () => {
             await apiFetch(`/budgets/${budgetId}`, { method: 'DELETE' });
-            await syncPatientClinicalData(patientId, getCurrentOdontoProfessionalId());
+            await syncPatientClinicalData(patientId);
         });
         await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
     } catch (error) {

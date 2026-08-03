@@ -1,6 +1,5 @@
 const express = require("express");
 
-const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
 const {
@@ -63,17 +62,11 @@ router.get("/", requireAuth, async (req, res) => {
 
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
 
-    // Determinar filtro de profesional: admin con acceso total puede pasar cualquier id, profesional usa el propio
-    let professionalIdFilter = null;
-    if (canAccessWholeClinic(req.permissions)) {
-      professionalIdFilter = req.query.professionalId ? Number(req.query.professionalId) : null;
-    } else if (req.permissions.assignedProfessionalId) {
-      professionalIdFilter = req.permissions.assignedProfessionalId;
-    } else {
-      // Fallback: usuario profesional con exactamente un scope asignado
-      const scoped = req.permissions.allowedProfessionalIds || [];
-      if (scoped.length === 1) professionalIdFilter = scoped[0];
-    }
+    // Los tratamientos son parte de la ficha clínica: se comparten con toda
+    // la clínica (a diferencia de recetas/presupuestos, que sí son privados
+    // por profesional). `professionalId` acá es solo un filtro opcional de
+    // visualización, no una restricción de acceso.
+    const professionalIdFilter = req.query.professionalId ? Number(req.query.professionalId) : null;
 
     const treatments = await prisma.treatment.findMany({
       where: {
@@ -237,22 +230,11 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Tratamiento no encontrado o sin acceso." });
     }
 
-    const beforeData = await prisma.treatment.findUnique({
-      where: { id: existing.id },
-      include: {
-        patient: true,
-        professional: true,
-      },
-    });
-
     await prisma.treatment.update({
       where: { id: existing.id },
       data: { deletedAt: new Date() },
     });
 
-    await logDeleteAudit(prisma, req.user.id, "Treatment", existing.id, {
-      treatment: beforeData,
-    });
     return res.json({ ok: true, message: "Tratamiento eliminado correctamente." });
   } catch (_error) {
     return res.status(400).json({ ok: false, error: "No se pudo eliminar el tratamiento." });

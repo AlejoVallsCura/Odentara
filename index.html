@@ -3,20 +3,25 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Odentara</title>
+    <!-- PWA en iOS: sin esto, "Agregar a pantalla de inicio" abre con la barra de Safari
+         visible en vez de pantalla completa (Android sí respeta el manifest.json solo). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Odentara">
     <!-- Preconnect a CDNs externos: abre la conexión TLS en paralelo con el parse del HTML -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-    <link rel="stylesheet" href="/css/variables.css?v=20260703j">
-    <link rel="stylesheet" href="/css/base.css?v=20260703j">
-    <link rel="stylesheet" href="/css/components.css?v=20260703j">
-    <link rel="stylesheet" href="/css/layout.css?v=20260703j">
-    <link rel="stylesheet" href="/css/calendar.css?v=20260703j">
-    <link rel="stylesheet" href="/css/refresh.css?v=20260703j">
-    <link rel="stylesheet" href="/css/dark-theme.css?v=20260703j">
-    <link rel="stylesheet" href="/css/patches.css?v=20260703j">
+    <link rel="stylesheet" href="/css/variables.css?v=20260803a">
+    <link rel="stylesheet" href="/css/base.css?v=20260803a">
+    <link rel="stylesheet" href="/css/components.css?v=20260803a">
+    <link rel="stylesheet" href="/css/layout.css?v=20260803a">
+    <link rel="stylesheet" href="/css/calendar.css?v=20260803a">
+    <link rel="stylesheet" href="/css/refresh.css?v=20260803a">
+    <link rel="stylesheet" href="/css/dark-theme.css?v=20260803a">
+    <link rel="stylesheet" href="/css/patches.css?v=20260803a">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <!-- PWA: manifest + íconos de instalación -->
     <link rel="manifest" href="/manifest.json">
@@ -309,26 +314,26 @@
         });
     }
     </script>
-    <script src="/xlsx.full.min.js?v=20260703j"></script>
+    <script src="/xlsx.full.min.js?v=20260803a"></script>
     <!-- core modules (orden importa) -->
-    <script src="/js/core/state.js?v=20260703j"></script>
-    <script src="/js/core/utils.js?v=20260703j"></script>
-    <script src="/js/core/mappers.js?v=20260703j"></script>
-    <script src="/js/core/permissions.js?v=20260703j"></script>
-    <script src="/js/core/ui.js?v=20260703j"></script>
-    <script src="/js/core/api.js?v=20260703j"></script>
-    <script src="/js/core/db-local.js?v=20260703j"></script>
-    <script src="/js/core/auth.js?v=20260703j"></script>
-    <script src="/js/core/helpers.js?v=20260703j"></script>
-    <script src="/js/core/router.js?v=20260703j"></script>
-    <script src="/js/views/platform.js?v=20260703j"></script>
-    <script src="/js/views/clinical.js?v=20260703j"></script>
-    <script src="/js/views/appointments.js?v=20260703j"></script>
-    <script src="/js/views/patients.js?v=20260703j"></script>
-    <script src="/js/views/billing.js?v=20260703j"></script>
-    <script src="/js/views/dashboard.js?v=20260703j"></script>
-    <script src="/js/views/settings.js?v=20260703j"></script>
-    <script src="app.js?v=20260703j" onerror="(function(){
+    <script src="/js/core/state.js?v=20260803a"></script>
+    <script src="/js/core/utils.js?v=20260803a"></script>
+    <script src="/js/core/mappers.js?v=20260803a"></script>
+    <script src="/js/core/permissions.js?v=20260803a"></script>
+    <script src="/js/core/ui.js?v=20260803a"></script>
+    <script src="/js/core/api.js?v=20260803a"></script>
+    <script src="/js/core/db-local.js?v=20260803a"></script>
+    <script src="/js/core/auth.js?v=20260803a"></script>
+    <script src="/js/core/helpers.js?v=20260803a"></script>
+    <script src="/js/core/router.js?v=20260803a"></script>
+    <script src="/js/views/platform.js?v=20260803a"></script>
+    <script src="/js/views/clinical.js?v=20260803a"></script>
+    <script src="/js/views/appointments.js?v=20260803a"></script>
+    <script src="/js/views/patients.js?v=20260803a"></script>
+    <script src="/js/views/billing.js?v=20260803a"></script>
+    <script src="/js/views/dashboard.js?v=20260803a"></script>
+    <script src="/js/views/settings.js?v=20260803a"></script>
+    <script src="app.js?v=20260803a" onerror="(function(){
         clearTimeout(window.__clinicFallback);
         var parts = window.location.hostname.split('.');
         var PLATFORM = ['www','admin','platform','api','app'];

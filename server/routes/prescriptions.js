@@ -1,10 +1,9 @@
 const express = require("express");
 
-const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
 const { parseId } = require("../lib/parse-id");
-const { canViewClinicalData, canEditClinicalData } = require("../lib/permissions");
+const { canViewClinicalData, canEditClinicalData, canAccessWholeClinic, getAccessibleProfessionalIds } = require("../lib/permissions");
 const {
   serializePrescription,
   getPrescriptionPayload,
@@ -27,10 +26,18 @@ router.get("/", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: "Falta el parámetro patientId." });
     }
 
+    // Las recetas son de UN profesional (professionalId no admite null en el
+    // modelo) — no debe verlas cualquier profesional de la clínica que
+    // atienda al mismo paciente, solo el/los que tiene permitidos quien pide.
+    const professionalScope = canAccessWholeClinic(req.permissions)
+      ? (req.query.professionalId ? { professionalId: Number(req.query.professionalId) } : {})
+      : { professionalId: { in: getAccessibleProfessionalIds(req.permissions) } };
+
     const prescriptions = await prisma.prescription.findMany({
       where: {
         patientId,
         deletedAt: null,
+        ...professionalScope,
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       orderBy: [{ issuedAt: "desc" }, { id: "desc" }],
@@ -117,6 +124,11 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: {
         id: prescriptionId,
         deletedAt: null,
+        // Un profesional no puede anular la receta de otro colega para el
+        // mismo paciente — es de un solo profesional, no de la clínica.
+        ...(canAccessWholeClinic(req.permissions)
+          ? {}
+          : { professionalId: { in: getAccessibleProfessionalIds(req.permissions) } }),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       include: PRESCRIPTION_INCLUDE,
@@ -129,8 +141,6 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: { id: prescriptionId },
       data: { deletedAt: new Date() },
     });
-
-    await logDeleteAudit(prisma, req.user.id, "Prescription", prescriptionId, { prescription: existing });
 
     return res.json({ ok: true, message: "Receta anulada correctamente." });
   } catch (_error) {

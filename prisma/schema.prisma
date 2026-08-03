@@ -81,6 +81,7 @@ model Clinic {
   logoUrl       String?
   active        Boolean  @default(true)
   plan          String?
+  aiUsage       Json?                          // uso mensual de importación con IA: { month: "2026-07", count: 42 }
   notes         String?  @db.Text
   dbType        String   @default("shared")   // "shared" | "dedicated"
   databaseUrl   String?  @db.Text             // solo si dbType = "dedicated"
@@ -121,6 +122,10 @@ model User {
   isPlatformAdmin          Boolean                 @default(false)
   clinicId                 Int?
   deletedAt                DateTime?
+  // Cualquier token emitido antes de esta fecha se rechaza. Se actualiza al
+  // cambiar la contraseña, para cerrar de una todas las sesiones abiertas
+  // (incluidas las de un atacante) sin depender de estado en memoria.
+  sessionsValidFrom        DateTime?
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
   clinic                   Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: Restrict)
@@ -221,6 +226,7 @@ model Patient {
   insurancePlan    String?
   credentialNumber String?
   chartNumber      String?
+  medicalHistory   Json?            // Antecedentes médicos (cuestionario de casilleros de la ficha)
   active           Boolean          @default(true)
   deletedAt        DateTime?
   createdAt        DateTime         @default(now())
@@ -310,9 +316,16 @@ model ProfessionalScheduleException {
   @@index([professionalId, date])
 }
 
+// Un solo registro clínico compartido por paciente (odontograma, notas,
+// alergias). Antes era único por [patientId, professionalId] — cada
+// profesional tenía su propio odontograma del mismo paciente, lo cual no
+// refleja cómo trabaja una clínica real (la ficha clínica es compartida;
+// solo recetas y presupuestos son privados por profesional).
+// professionalId queda como dato informativo (quién lo editó por última
+// vez), ya no es parte de la identidad del registro.
 model ClinicalRecord {
   id                Int               @id @default(autoincrement())
-  patientId         Int
+  patientId         Int               @unique
   professionalId    Int?
   summaryNotes      String?           @db.Text
   allergies         String?           @db.Text
@@ -323,7 +336,6 @@ model ClinicalRecord {
   professional      Professional?     @relation(fields: [professionalId], references: [id], onDelete: SetNull)
   odontogramEntries OdontogramEntry[]
 
-  @@unique([patientId, professionalId])
   @@index([professionalId])
 }
 
@@ -466,7 +478,10 @@ model Prescription {
 model PasswordResetToken {
   id        Int       @id @default(autoincrement())
   userId    Int
-  token     String    @unique @db.VarChar(64)
+  // SHA-256 (hex, 64 chars) del token que se manda por mail — nunca el token en
+  // claro. Si la base se filtra, los tokens vigentes no sirven para tomar la
+  // cuenta: el valor original solo existe en el mail del usuario.
+  tokenHash String    @unique @db.VarChar(64)
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
@@ -475,9 +490,23 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+// Tokens invalidados por logout explícito. Vive en la base y no en memoria
+// porque la plataforma corre varios procesos worker a la vez: revocar en uno
+// dejaba el token válido en los demás durante los 7 días del JWT (verificado
+// en producción, 3 PIDs distintos atendiendo el mismo dominio).
+// Las filas vencidas las limpia purgeExpiredRevokedTokens() al arrancar.
+model RevokedToken {
+  jti       String   @id @db.VarChar(32)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 model AuditLog {
   id          Int         @id @default(autoincrement())
   userId      Int?
+  clinicId    Int?
   entityType  String
   entityId    String
   action      AuditAction
@@ -488,4 +517,5 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([userId, createdAt])
+  @@index([clinicId, createdAt])
 }

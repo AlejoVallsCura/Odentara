@@ -260,6 +260,11 @@ body.theme-dark .cal-scroll-wrap {
     padding: 0;
 }
 
+.settings-list .prof-color-row,
+.settings-list-static .prof-color-row {
+    padding: 0.55rem 0.75rem;
+}
+
 .settings-subsection .checkbox-group {
     min-height: 0;
     margin: 0;
@@ -1526,7 +1531,6 @@ table tbody tr:hover td { background:rgba(124,58,237,.03) !important; }
 
 /* ── Misc ────────────────────────────────────────────────────── */
 .app-loading-spinner { border-top-color:#7c3aed !important; }
-.app-loading-card { background:rgba(255,255,255,.96) !important; }
 .section-hero-card .btn-primary { box-shadow:0 4px 16px rgba(124,58,237,.45) !important; }
 .clinical-info-item,
 .clinical-info-summary > div {
@@ -1910,7 +1914,9 @@ body.theme-dark .settings-subnav-item p { color:#a1a1aa !important; }
 body.theme-dark .settings-subnav-item strong,
 body.theme-dark .settings-subnav-item h4 { color:#e2e8f0 !important; }
 
-/* Form inputs */
+/* Form inputs — neutral (sin tinte violeta), el foco usa celeste en vez de
+   violeta para que los campos de texto/búsqueda no compitan visualmente con
+   los acentos violeta de botones, nav y badges. */
 body.theme-dark .input-group input,
 body.theme-dark .input-group select,
 body.theme-dark .input-group textarea,
@@ -1921,8 +1927,8 @@ body.theme-dark input[type="email"],
 body.theme-dark input[type="password"],
 body.theme-dark input[type="number"],
 body.theme-dark textarea {
-    background:#12122a !important;
-    border:1px solid rgba(139,92,246,.2) !important;
+    background:#161d2e !important;
+    border:1px solid rgba(148,163,184,.22) !important;
     color:#e2e8f0 !important;
 }
 body.theme-dark .input-group input::placeholder,
@@ -1930,8 +1936,8 @@ body.theme-dark .input-group textarea::placeholder { color:#52525b !important; }
 body.theme-dark .input-group label { color:#a1a1aa !important; }
 body.theme-dark .input-group input:focus,
 body.theme-dark .input-group select:focus {
-    border-color:rgba(139,92,246,.5) !important;
-    background:#172234 !important;
+    border-color:rgba(56,189,248,.5) !important;
+    background:#182234 !important;
 }
 
 /* Botones secundarios */
@@ -2907,14 +2913,14 @@ body.theme-dark .nav-sub-item.active {
 body.theme-dark .nav-item:hover { color: #e9d5ff !important; }
 body.theme-dark .nav-item:hover i { color: #e9d5ff !important; }
 
-/* Input focus: purple */
+/* Input focus: celeste — neutral respecto al violeta de botones/nav/badges */
 body.theme-dark input:focus,
 body.theme-dark select:focus,
 body.theme-dark textarea:focus,
 body.theme-dark .form-input:focus {
-    border-color: rgba(139,92,246,0.55) !important;
-    box-shadow: 0 0 0 3px rgba(139,92,246,0.16) !important;
-    background: rgba(139,92,246,0.04) !important;
+    border-color: rgba(56,189,248,0.55) !important;
+    box-shadow: 0 0 0 3px rgba(56,189,248,0.16) !important;
+    background: rgba(255,255,255,0.04) !important;
 }
 
 /* Badges info/primary: purple */
@@ -5123,8 +5129,11 @@ body.theme-dark .cal-now-time-badge {
 }
 .clinical-allergy-badge i { flex-shrink: 0; }
 
-/* Al imprimir la historia: mostrar todos los paneles y ocultar la barra de tabs */
-.printing-clinical-history .clinical-tab-panel { display: block !important; }
+/* Al imprimir la historia: solo Clínico y Tratamientos (lo pedido para la
+   ficha impresa). Recetas/Presupuestos/Archivos tienen su propia impresión. */
+.printing-clinical-history .clinical-tab-panel { display: none !important; }
+.printing-clinical-history .clinical-tab-panel[data-tab="clinico"],
+.printing-clinical-history .clinical-tab-panel[data-tab="tratamientos"] { display: block !important; }
 .printing-clinical-history .clinical-tabs { display: none !important; }
 
 /* Dark mode */
@@ -5149,4 +5158,991 @@ body.theme-dark .clinical-allergy-badge {
     width: 30px;
     height: 30px;
     justify-content: center;
+}
+
+/* PWA instalada (iOS/Android): compensar notch y barra de gestos con safe-area-inset.
+   Scopeado a display-mode:standalone para no afectar el uso normal en navegador. */
+@media (display-mode: standalone) {
+    .app-header {
+        padding-top: env(safe-area-inset-top, 0px);
+    }
+    #app-view aside {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    body {
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+}
+
+/* ── Antecedentes médicos (cuestionario) ──────────────────────────────── */
+.mh-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 2.5rem;
+}
+@media (max-width: 720px) {
+    .mh-grid { grid-template-columns: 1fr; gap: 0; }
+}
+.mh-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--gray-100, #f3f4f6);
+    font-size: 0.9rem;
+}
+.mh-label { color: var(--gray-700, #374151); }
+.mh-toggle { display: flex; gap: 0.9rem; flex-shrink: 0; }
+.mh-opt {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--gray-600, #4b5563);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.mh-opt input { cursor: pointer; accent-color: var(--primary-600, #4f46e5); }
+.mh-text-section { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.85rem; }
+.mh-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--gray-50, #f9fafb);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 0.6rem;
+}
+.mh-row-inline { border-bottom: none; padding: 0; }
+.mh-text { font-size: 0.88rem; }
+
+/* Dark mode */
+body.theme-dark .mh-row { border-bottom-color: rgba(255,255,255,.07); }
+body.theme-dark .mh-label { color: #cbd5e1; }
+body.theme-dark .mh-opt { color: #94a3b8; }
+body.theme-dark .mh-row-text { background: #1e293b; border-color: rgba(255,255,255,.1); }
+
+/* Impresión: mostrar antecedentes en la historia impresa si es la pestaña activa */
+body.printing-clinical-history .clinical-tab-panel[data-tab="antecedentes"].is-active { display: block !important; }
+
+/* Botón "Importar con IA" — distintivo violeta para diferenciarlo del Excel */
+.btn.btn-ia {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    border: none;
+}
+.btn.btn-ia:hover {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff;
+}
+.btn.btn-ia i { color: #fff; }
+
+/* Botón "Dictar" en Observaciones — más grande y notorio, es un feature clave */
+.btn.btn-ia[onclick^="startDictation"] {
+    font-size: 0.95rem !important;
+    padding: 0.75rem 1.4rem !important;
+}
+
+/* Ícono de eliminar dentro de .btn-icon (que por defecto es violeta) — el rojo
+   necesita !important para ganarle al color violeta de .btn-icon. */
+.btn-icon.btn-icon-danger,
+.btn-icon.btn-icon-danger:hover {
+    color: #ef4444 !important;
+}
+
+/* ================================================================
+   RESPONSIVE MOBILE — Tabla de pacientes como tarjetas
+   ----------------------------------------------------------------
+   En celular la tabla medía 827px dentro de ~344px, obligando a
+   arrastrar de costado para leer cada fila. El markup ya traía
+   data-label en cada <td> (preparado para esto pero sin CSS), así
+   que acá cada fila pasa a ser una tarjeta apilada legible.
+   ================================================================ */
+@media screen and (max-width: 640px) {
+    .patients-scroll-inner {
+        overflow-x: hidden;
+        height: auto;
+        max-height: none;
+        min-height: 0;
+    }
+
+    #patients-table,
+    #patients-table tbody,
+    #patients-table tr,
+    #patients-table td {
+        display: block;
+        width: 100%;
+    }
+
+    /* calendar.css y components.css fuerzan min-width:720px a las tablas en
+       mobile (pensado para el scroll horizontal). Como acá ya no es una tabla
+       sino tarjetas apiladas, hay que anularlo o la fila sigue midiendo 720px. */
+    .table-container.table-container-patients #patients-table,
+    #patients-table {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+    .table-container.table-container-patients {
+        overflow-x: hidden !important;
+    }
+
+    #patients-table thead {
+        display: none; /* los encabezados los reemplaza data-label */
+    }
+
+    #patients-table tbody tr {
+        border: 1px solid var(--gray-200, #e5e7eb);
+        border-radius: 0.85rem;
+        padding: 0.9rem 1rem;
+        margin-bottom: 0.75rem;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+
+    #patients-table tbody td {
+        border: none !important;
+        padding: 0.3rem 0 !important;
+    }
+
+    /* Nombre + avatar: encabezado de la tarjeta, sin etiqueta */
+    #patients-table td[data-label="Paciente"] {
+        display: flex !important;
+        align-items: center;
+        gap: 0.7rem;
+        font-size: 1rem;
+        font-weight: 700;
+        padding-bottom: 0.6rem !important;
+        margin-bottom: 0.4rem;
+        border-bottom: 1px solid var(--gray-100, #f3f4f6) !important;
+    }
+
+    /* Resto de campos: etiqueta chica arriba del valor */
+    #patients-table td[data-label="Contacto"]::before,
+    #patients-table td[data-label="DNI"]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--gray-400, #9ca3af);
+        margin-bottom: 0.15rem;
+    }
+
+    /* Acciones: fila de botones táctiles al pie de la tarjeta */
+    #patients-table td[data-label="Acciones"] {
+        margin-top: 0.6rem;
+        padding-top: 0.6rem !important;
+        border-top: 1px solid var(--gray-100, #f3f4f6) !important;
+    }
+    #patients-table td[data-label="Acciones"] .patient-actions {
+        justify-content: flex-start;
+        gap: 0.5rem;
+    }
+    #patients-table td[data-label="Acciones"] .patient-actions .btn {
+        min-width: 42px;
+        min-height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.6rem;
+        background: var(--gray-50, #f9fafb);
+    }
+
+    body.theme-dark #patients-table tbody tr {
+        background: rgba(255, 255, 255, 0.03);
+        border-color: rgba(148, 163, 184, 0.18);
+        box-shadow: none;
+    }
+    body.theme-dark #patients-table td[data-label="Paciente"] {
+        border-bottom-color: rgba(148, 163, 184, 0.14) !important;
+    }
+    body.theme-dark #patients-table td[data-label="Acciones"] {
+        border-top-color: rgba(148, 163, 184, 0.14) !important;
+    }
+    body.theme-dark #patients-table td[data-label="Acciones"] .patient-actions .btn {
+        background: rgba(255, 255, 255, 0.05);
+    }
+}
+
+/* ================================================================
+   RESPONSIVE MOBILE — Objetivos táctiles y campos de formulario
+   ----------------------------------------------------------------
+   Medido en celular: .btn-sm quedaba en 26px de alto y los botones
+   de período de caja en 28px. La guía de Apple pide 44px mínimo y
+   la de Android 48dp; abajo de ~40px se falla el toque seguido.
+   Además, iOS hace zoom automático al enfocar un input con fuente
+   menor a 16px, lo que descuadra toda la pantalla.
+   ================================================================ */
+@media screen and (max-width: 640px) {
+    .btn,
+    .btn-sm,
+    .caja-period-btn,
+    .settings-tab,
+    button.tab-btn {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* .btn-sm trae padding e !important desde calendar.css */
+    .btn-sm {
+        padding: 0.5rem 0.9rem !important;
+        font-size: 0.85rem !important;
+    }
+
+    /* Botones que son solo un ícono: cuadrados y cómodos de tocar */
+    .btn.btn-icon,
+    .btn.p-1,
+    .btn-ghost.p-1 {
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    /* Evita el zoom automático de iOS al enfocar (necesita >=16px) */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    input[type="time"],
+    select,
+    textarea,
+    .form-input {
+        font-size: 16px !important;
+        min-height: 44px;
+    }
+
+    textarea {
+        min-height: 90px;
+    }
+
+    /* Los botones de acción principales ocupan el ancho para no quedar
+       apretados contra el borde en pantallas angostas */
+    .modal-footer .btn,
+    .modal-actions .btn {
+        min-height: 44px;
+        flex: 1 1 auto;
+    }
+}
+
+/* El cuadrito de color del profesional es el disparador del selector:
+   34px es incómodo de acertar con el dedo. */
+@media screen and (max-width: 640px) {
+    .prof-color-swatch {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+}
+
+/* ================================================================
+   RESPONSIVE MOBILE — Tablas de facturación / caja
+   ----------------------------------------------------------------
+   calendar.css aplica `table { min-width: 700px }` a TODA tabla bajo
+   768px. Eso deja sin efecto el ocultado de columnas (.col-hide-sm /
+   .col-hide-xs): aunque queden 5 de 7 columnas, la tabla igual se
+   estira a 700px y obliga a arrastrar de costado. Acá se libera el
+   ancho para que las columnas visibles entren en pantalla.
+   ================================================================ */
+@media screen and (max-width: 640px) {
+    .table-container table.table-nowrap,
+    .table-container table {
+        min-width: 0 !important;
+    }
+
+    /* Sin nowrap las celdas pueden partirse y acomodarse al ancho real */
+    .table-nowrap th,
+    .table-nowrap td {
+        white-space: normal !important;
+    }
+
+    /* Compacta un poco para que entren las columnas que quedan visibles */
+    .table-container table th,
+    .table-container table td {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    /* Los importes no deben partirse en dos líneas */
+    .table-container table td:last-child,
+    .caja-amount,
+    .billing-amount {
+        white-space: nowrap !important;
+    }
+}
+
+/* ================================================================
+   RESPONSIVE — Configuración: la grilla se desbordaba en pantallas
+   muy angostas (320px). .settings-area es un grid de una columna sin
+   `grid-template-columns` explícito, así que la columna tomaba el
+   min-content de su hijo más ancho (314px) y se salía del contenedor
+   de 291px. minmax(0,1fr) permite que la columna se achique.
+   ================================================================ */
+.settings-area {
+    grid-template-columns: minmax(0, 1fr);
+}
+.settings-area > * {
+    min-width: 0;
+}
+
+@media screen and (max-width: 400px) {
+    .settings-nav-card,
+    .settings-panel-card {
+        padding: 0.9rem;
+    }
+}
+
+/* ================================================================
+   RESPONSIVE — Objetivos táctiles en tablets
+   ----------------------------------------------------------------
+   La regla de arriba corta en 640px, pero una tablet de 768-1024px
+   también se usa con el dedo. `pointer: coarse` detecta el dispositivo
+   de entrada real en vez de adivinar por el ancho, así que cubre
+   tablets y celulares en horizontal sin agrandar botones en una
+   notebook chica manejada con mouse.
+   ================================================================ */
+@media (pointer: coarse) {
+    .btn,
+    .btn-sm,
+    .caja-period-btn {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .btn-sm {
+        padding: 0.5rem 0.9rem !important;
+    }
+    .btn.btn-icon,
+    .btn.p-1,
+    .btn-ghost.p-1 {
+        min-width: 40px;
+        min-height: 40px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    input[type="time"],
+    select,
+    textarea,
+    .form-input {
+        min-height: 44px;
+    }
+}
+
+/* ================================================================
+   FIX — Barra clara en el borde inferior del celular (modo oscuro)
+   ----------------------------------------------------------------
+   patches.css fija `html { background:#f0effa !important }` y
+   dark-theme.css intentaba revertirlo con `body.theme-dark html`,
+   que es un selector imposible: <html> es el ANCESTRO de <body>,
+   nunca su descendiente. Esa regla jamás se aplicó, así que el
+   <html> quedaba claro. En el celular, donde el <body> no llega a
+   pintar (franja del safe-area y el rebote del scroll), asomaba ese
+   color y se veía como una barra clara fija abajo.
+   `html:has(body.theme-dark)` sí selecciona el elemento correcto.
+   ================================================================ */
+html:has(body.theme-dark) {
+    background: #0d1117 !important;
+}
+
+/* ================================================================
+   FIX — Utilidad `.flex-wrap` que nunca existió
+   ----------------------------------------------------------------
+   El markup usa `class="flex gap-2 flex-wrap"` en 8 lugares (barra
+   de acciones de Pacientes, Facturación, Configuración, etc.),
+   heredado de Tailwind — pero Tailwind no está cargado en este
+   proyecto y `.flex-wrap` no está definida en ningún CSS. Resultado:
+   los botones quedaban en una sola línea sin poder bajar, apretados
+   a ~75px cada uno en el celular con el texto partido.
+   ================================================================ */
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
+/* En pantallas chicas los botones de acción se reparten de a dos por
+   fila en vez de encogerse hasta volverse ilegibles. */
+@media screen and (max-width: 640px) {
+    .section-hero-card .flex-wrap > .btn {
+        flex: 1 1 calc(50% - 0.5rem);
+        min-width: 0;
+        white-space: nowrap;
+    }
+}
+
+/* ================================================================
+   FIX — Campos de fecha/hora en iOS Safari
+   ----------------------------------------------------------------
+   En iOS los <input type="date"> y "time" toman un ancho intrínseco
+   propio (del control nativo) e ignoran el ancho del contenedor, así
+   que se salen de su tarjeta — por eso el campo "Nacimiento" de la
+   ficha se veía desbordado en el celular pero correcto en la
+   emulación de Chrome. Anulando la apariencia nativa vuelven a
+   comportarse como un input normal.
+   ================================================================ */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    /* iOS alinea el texto arriba dentro del control nativo */
+    display: block;
+    text-align: left;
+}
+
+/* El indicador del calendario no debe empujar el ancho del campo */
+input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+    min-width: 0;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* ================================================================
+   Combobox de paciente (modal de turnos)
+   ----------------------------------------------------------------
+   Reemplaza al <datalist> nativo, que no despliega de forma
+   confiable en móviles. El panel usa position:fixed (posicionado
+   por JS) para que no lo recorte el scroll del cuerpo del modal.
+   ================================================================ */
+.combo-wrap {
+    position: relative;
+}
+
+.combo-wrap .form-input {
+    width: 100%;
+    padding-right: 2.5rem; /* espacio para la flecha */
+}
+
+.combo-toggle {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 0.4rem;
+    cursor: pointer;
+    color: var(--gray-400, #9ca3af);
+    font-size: 0.8rem;
+    line-height: 1;
+    border-radius: 0.4rem;
+}
+.combo-toggle:hover { color: var(--gray-600, #4b5563); }
+
+.combo-panel {
+    position: fixed;
+    z-index: 10050; /* por encima del overlay del modal */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    border: 1px solid var(--gray-200, #e5e7eb);
+    border-radius: 0.7rem;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+    padding: 0.3rem;
+}
+.combo-panel[hidden] { display: none; }
+
+.combo-option {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    min-height: 44px;         /* cómodo de tocar con el dedo */
+    justify-content: center;
+}
+.combo-option:hover,
+.combo-option.is-active {
+    background: var(--primary-50, #eef2ff);
+}
+.combo-option-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--gray-800, #1f2937);
+}
+.combo-option-dni {
+    font-size: 0.75rem;
+    color: var(--gray-500, #6b7280);
+}
+.combo-empty {
+    padding: 0.9rem 0.7rem;
+    font-size: 0.85rem;
+    color: var(--gray-500, #6b7280);
+    text-align: center;
+}
+
+body.theme-dark .combo-panel {
+    background: #161b27;
+    border-color: rgba(148, 163, 184, 0.22);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+body.theme-dark .combo-option:hover,
+body.theme-dark .combo-option.is-active {
+    background: rgba(148, 163, 184, 0.14);
+}
+body.theme-dark .combo-option-name { color: #e2e8f0; }
+body.theme-dark .combo-option-dni  { color: #94a3b8; }
+body.theme-dark .combo-empty       { color: #94a3b8; }
+
+/* ================================================================
+   FIX — Visor de fotos clínicas en celular
+   ----------------------------------------------------------------
+   Dos problemas reportados:
+   1) El visor quedaba pegado arriba y los botones del encabezado
+      (cerrar y zoom) caían debajo de la barra de estado / notch,
+      porque usaba 100vh sin contemplar env(safe-area-inset-*).
+   2) No se podía pasar de foto: el epígrafe está en position:absolute
+      y quedaba por encima de las flechas, comiéndose los toques.
+   ================================================================ */
+@media screen and (max-width: 768px) {
+    .clinical-image-viewer-overlay {
+        padding: 0 !important;
+        align-items: stretch !important;
+    }
+
+    .clinical-image-viewer {
+        width: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+        height: 100% !important;
+        border: none !important;
+        border-radius: 0 !important;
+        /* Deja libre la franja del notch/barra de estado y la de gestos */
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* El encabezado queda siempre visible y alcanzable */
+    .clinical-image-viewer-header {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        flex-wrap: wrap;
+        row-gap: 0.5rem;
+        padding: 0.85rem 0.9rem;
+    }
+
+    .clinical-image-viewer-close,
+    .clinical-image-viewer-zoom-btn {
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Flechas de navegación: más grandes y por encima del epígrafe */
+    .clinical-image-viewer-nav {
+        width: 48px !important;
+        height: 56px !important;
+        z-index: 6 !important;
+    }
+    .clinical-image-viewer-nav.prev { left: 0.5rem !important; }
+    .clinical-image-viewer-nav.next { right: 0.5rem !important; }
+
+    /* El epígrafe es informativo: nunca debe interceptar toques */
+    .clinical-image-viewer-caption {
+        pointer-events: none !important;
+        z-index: 1 !important;
+    }
+
+    .clinical-image-viewer-stage {
+        position: relative;
+    }
+}
+
+/* ================================================================
+   FIX — Franja fija abajo / app corrida hacia abajo en el celular
+   ----------------------------------------------------------------
+   `.view-section.active` aplica la animación v6-slide-up, que va de
+   translateY(14px) a translateY(0) con fill-mode `both`. El problema
+   es que #app-view NO es una vista común: es el contenedor fijo de
+   toda la app (position:fixed; inset:0; alto 100vh). Al quedar
+   transformado 14px, la app entera baja y sus últimos 14px quedan
+   fuera de la pantalla, dejando una franja visible abajo.
+   Además, un ancestro con transform rompe el position:fixed de todo
+   lo que tenga adentro (menús, overlays).
+   El login sí conserva la animación; acá la sacamos solo del shell,
+   que igual anima por dentro con #main-content (v6-fade-in).
+   ================================================================ */
+#app-view.view-section.active {
+    animation: none !important;
+    transform: none !important;
+}
+
+/* ================================================================
+   FIX — Franja fija abajo en el celular: 100vh -> 100dvh
+   ----------------------------------------------------------------
+   En móviles `100vh` NO es el alto visible: es el alto "grande" del
+   viewport, que incluye la zona que ocupan la barra del navegador y
+   la barra de gestos. Como el shell de la app mide 100vh y está en
+   position:fixed, su parte final queda por debajo del área visible y
+   se percibe como una franja fija abajo que tapa el contenido.
+   `dvh` (dynamic viewport height) sí sigue el alto realmente visible
+   y se ajusta cuando la barra del navegador se muestra u oculta.
+   Se deja `vh` primero como respaldo para navegadores viejos: los que
+   no entienden `dvh` simplemente ignoran la segunda línea.
+   Esto no se reproduce en la emulación de escritorio, donde el
+   viewport es fijo y no hay barras dinámicas.
+   ================================================================ */
+#app-view {
+    height: 100vh !important;
+    height: 100dvh !important;
+}
+
+#app-view main {
+    height: 100vh;
+    height: 100dvh;
+}
+
+#app-view aside {
+    height: 100vh;
+    height: 100dvh;
+}
+
+#login-view {
+    height: 100vh !important;
+    height: 100dvh !important;
+}
+
+/* Mismo criterio para modales y visor: con 100vh el alto calculado
+   supera el área visible del celular y el pie del modal queda debajo
+   de la barra del navegador. */
+@media screen and (max-width: 768px) {
+    .modal-content {
+        max-height: calc(100vh - 1rem);
+        max-height: calc(100dvh - 1rem);
+    }
+    .clinical-image-viewer {
+        max-height: 100vh;
+        max-height: 100dvh;
+    }
+    .modal-overlay {
+        max-height: 100vh;
+        max-height: 100dvh;
+    }
+}
+
+/* ================================================================
+   FIX — Franja crema visible en el borde inferior (modo claro)
+   ----------------------------------------------------------------
+   El área de la app (#app-view main) es #f0effa, pero el <body> y el
+   <html> quedaban en #F7F6F2 (crema, heredado de refresh.css). En el
+   celular, cualquier franja donde la app no llega a pintar —la zona
+   del safe-area / barra de gestos, o el rebote del scroll— deja ver
+   ese crema, y se percibe como una barra fija abajo que tapa el
+   contenido.
+   Igualando los tres colores la costura desaparece, sin importar de
+   dónde salga la franja.
+   ================================================================ */
+html,
+body {
+    background: #f0effa !important;
+}
+
+html:has(body.theme-dark),
+body.theme-dark {
+    background: #0d1117 !important;
+}
+
+
+/* dark-theme.css usa `body.bg-gray-50 { background:#F7F6F2 !important }` — con
+   más especificidad que un `body` a secas, por eso el crema seguía ganando.
+   Se iguala al color real del área de contenido (#main-content = #f4f4f8)
+   para que la franja inferior no se distinga del resto. */
+html,
+body,
+body.bg-gray-50 {
+    background: #f4f4f8 !important;
+}
+
+html:has(body.theme-dark),
+body.theme-dark,
+body.bg-gray-50.theme-dark {
+    background: #0d1117 !important;
+}
+
+
+/* ================================================================
+   FIX — El login quedaba encima de la app tapando/bloqueando cosas
+   ----------------------------------------------------------------
+   Más arriba en este mismo archivo hay `#login-view { display:flex
+   !important }`. Al ser un selector de ID le gana a la clase
+   `.hidden { display:none !important }` de base.css, así que después
+   de iniciar sesión el login NO se ocultaba: seguía como una capa
+   position:fixed a pantalla completa sobre la app.
+   Quedaba con opacity 0 (no se veía) pero seguía existiendo, y por
+   lo tanto se comía los toques del usuario: comprobado con
+   elementFromPoint, en la franja inferior el elemento que recibía el
+   toque era .login-form-side y no el contenido de la app.
+   La especificidad ID+clase (1,1,0) le gana al ID solo (1,0,0).
+   ================================================================ */
+#login-view.hidden,
+#app-view.hidden {
+    display: none !important;
+}
+
+/* ================================================================
+   Visor de imágenes: el zoom queda contenido dentro del visor
+   ----------------------------------------------------------------
+   `touch-action: none` le dice al navegador que no interprete los
+   gestos (pinch/doble toque) en esta superficie, así el zoom deja de
+   aplicarse a la página entera. Ampliar sigue siendo posible con los
+   botones + / − / ajustar del propio visor y con el pinch sobre la
+   imagen, que maneja el JS.
+   Se limita al visor: el resto de la app conserva el zoom del
+   navegador, que hace falta por accesibilidad.
+   ================================================================ */
+.clinical-image-viewer-overlay,
+.clinical-image-viewer {
+    touch-action: none;
+}
+
+/* La imagen ampliada no debe dispararle el menú de "guardar imagen"
+   ni la selección al mantener presionado mientras se hace zoom. */
+.clinical-image-viewer-img {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* El listado de archivos sí conserva el scroll normal con el dedo. */
+.clinical-images-grid {
+    touch-action: pan-y;
+}
+
+/* ================================================================
+   Archivos clínicos: acciones compactas en celular
+   ----------------------------------------------------------------
+   "Ver" y "Bajar" con texto ocupaban casi todo el ancho de la tarjeta
+   del PDF. En pantallas chicas quedan solo los íconos (ojo y flecha
+   de descarga), con área táctil de 40px.
+   ================================================================ */
+@media screen and (max-width: 640px) {
+    .clinical-image-actions .clinical-image-action-btn span {
+        display: none;
+    }
+    .clinical-image-actions .clinical-image-action-btn {
+        gap: 0;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        justify-content: center;
+        font-size: 0.95rem;
+    }
+    .clinical-image-actions {
+        gap: 0.4rem;
+    }
+}
+
+/* Botón de descarga dentro del visor (es un <a>, se alinea con los de zoom) */
+.clinical-image-viewer-download {
+    text-decoration: none;
+}
+@media screen and (max-width: 768px) {
+    .clinical-image-viewer-download {
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* La tira de miniaturas y el epígrafe del visor deben seguir pudiendo
+   desplazarse con el dedo: `touch-action:none` en el overlay bloquea todo
+   gesto, así que se les devuelve el paneo. */
+.clinical-image-viewer-thumbs {
+    touch-action: pan-x;
+}
+.clinical-image-viewer-panel {
+    touch-action: pan-y;
+}
+
+/* ── Ícono "Cómo cargar pacientes" (siempre visible, no solo con la lista vacía) ── */
+.section-title { display: flex; align-items: center; gap: 0.5rem; }
+.patients-info-btn {
+    background: none;
+    border: none;
+    padding: 0.2rem;
+    cursor: pointer;
+    color: var(--gray-400, #9ca3af);
+    font-size: 0.85em;
+    line-height: 1;
+    display: inline-flex;
+    border-radius: 50%;
+}
+.patients-info-btn:hover { color: var(--primary-600); background: var(--primary-50, #eef2ff); }
+body.theme-dark .patients-info-btn { color: #64748b; }
+body.theme-dark .patients-info-btn:hover { color: #a5b4fc; background: rgba(148,163,184,0.12); }
+
+/* Método "Importar con IA" en el instructivo — mismo estilo violeta que .btn-ia */
+.patients-empty-method-icon--ia {
+    background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+    color: #7c3aed;
+}
+body.theme-dark .patients-empty-method-icon--ia {
+    background: rgba(124,58,237,0.18);
+    color: #c4b5fd;
+}
+
+/* ================================================================
+   Calendario — vista de Día: tarjeta con sombra suave (opción B)
+   ----------------------------------------------------------------
+   Se veía muy plano: borde apenas visible, sin ningún acento, y el
+   resto un bloque vacío sin ninguna referencia visual entre horas.
+   Se le suma:
+   - Borde + sombra pareja y suave + esquinas redondeadas.
+   - Franjas horarias alternadas muy sutiles (zebra) para que se
+     pueda "leer" la grilla de un vistazo, no solo con las líneas.
+   (Se probaron otras variantes con acento de color en el encabezado
+   y se descartaron a favor de este estilo, más discreto.)
+   ================================================================ */
+body .cal-scroll-wrap.cal-scroll-wrap-day {
+    /* !important porque más arriba en este mismo archivo hay
+       `body:not(.theme-dark) .cal-scroll-wrap { border:none!important;
+       box-shadow:none!important; border-radius:0!important }` — pensada
+       para el scroll semanal/mensual (que delega el marco a un hijo), pero
+       en la vista de Día el propio .cal-scroll-wrap ES la tarjeta visible. */
+    border: 1px solid var(--gray-200) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 6px 16px rgba(15,23,42,0.08) !important;
+    background: #fff !important;
+    overflow: hidden;
+}
+
+.cal-grid-day {
+    border-radius: inherit;
+    overflow: hidden;
+}
+
+.cal-prof-header {
+    padding: 0.95rem 0.75rem 0.8rem;
+    border-bottom: 1px solid var(--gray-200);
+    position: relative;
+}
+
+.cal-prof-schedule-badge {
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    background: var(--gray-100);
+    color: var(--gray-500);
+    font-weight: 600;
+}
+
+/* Bandas horarias sutiles — el período coincide con 1 hora de grilla
+   (84px, ver CAL_PX_PER_MIN en appointments.js) para que las franjas
+   queden alineadas con las líneas de hora. */
+.cal-prof-body {
+    background-image: repeating-linear-gradient(
+        to bottom,
+        rgba(99, 102, 241, 0.025) 0px,
+        rgba(99, 102, 241, 0.025) 84px,
+        transparent 84px,
+        transparent 168px
+    );
+}
+
+.cal-gutter-header {
+    border-bottom: 1px solid var(--gray-200);
+}
+.cal-hour-label {
+    font-size: 0.66rem;
+    color: var(--gray-500);
+}
+.cal-h-line {
+    border-top-color: var(--gray-150, rgba(148,163,184,0.28));
+}
+
+body.theme-dark .cal-scroll-wrap.cal-scroll-wrap-day {
+    border-color: rgba(148,163,184,0.16) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.28) !important;
+    background: transparent !important;
+}
+body.theme-dark .cal-prof-body {
+    background-image: repeating-linear-gradient(
+        to bottom,
+        rgba(148,163,184,0.035) 0px,
+        rgba(148,163,184,0.035) 84px,
+        transparent 84px,
+        transparent 168px
+    );
+}
+body.theme-dark .cal-prof-schedule-badge {
+    background: rgba(255,255,255,0.05);
+    color: #94a3b8;
+}
+
+/* ── Antecedentes médicos dentro de Nuevo/Editar Paciente (colapsable) ── */
+.patient-mh-details {
+    margin-top: 0.6rem;
+    border: 1px solid var(--gray-200);
+    border-radius: 0.65rem;
+    overflow: hidden;
+}
+.patient-mh-details summary {
+    padding: 0.7rem 0.9rem;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--gray-700);
+    background: var(--gray-50);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    list-style: none;
+}
+.patient-mh-details summary::-webkit-details-marker { display: none; }
+.patient-mh-details summary::after {
+    content: '\f078';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--gray-400);
+    transition: transform 0.15s ease;
+}
+.patient-mh-details[open] summary::after { transform: rotate(180deg); }
+.patient-mh-hint {
+    font-weight: 400;
+    font-size: 0.75rem;
+    color: var(--gray-400);
+}
+.patient-mh-body {
+    padding: 0.9rem;
+    border-top: 1px solid var(--gray-200);
+}
+.patient-mh-body .mh-grid { grid-template-columns: 1fr; gap: 0; }
+
+body.theme-dark .patient-mh-details { border-color: rgba(148,163,184,0.16); }
+body.theme-dark .patient-mh-details summary { background: rgba(255,255,255,0.03); color: #e2e8f0; }
+body.theme-dark .patient-mh-body { border-top-color: rgba(148,163,184,0.14); }
+
+/* ================================================================
+   Tamaño de letra general — un poco más grande
+   ----------------------------------------------------------------
+   La mayoría de la app usa `rem` para tipografía, así que subir el
+   font-size del <html> escala todo el texto proporcionalmente (títulos,
+   botones, tablas, formularios) sin tener que tocar cada componente
+   uno por uno. De 16px (default del navegador) a ~17px — un aumento
+   sutil, no un cambio drástico de escala.
+   ================================================================ */
+html {
+    font-size: 106.25%;
 }

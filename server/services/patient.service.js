@@ -23,6 +23,34 @@ function normalizePatientName(value = "") {
 }
 
 // -----------------------------------------------------------------------------
+// Antecedentes médicos (cuestionario de la ficha)
+// -----------------------------------------------------------------------------
+
+// Claves booleanas (casilleros Sí/No) y de texto del cuestionario médico.
+// Se usan como fuente única de verdad para sanitizar el JSON que entra.
+const MEDICAL_BOOL_KEYS = [
+  "cardiacos", "presionAlta", "presionBaja", "hepatitis", "ulcerasEstomago",
+  "diabetes", "asma", "venereasSida", "fiebreReumatica", "epilepsia",
+  "desmayos", "problemasHepaticos", "embarazo", "examenHiv", "problemasRenales",
+  "servicioUrgencia", "bajoTratamiento", "reaccionAlergica", "sangradoExcesivo",
+  "tomaMedicamentos", "fuma",
+];
+const MEDICAL_TEXT_KEYS = ["bajoTratamientoCual", "reaccionAlergicaCual", "medicamentosCuales"];
+
+// Devuelve un objeto limpio con solo las claves conocidas, o null si no vino nada.
+function sanitizeMedicalHistory(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const out = {};
+  for (const k of MEDICAL_BOOL_KEYS) {
+    if (raw[k] !== undefined) out[k] = Boolean(raw[k]);
+  }
+  for (const k of MEDICAL_TEXT_KEYS) {
+    if (raw[k] !== undefined && raw[k] !== null) out[k] = String(raw[k]).trim().slice(0, 500);
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+// -----------------------------------------------------------------------------
 // Serialización
 // -----------------------------------------------------------------------------
 
@@ -40,6 +68,7 @@ function serializePatient(patient) {
     insurancePlan: patient.insurancePlan,
     credentialNumber: patient.credentialNumber,
     chartNumber: patient.chartNumber,
+    medicalHistory: patient.medicalHistory ?? null,
     active: patient.active,
     createdAt: patient.createdAt,
     updatedAt: patient.updatedAt,
@@ -76,6 +105,7 @@ function getPatientPayload(body = {}) {
     summaryNotes:      trim(body.summaryNotes, 5000),
     allergies:         trim(body.allergies, 2000),
     medicalNotes:      trim(body.medicalNotes, 5000),
+    medicalHistory:    sanitizeMedicalHistory(body.medicalHistory),
   };
 }
 

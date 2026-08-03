@@ -124,6 +124,15 @@ function getAccessibleProfessionals() {
     return DB.get('professionals').filter(p => allowed.has(p.id));
 }
 
+// Igual que getAccessibleProfessionals() pero además excluye profesionales
+// desactivados — usar en selectores donde se elige/asigna un profesional
+// (nuevo turno, horarios, odontograma). NO usar para historial (turnos
+// pasados, cuentas corrientes) — ahí un profesional inactivo debe seguir
+// apareciendo porque los datos históricos no se borran.
+function getActiveAccessibleProfessionals() {
+    return getAccessibleProfessionals().filter(p => p.active !== false && p.status !== 'inactivo');
+}
+
 function getAccessibleAppointments() {
     const allowed = new Set(getAccessibleProfessionalIds());
     return DB.get('appointments').filter(apt => allowed.has(apt.professionalId));
@@ -143,11 +152,11 @@ function getAccessiblePatients() {
     return DB.get('patients').filter(p => allowed.has(p.id));
 }
 
-// Devuelve el profesionalId activo en el odontograma (superadmin usa selector)
+// Devuelve el profesional "propio" del usuario actual — se usa como valor por
+// defecto al emitir una receta/presupuesto (que sí son privados por
+// profesional). El odontograma, tratamientos y archivos son compartidos y ya
+// no dependen de esto.
 function getCurrentOdontoProfessionalId() {
-    if (isSuperadmin() || (state.user?.allowedProfessionals || []).length > 1) {
-        return state.clinicalOdontoProfessionalId || null;
-    }
     if (state.user?.assignedProfessionalId) return state.user.assignedProfessionalId;
     const scoped = state.user?.allowedProfessionals || [];
     if (scoped.length === 1) return scoped[0];

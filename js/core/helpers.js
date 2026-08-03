@@ -261,6 +261,7 @@ function buildPatientApiPayload(values = {}) {
         summaryNotes: values.notes || '',
         allergies: values.allergies || null,
         medicalNotes: values.medicalNotes || null,
+        medicalHistory: values.medicalHistory || null,
         active: values.active !== false
     };
 }

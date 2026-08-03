@@ -2,26 +2,19 @@ const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
-const { canEditClinicalData, canViewClinicalData, canAccessWholeClinic } = require("../lib/permissions");
+const { canEditClinicalData, canViewClinicalData } = require("../lib/permissions");
 
 const router = express.Router();
 
-function getProfessionalId(permissions, overrideId) {
-  // Admin con acceso total puede ver/editar el registro de cualquier profesional
-  if (canAccessWholeClinic(permissions)) {
-    return overrideId ? Number(overrideId) : null;
-  }
-  // Vínculo directo: Professional.userId = user.id
-  if (permissions.assignedProfessionalId) {
-    return permissions.assignedProfessionalId;
-  }
-  // Fallback: usuario con rol professional que tiene exactamente un profesional
-  // asignado en su scope (Professional.userId no configurado aún)
+// La ficha clínica (odontograma, notas, alergias) es UNA sola por paciente,
+// compartida por toda la clínica — no hay un registro distinto por
+// profesional. professionalId queda solo como dato informativo de quién
+// hizo la última edición.
+function resolveEditorProfessionalId(permissions, overrideId) {
+  if (overrideId) return Number(overrideId);
+  if (permissions.assignedProfessionalId) return permissions.assignedProfessionalId;
   const scoped = permissions.allowedProfessionalIds || [];
-  if (scoped.length === 1) {
-    return scoped[0];
-  }
-  return null;
+  return scoped.length === 1 ? scoped[0] : null;
 }
 
 function serializeRecord(record) {
@@ -51,9 +44,7 @@ router.get("/:patientId", requireAuth, async (req, res) => {
     }
 
     const patientId = Number(req.params.patientId);
-    const professionalId = getProfessionalId(req.permissions, req.query.professionalId);
 
-    // Verificar acceso al paciente
     const patient = await prisma.patient.findFirst({
       where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
       select: { id: true, fullName: true, dni: true },
@@ -63,18 +54,14 @@ router.get("/:patientId", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
     }
 
-    // Buscar el registro clínico del profesional para este paciente
-    const record = professionalId
-      ? await prisma.clinicalRecord.findFirst({
-          where: { patientId, professionalId },
-          include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
-        })
-      : null;
+    const record = await prisma.clinicalRecord.findUnique({
+      where: { patientId },
+      include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
+    });
 
     return res.json({
       ok: true,
       patient: { id: patient.id, fullName: patient.fullName, dni: patient.dni },
-      professionalId,
       record: record ? serializeRecord(record) : null,
     });
   } catch (_error) {
@@ -91,13 +78,8 @@ router.put("/:patientId", requireAuth, async (req, res) => {
     }
 
     const patientId = Number(req.params.patientId);
-    const professionalId = getProfessionalId(req.permissions, req.body.professionalId);
+    const editorProfessionalId = resolveEditorProfessionalId(req.permissions, req.body.professionalId);
 
-    if (!professionalId) {
-      return res.status(400).json({ ok: false, error: "Se requiere un profesional para guardar la historia clínica." });
-    }
-
-    // Verificar acceso al paciente
     const patient = await prisma.patient.findFirst({
       where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
       select: { id: true },
@@ -138,49 +120,41 @@ router.put("/:patientId", requireAuth, async (req, res) => {
       summaryNotes: req.body.summaryNotes ?? null,
       allergies:    req.body.allergies    ?? null,
       medicalNotes: req.body.medicalNotes ?? null,
+      professionalId: editorProfessionalId,
     };
 
-    let existing = await prisma.clinicalRecord.findFirst({
-      where: { patientId, professionalId },
+    let existing = await prisma.clinicalRecord.findUnique({
+      where: { patientId },
       select: { id: true },
     });
 
     if (!existing) {
-      // Crear el registro clínico base (sin entradas de odontograma aún)
       try {
         existing = await prisma.clinicalRecord.create({
-          data: { patientId, professionalId, ...textData },
+          data: { patientId, ...textData },
           select: { id: true },
         });
       } catch (createErr) {
         if (createErr?.code === "P2002") {
-          // Carrera o constraint duplicado: intentar encontrar el registro
-          console.warn("[clinical-records PUT] P2002 al crear. meta:", JSON.stringify(createErr?.meta), "patientId:", patientId, "professionalId:", professionalId);
-          existing = await prisma.clinicalRecord.findFirst({
-            where: { patientId, professionalId },
+          // Carrera: otra request creó el registro justo antes — lo buscamos de nuevo
+          console.warn("[clinical-records PUT] P2002 al crear. meta:", JSON.stringify(createErr?.meta), "patientId:", patientId);
+          existing = await prisma.clinicalRecord.findUnique({
+            where: { patientId },
             select: { id: true },
           });
-          if (!existing) {
-            // El P2002 vino de un constraint diferente a (patientId, professionalId)
-            // Buscar cualquier registro de ese paciente para dar contexto
-            const anyRecord = await prisma.clinicalRecord.findFirst({ where: { patientId }, select: { id: true, professionalId: true } });
-            console.error("[clinical-records PUT] findFirst post-P2002 devolvió null. anyRecord:", anyRecord);
-          }
         } else {
           throw createErr;
         }
       }
     } else {
-      // Actualizar solo los campos de texto
       await prisma.clinicalRecord.update({
         where: { id: existing.id },
         data: textData,
       });
     }
 
-    // Guardia: si por alguna race condition extrema el registro sigue sin resolverse, abortar limpio
     if (!existing?.id) {
-      console.error("[clinical-records PUT] existing es null después de create/update. patientId:", patientId, "professionalId:", professionalId);
+      console.error("[clinical-records PUT] existing es null después de create/update. patientId:", patientId);
       return res.status(500).json({ ok: false, error: "No se pudo resolver el registro clínico. Intentá de nuevo." });
     }
 

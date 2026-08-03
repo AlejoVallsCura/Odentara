@@ -2,6 +2,7 @@ const prisma = require("../lib/prisma");
 const { verifyToken, buildPermissionSummary } = require("../lib/auth");
 const { getClinicPrisma } = require("../lib/clinic-prisma");
 const { isRevoked } = require("../lib/token-revocation");
+const { runWithAuditContext } = require("../lib/audit-context");
 
 async function requireAuth(req, res, next) {
   try {
@@ -14,7 +15,7 @@ async function requireAuth(req, res, next) {
 
     const payload = verifyToken(token);
 
-    if (isRevoked(payload.jti)) {
+    if (await isRevoked(payload.jti)) {
       return res.status(401).json({ ok: false, error: "Sesión cerrada. Iniciá sesión nuevamente." });
     }
 
@@ -29,6 +30,19 @@ async function requireAuth(req, res, next) {
 
     if (!user || !user.active) {
       return res.status(401).json({ ok: false, error: "Usuario no disponible." });
+    }
+
+    // Corte masivo de sesiones: si la contraseña se cambió después de emitirse
+    // este token, el token deja de valer. Cubre el caso de una cuenta
+    // comprometida, donde revocar de a un token no alcanza porque no se sabe
+    // cuántas sesiones abrió el atacante. `iat` viene en segundos.
+    if (user.sessionsValidFrom && payload.iat) {
+      if (payload.iat * 1000 < user.sessionsValidFrom.getTime()) {
+        return res.status(401).json({
+          ok: false,
+          error: "Tu contraseña cambió. Iniciá sesión nuevamente.",
+        });
+      }
     }
 
     // Bloquear si la clínica fue desactivada (aunque el token siga válido)
@@ -79,10 +93,20 @@ async function requireAuth(req, res, next) {
 
     req.user = user;
     req.rawToken = token;
+    req.impersonatedBy = payload.impersonatedBy || null;
     req.permissions = buildPermissionSummary(user);
     // Inyectar el cliente Prisma correcto para la clínica de este usuario
     req.prisma = await getClinicPrisma(user.clinicId);
-    next();
+
+    // Contexto de auditoría para todo lo que se escriba en esta request.
+    // No se audita al Ultra Admin, ni mientras está impersonando una clínica.
+    const auditContext = {
+      userId: user.id,
+      clinicId: user.clinicId || null,
+      isPlatformAdmin: !!user.isPlatformAdmin,
+      impersonated: !!payload.impersonatedBy,
+    };
+    return runWithAuditContext(auditContext, () => next());
   } catch (error) {
     return res.status(401).json({ ok: false, error: "Token invalido o vencido." });
   }

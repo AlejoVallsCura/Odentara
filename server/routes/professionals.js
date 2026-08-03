@@ -1,6 +1,5 @@
 const express = require("express");
 
-const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
   hasRole,
@@ -246,8 +245,6 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: { id: professionalId },
       data: { active: false, deletedAt: new Date() },
     });
-
-    await logDeleteAudit(prisma, req.user.id, "Professional", professionalId, { professional: existing });
 
     return res.json({ ok: true, message: "Profesional eliminado correctamente." });
   } catch (error) {

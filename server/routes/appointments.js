@@ -1,6 +1,5 @@
 const express = require("express");
 
-const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const {
   canManageAppointments,
@@ -261,18 +260,9 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Turno no encontrado o sin acceso." });
     }
 
-    const existing = await prisma.appointment.findUnique({
-      where: { id: appointment.id },
-      include: { patient: true, professional: true },
-    });
-
     await prisma.appointment.update({
       where: { id: appointment.id },
       data: { status: "cancelled", deletedAt: new Date() },
-    });
-
-    await logDeleteAudit(prisma, req.user.id, "Appointment", appointment.id, {
-      appointment: existing,
     });
 
     return res.json({ ok: true, message: "Turno eliminado correctamente." });

@@ -46,22 +46,111 @@ router.get("/clinics", requireAuth, requirePlatformAdmin, async (req, res) => {
 
 // ── GET /api/platform/stats ───────────────────────────────────────────────────
 // KPIs globales de la plataforma
+// Montos de suscripción mensual por plan (ARS) — mismos valores que se usan
+// para sugerir el monto a cobrar en la pantalla de Cobros.
+const PLAN_AMOUNTS = { inicial: 45000, clinica: 75000, pro: 125000 };
+
+const MONTH_LABELS_ES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
 router.get("/stats", requireAuth, requirePlatformAdmin, async (req, res) => {
   try {
-    const [totalClinics, activeClinics, totalUsers, totalPatients, totalProfessionals] = await Promise.all([
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      totalClinics, activeClinics, totalUsers, totalPatients, totalProfessionals,
+      activeClinicPlans, activeClinicDbTypes, activeUsersWithRoles,
+      appointmentsByStatusRaw, allActiveClinicsForBilling,
+    ] = await Promise.all([
       prisma.clinic.count(),
       prisma.clinic.count({ where: { active: true } }),
       prisma.user.count({ where: { isPlatformAdmin: false, deletedAt: null, active: true } }),
       prisma.patient.count({ where: { deletedAt: null } }),
       prisma.professional.count({ where: { deletedAt: null } }),
+      prisma.clinic.findMany({ where: { active: true }, select: { plan: true } }),
+      prisma.clinic.findMany({ where: { active: true }, select: { dbType: true } }),
+      prisma.user.findMany({
+        where: { isPlatformAdmin: false, deletedAt: null, active: true },
+        select: { roles: { select: { role: { select: { code: true } } } } },
+      }),
+      prisma.appointment.groupBy({
+        by: ["status"],
+        where: { date: { gte: firstOfMonth }, deletedAt: null },
+        _count: true,
+      }),
+      prisma.clinic.findMany({
+        where: { active: true },
+        select: { id: true, plan: true, createdAt: true },
+      }),
     ]);
 
-    // Turnos este mes
-    const now = new Date();
-    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const appointmentsThisMonth = await prisma.appointment.count({
-      where: { date: { gte: firstOfMonth }, deletedAt: null },
+    const appointmentsThisMonth = appointmentsByStatusRaw.reduce((sum, r) => sum + r._count, 0);
+
+    // Ingresos aproximados: suma del monto de plan de cada clínica activa.
+    // Es una estimación (no descuenta deuda ni cobros parciales) — el detalle
+    // real de pagos está en /platform/subscriptions.
+    const estimatedMonthlyRevenue = activeClinicPlans.reduce(
+      (sum, c) => sum + (PLAN_AMOUNTS[c.plan] || 0),
+      0
+    );
+
+    // ── Clínicas por plan ──
+    const clinicsByPlan = { inicial: 0, clinica: 0, pro: 0, sinPlan: 0 };
+    for (const c of activeClinicPlans) {
+      if (c.plan && clinicsByPlan[c.plan] !== undefined) clinicsByPlan[c.plan]++;
+      else clinicsByPlan.sinPlan++;
+    }
+
+    // ── Clínicas por tipo de DB ──
+    const clinicsByDbType = { shared: 0, dedicated: 0 };
+    for (const c of activeClinicDbTypes) {
+      clinicsByDbType[c.dbType === "dedicated" ? "dedicated" : "shared"]++;
+    }
+
+    // ── Usuarios por rol (jerarquía superadmin > professional > secretary > admin, un usuario cuenta 1 vez) ──
+    const usersByRole = { superadmin: 0, professional: 0, secretary: 0, admin: 0 };
+    const ROLE_PRIORITY = ["superadmin", "professional", "secretary", "admin"];
+    for (const u of activeUsersWithRoles) {
+      const codes = u.roles.map((r) => r.role.code);
+      const primary = ROLE_PRIORITY.find((code) => codes.includes(code));
+      if (primary) usersByRole[primary]++;
+    }
+
+    // ── Turnos del mes por estado ──
+    const appointmentsByStatus = { not_sent: 0, sent: 0, confirmed: 0, rescheduled: 0, cancelled: 0 };
+    for (const r of appointmentsByStatusRaw) {
+      if (appointmentsByStatus[r.status] !== undefined) appointmentsByStatus[r.status] = r._count;
+    }
+
+    // ── Cobros del mes actual: pagado / pendiente / vencido ──
+    const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const currentPeriodPayments = await prisma.subscriptionPayment.findMany({
+      where: { period: currentPeriod },
+      select: { clinicId: true },
     });
+    const paidClinicIds = new Set(currentPeriodPayments.map((p) => p.clinicId));
+    const billingStatus = { paid: 0, pending: 0, overdue: 0 };
+    for (const c of allActiveClinicsForBilling) {
+      if (paidClinicIds.has(c.id)) {
+        billingStatus.paid++;
+      } else if (now.getDate() > 10) {
+        billingStatus.overdue++;
+      } else {
+        billingStatus.pending++;
+      }
+    }
+
+    // ── Pacientes nuevos por mes (últimos 6 meses) ──
+    const patientsByMonth = [];
+    for (let i = 5; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      // eslint-disable-next-line no-await-in-loop
+      const count = await prisma.patient.count({
+        where: { createdAt: { gte: start, lt: end }, deletedAt: null },
+      });
+      patientsByMonth.push({ label: MONTH_LABELS_ES[start.getMonth()], count });
+    }
 
     return res.json({
       ok: true,
@@ -72,6 +161,13 @@ router.get("/stats", requireAuth, requirePlatformAdmin, async (req, res) => {
         totalPatients,
         totalProfessionals,
         appointmentsThisMonth,
+        estimatedMonthlyRevenue,
+        clinicsByPlan,
+        clinicsByDbType,
+        usersByRole,
+        appointmentsByStatus,
+        billingStatus,
+        patientsByMonth,
       },
     });
   } catch (e) {
@@ -332,21 +428,8 @@ router.post("/login-as-clinic", requireAuth, requirePlatformAdmin, async (req, r
     const { serializeUser } = require("../lib/auth");
     const token = signToken({ userId: adminUser.id, impersonatedBy: req.user.id }, { expiresIn: "2h" });
 
-    // Registrar en AuditLog
-    try {
-      await prisma.auditLog.create({
-        data: {
-          userId:     req.user.id,
-          entityType: "User",
-          entityId:   String(adminUser.id),
-          action:     "login",
-          beforeData: null,
-          afterData:  { impersonation: true, clinicId: Number(clinicId), impersonatedBy: req.user.id },
-        },
-      });
-    } catch (_e) {
-      // Audit no debe bloquear la operación
-    }
+    // No se registra en AuditLog: los movimientos del Ultra Admin (incluido
+    // este ingreso como impersonador) están excluidos de la auditoría a propósito.
 
     return res.json({ ok: true, token, user: serializeUser(adminUser) });
   } catch (e) {
@@ -476,6 +559,70 @@ router.delete("/subscriptions/:id", requireAuth, requirePlatformAdmin, async (re
   } catch (e) {
     if (e.code === "P2025") return res.status(404).json({ ok: false, error: "Pago no encontrado." });
     return res.status(500).json({ ok: false, error: "Error al eliminar el pago." });
+  }
+});
+
+// ── GET /api/platform/audit-logs ──────────────────────────────────────────────
+// Auditoría de movimientos hacia la base de datos, filtrable por clínica, usuario,
+// tipo de entidad y acción. No incluye movimientos del Ultra Admin ni los hechos
+// mientras impersona una clínica — esos directamente no se registran (ver
+// server/lib/audit-writer.js).
+router.get("/audit-logs", requireAuth, requirePlatformAdmin, async (req, res) => {
+  try {
+    const { clinicId, userId, entityType, action, dateFrom, dateTo } = req.query;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 30));
+
+    // Nunca mostrar movimientos atribuidos al Ultra Admin, ni siquiera los que
+    // hayan quedado registrados por versiones anteriores de la auditoría.
+    const where = { user: { isNot: { isPlatformAdmin: true } } };
+    if (clinicId) where.clinicId = Number(clinicId);
+    if (userId) where.userId = Number(userId);
+    if (entityType) where.entityType = String(entityType);
+    if (action) where.action = String(action);
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(`${dateFrom}T00:00:00`);
+      if (dateTo) where.createdAt.lte = new Date(`${dateTo}T23:59:59`);
+    }
+
+    const [total, logs, clinics, entityTypes] = await Promise.all([
+      prisma.auditLog.count({ where }),
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { user: { select: { id: true, fullName: true, email: true } } },
+      }),
+      prisma.clinic.findMany({ select: { id: true, name: true } }),
+      prisma.auditLog.findMany({ distinct: ["entityType"], select: { entityType: true }, orderBy: { entityType: "asc" } }),
+    ]);
+
+    const clinicNameById = new Map(clinics.map((c) => [c.id, c.name]));
+
+    return res.json({
+      ok: true,
+      total,
+      page,
+      pageSize,
+      entityTypes: entityTypes.map((e) => e.entityType),
+      logs: logs.map((log) => ({
+        id: log.id,
+        action: log.action,
+        entityType: log.entityType,
+        entityId: log.entityId,
+        createdAt: log.createdAt,
+        clinicId: log.clinicId,
+        clinicName: log.clinicId ? clinicNameById.get(log.clinicId) || null : null,
+        user: log.user ? { id: log.user.id, fullName: log.user.fullName, email: log.user.email } : null,
+        beforeData: log.beforeData,
+        afterData: log.afterData,
+      })),
+    });
+  } catch (e) {
+    console.error("[audit-logs GET]", e);
+    return res.status(500).json({ ok: false, error: "No se pudo obtener la auditoría." });
   }
 });
 

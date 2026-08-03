@@ -1,6 +1,5 @@
 const express = require("express");
 
-const { logDeleteAudit } = require("../lib/audit");
 const { requireAuth } = require("../middleware/auth");
 const { buildPatientAccessWhere } = require("../lib/access");
 const { parseId } = require("../lib/parse-id");
@@ -8,6 +7,8 @@ const {
   canViewClinicalData,
   canEditClinicalData,
   canManageBilling,
+  canAccessWholeClinic,
+  getAccessibleProfessionalIds,
 } = require("../lib/permissions");
 const { checkBillingFeature } = require("../lib/plan-limits");
 const {
@@ -32,10 +33,20 @@ router.get("/", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: "Falta el parámetro patientId." });
     }
 
+    // Los presupuestos son de UN profesional — un profesional no debe ver los
+    // presupuestos de otro colega para el mismo paciente. Un admin con un
+    // profesional asignado queda igual de restringido que cualquier otro rol
+    // scopeado (canAccessWholeClinic ya contempla esto); solo ve todo si no
+    // tiene ningún profesional asignado.
+    const professionalScope = canAccessWholeClinic(req.permissions)
+      ? (req.query.professionalId ? { professionalId: Number(req.query.professionalId) } : {})
+      : { professionalId: { in: getAccessibleProfessionalIds(req.permissions) } };
+
     const budgets = await prisma.budget.findMany({
       where: {
         patientId,
         deletedAt: null,
+        ...professionalScope,
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       orderBy: [{ issuedAt: "desc" }, { id: "desc" }],
@@ -178,6 +189,11 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: {
         id: budgetId,
         deletedAt: null,
+        // Un profesional no puede eliminar el presupuesto de otro colega para
+        // el mismo paciente — es de un solo profesional, no de la clínica.
+        ...(canAccessWholeClinic(req.permissions)
+          ? {}
+          : { professionalId: { in: getAccessibleProfessionalIds(req.permissions) } }),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       include: BUDGET_INCLUDE,
@@ -196,8 +212,6 @@ router.delete("/:id", requireAuth, async (req, res) => {
       where: { id: budgetId },
       data: { deletedAt: new Date() },
     });
-
-    await logDeleteAudit(prisma, req.user.id, "Budget", budgetId, { budget: existing });
 
     return res.json({ ok: true, message: "Presupuesto eliminado correctamente." });
   } catch (_error) {

@@ -273,7 +273,8 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshCurrentView();
         }
         if (e.target.closest('#btn-add-patient') || e.target.closest('#btn-add-patient-empty')) openPatientModal();
-        if (e.target.closest('#btn-import-patients') || e.target.closest('#btn-import-patients-empty')) openPatientImportModal();
+        if (e.target.closest('#btn-import-patients') || e.target.closest('#btn-import-patients-empty')) openPatientImportModal('file');
+        if (e.target.closest('#btn-import-ia') || e.target.closest('#btn-import-ia-empty')) openPatientImportModal('photo');
         if (e.target.closest('.btn-edit-patient')) openPatientModal(parseInt(e.target.closest('.btn-edit-patient').dataset.id));
         if (e.target.closest('.btn-delete-patient')) {
             const patientId = parseInt(e.target.closest('.btn-delete-patient').dataset.id);

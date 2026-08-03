@@ -1,7 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 
-const { logDeleteAudit } = require("../lib/audit");
 const { normalizeEmail, serializeUser, buildPermissionSummary } = require("../lib/auth");
 const { requireAuth, requireAnyRole } = require("../middleware/auth");
 const { checkAdminUserLimit } = require("../lib/plan-limits");
@@ -338,6 +337,10 @@ router.put("/:id", requireAuth, async (req, res) => {
     const updateData = { fullName, email };
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
+      // Cerrar las sesiones abiertas de ese usuario: si le cambian la contraseña
+      // (por ejemplo porque la cuenta quedó comprometida), los tokens que ya
+      // estaban en circulación tienen que dejar de servir.
+      updateData.sessionsValidFrom = new Date();
       // SEGURIDAD: No sincronizamos el hash cross-clínica al editar un usuario.
       // El cambio de contraseña aplica solo al usuario de esta clínica.
       // (La sincronización anterior permitía a un admin de clínica A sobrescribir
@@ -475,15 +478,6 @@ router.delete("/:id", requireAuth, requireAnyRole(["superadmin"]), async (req, r
       data: {
         active: false,
         deletedAt: new Date(),
-      },
-    });
-
-    await logDeleteAudit(prisma, req.user.id, "User", userId, {
-      user: {
-        id: existingUser.id,
-        email: existingUser.email,
-        fullName: existingUser.fullName,
-        roles: existingUser.roles.map((item) => item.role.code),
       },
     });
 

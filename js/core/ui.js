@@ -72,6 +72,14 @@ function applyTheme(theme = 'light', persist = true) {
 
 function toggleTheme() {
     applyTheme(document.body.classList.contains('theme-dark') ? 'light' : 'dark');
+    // Varias vistas (dashboard, turnos) calculan colores en JS leyendo el tema
+    // al momento de renderizar y los dejan como estilo inline — por ejemplo el
+    // fondo de cada fila de turno, que se mezcla con el color del profesional.
+    // Al cambiar de tema esos inline quedan con los colores del tema anterior
+    // hasta que se navega a otra pantalla, así que hay que re-renderizar.
+    if (typeof refreshCurrentView === 'function' && state?.currentView) {
+        refreshCurrentView();
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -117,6 +125,15 @@ async function withAppLoading(message, task) {
     } finally {
         setAppLoading(false);
     }
+}
+
+// Cambia el texto del overlay sin tocar el contador de cargas — para tareas
+// largas que reportan progreso mientras avanzan (ej: la lectura de fotos con
+// IA, que va tanda por tanda). Usar setAppLoading para esto lo rompería: cada
+// llamada suma al contador y el overlay nunca se cerraría.
+function updateAppLoadingMessage(message) {
+    const msgNode = ensureLoadingOverlay().querySelector('.app-loading-message');
+    if (msgNode) msgNode.textContent = repairMojibakeString(String(message || ''));
 }
 
 // -----------------------------------------------------------------------------

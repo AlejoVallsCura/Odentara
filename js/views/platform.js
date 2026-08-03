@@ -111,6 +111,7 @@ function injectPlatformStyles() {
         .pa-input.mono { font-family:'JetBrains Mono','Fira Mono',monospace; font-size:11px; }
         .pa-select { width:100%; background:#0d1119; border:1px solid #1e2535; border-radius:7px; padding:9px 12px; font-size:12px; color:#e2e8f0; outline:none; cursor:pointer; box-sizing:border-box; }
         .pa-select:focus { border-color:#4f46e5; }
+        .pa-select option { background:#161b27; color:#e2e8f0; }
         .pa-hint { font-size:10px; color:#334155; margin-top:4px; line-height:1.5; }
         .pa-db-section { background:#0a0d14; border:1px solid #1a2030; border-radius:8px; padding:14px; margin-top:4px; }
         .pa-db-section-title { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#475569; margin-bottom:10px; }
@@ -130,6 +131,140 @@ function injectPlatformStyles() {
         /* ── URL preview ── */
         .pa-url-preview { display:flex; align-items:center; gap:8px; background:#060910; border:1px solid #1e2535; border-radius:6px; padding:8px 12px; margin-top:6px; font-family:'JetBrains Mono','Fira Mono',monospace; font-size:12px; color:#6366f1; }
         .pa-url-preview i { color:#334155; font-size:10px; }
+
+        /* ── Resumen compacto (tira de clínicas) ── */
+        .pa-summary-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+        .pa-num { font-variant-numeric: tabular-nums; }
+
+        /* ── Toolbar / búsqueda ── */
+        .pa-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+        .pa-search { position:relative; flex:1; max-width:380px; }
+        .pa-search > i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#334155; font-size:12px; pointer-events:none; }
+        .pa-search input { padding-left:32px; }
+        .pa-toolbar-count { font-size:11px; color:#475569; font-family:'JetBrains Mono','Fira Mono',monospace; margin-left:auto; }
+
+        /* ── Acciones de fila + menú overflow ── */
+        .pa-row-actions { display:flex; gap:6px; justify-content:flex-end; align-items:center; }
+        .pa-menu { position:fixed; z-index:10000; min-width:184px; background:#111520; border:1px solid #1e2535; border-radius:9px; padding:5px; box-shadow:0 12px 34px rgba(0,0,0,.55); display:flex; flex-direction:column; gap:2px; }
+        .pa-menu-item { display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:none; color:#94a3b8; font-size:12px; font-weight:500; padding:8px 10px; border-radius:6px; cursor:pointer; transition:background .12s,color .12s; }
+        .pa-menu-item i { width:14px; text-align:center; font-size:11px; color:#475569; }
+        .pa-menu-item:hover { background:#1a2030; color:#e2e8f0; }
+        .pa-menu-item:hover i { color:#94a3b8; }
+        .pa-menu-item-danger { color:#fca5a5; }
+        .pa-menu-item-danger i { color:#f87171; }
+        .pa-menu-item-danger:hover { background:#2a1215; color:#fecaca; }
+        .pa-menu-item-danger:hover i { color:#fca5a5; }
+        .pa-menu-divider { height:1px; background:#1e2535; margin:4px 2px; }
+
+        /* ── Gráficos (Estadísticas) ── */
+        .pa-charts-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-top:20px; }
+        .pa-chart-card { background:#0d1119; border:1px solid #1e2535; border-radius:10px; padding:18px 20px; }
+        .pa-chart-title { font-size:12px; font-weight:700; color:#94a3b8; letter-spacing:.02em; margin-bottom:16px; }
+        .pa-chart-body { display:flex; align-items:center; gap:20px; }
+        .pa-pie-donut { width:110px; height:110px; border-radius:50%; flex-shrink:0; position:relative; }
+        .pa-pie-donut::after { content:''; position:absolute; inset:20px; border-radius:50%; background:#0d1119; }
+        .pa-pie-legend { display:flex; flex-direction:column; gap:7px; flex:1; min-width:0; }
+        .pa-legend-item { display:flex; align-items:center; gap:8px; font-size:11px; color:#94a3b8; }
+        .pa-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+        .pa-legend-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .pa-legend-value { font-weight:700; color:#e2e8f0; font-variant-numeric:tabular-nums; }
+        .pa-chart-empty { font-size:11px; color:#334155; text-align:center; padding:20px 0; }
+        .pa-bar-chart { display:flex; align-items:flex-end; gap:10px; height:140px; padding-top:10px; }
+        .pa-bar-col { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:6px; }
+        .pa-bar-col .pa-bar-value { font-size:10px; color:#64748b; font-weight:700; }
+        .pa-bar-col .pa-bar { width:100%; max-width:32px; background:linear-gradient(180deg,#6366f1,#4338ca); border-radius:4px 4px 0 0; min-height:2px; }
+        .pa-bar-col .pa-bar-label { font-size:10px; color:#475569; }
+
+        /* ── Responsive: tablet ──────────────────────────────────────────── */
+        @media screen and (max-width: 1024px) {
+            .pa-main { padding:20px; }
+            .pa-charts-grid { grid-template-columns:1fr; }
+        }
+
+        /* ── Responsive: mobile ──────────────────────────────────────────────
+           La sidebar de 200px fija dejaba ~109px de contenido en un celular.
+           Acá pasa a ser una barra horizontal scrolleable arriba del contenido. */
+        @media screen and (max-width: 900px) {
+            .pa-body { flex-direction:column; }
+            .pa-sidebar {
+                width:100%; flex-direction:row; overflow-x:auto; overflow-y:hidden;
+                padding:0; border-right:none; border-bottom:1px solid #1e2535;
+                gap:0; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+            }
+            .pa-sidebar::-webkit-scrollbar { display:none; }
+            .pa-nav-section { display:none; }
+            .pa-nav-item {
+                white-space:nowrap; padding:13px 16px; border-left:none;
+                border-bottom:2px solid transparent; font-size:13px;
+            }
+            .pa-nav-item.active { border-left-color:transparent; border-bottom-color:#6366f1; }
+            .pa-main { padding:18px 14px; }
+
+            .pa-topbar { padding:0 14px; height:48px; }
+            .pa-topbar-brand { font-size:11px; }
+            .pa-topbar-right { gap:10px; font-size:11px; }
+            /* El email del admin come todo el ancho en pantallas chicas */
+            .pa-topbar-right > span { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+            .pa-page-header { flex-direction:column; align-items:stretch; gap:12px; }
+            .pa-stats-grid { grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; }
+            .pa-stat-card { padding:14px 16px; }
+            .pa-stat-value { font-size:22px; }
+
+            /* Las tablas del panel tienen 7 columnas de datos densos. En celular
+               se ocultan las secundarias y quedan solo las que importan para
+               identificar la fila y actuar sobre ella. */
+            /* Lo que quede ancho scrollea dentro de su propia caja, sin romper
+               la página. (table-layout:fixed empeoraba el reparto de columnas.) */
+            .pa-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+            .pa-table { min-width:0; }
+            .pa-table th, .pa-table td { padding:10px 8px; font-size:11px; }
+
+            /* Clínicas: Clínica/URL · Plan · Acciones */
+            .pa-table-clinics th:nth-child(2), .pa-table-clinics td:nth-child(2),
+            .pa-table-clinics th:nth-child(3), .pa-table-clinics td:nth-child(3),
+            .pa-table-clinics th:nth-child(5), .pa-table-clinics td:nth-child(5),
+            .pa-table-clinics th:nth-child(6), .pa-table-clinics td:nth-child(6) { display:none; }
+
+            /* Cobros: Clínica · Estado del mes · Acción */
+            .pa-table-subs th:nth-child(2), .pa-table-subs td:nth-child(2),
+            .pa-table-subs th:nth-child(3), .pa-table-subs td:nth-child(3),
+            .pa-table-subs th:nth-child(5), .pa-table-subs td:nth-child(5),
+            .pa-table-subs th:nth-child(6), .pa-table-subs td:nth-child(6) { display:none; }
+
+            /* Historial de pagos: Clínica · Período · Monto */
+            .pa-table-payments th:nth-child(4), .pa-table-payments td:nth-child(4),
+            .pa-table-payments th:nth-child(5), .pa-table-payments td:nth-child(5),
+            .pa-table-payments th:nth-child(6), .pa-table-payments td:nth-child(6) { display:none; }
+
+            /* Auditoría: Fecha · Usuario · Acción · (ver detalle) */
+            .pa-table-audit th:nth-child(2), .pa-table-audit td:nth-child(2),
+            .pa-table-audit th:nth-child(5), .pa-table-audit td:nth-child(5),
+            .pa-table-audit th:nth-child(6), .pa-table-audit td:nth-child(6) { display:none; }
+
+            /* Toolbar de filtros: cada control a ancho completo en vez de apretados */
+            .pa-toolbar { flex-wrap:wrap; }
+            .pa-toolbar .pa-select,
+            .pa-toolbar .pa-input { max-width:none !important; flex:1 1 140px; }
+            .pa-toolbar-count { margin-left:0; width:100%; }
+
+            /* Objetivos táctiles: 23-25px era imposible de tocar con el dedo */
+            .pa-btn { min-height:40px; padding:9px 16px; }
+            .pa-btn-sm { min-height:36px; padding:8px 12px; }
+            .pa-btn-icon { min-width:36px; }
+            .pa-input, .pa-select { min-height:42px; font-size:16px; } /* 16px evita el zoom automático de iOS */
+
+            .pa-modal { max-width:none; margin:0; max-height:calc(100vh - 20px); }
+            .pa-modal-overlay { padding:10px; }
+            .pa-form-row { grid-template-columns:1fr; }
+            .pa-menu { min-width:170px; }
+        }
+
+        @media screen and (max-width: 480px) {
+            .pa-main { padding:14px 10px; }
+            .pa-stats-grid { grid-template-columns:1fr 1fr; }
+            .pa-page-title { font-size:15px; }
+        }
     `;
     document.head.appendChild(style);
 
@@ -184,8 +319,24 @@ async function renderPlatformClinics(container) {
         return;
     }
 
+    // Resumen computado desde la lista ya cargada (sin API extra)
+    const activas = clinics.filter(c => c.active).length;
+    const sum = (k) => clinics.reduce((n, c) => n + (c.stats?.[k] || 0), 0);
+    const summaryCards = [
+        { label:'Clínicas',      value: clinics.length,        sub:`${activas} activa${activas!==1?'s':''}`, icon:'fa-hospital',    color:'#6366f1' },
+        { label:'Pacientes',     value: sum('patients'),       sub:'en total', icon:'fa-person',      color:'#c084fc' },
+        { label:'Profesionales', value: sum('professionals'),  sub:'en total', icon:'fa-user-doctor', color:'#fb923c' },
+        { label:'Usuarios',      value: sum('users'),          sub:'en total', icon:'fa-users',       color:'#60a5fa' },
+    ];
+    const summaryHtml = clinics.length === 0 ? '' : `<div class="pa-summary-grid">${summaryCards.map(m => `
+        <div class="pa-stat-card">
+            <div class="pa-stat-label"><i class="fa-solid ${m.icon}" style="color:${m.color};margin-right:6px"></i>${m.label}</div>
+            <div class="pa-stat-value pa-num">${(m.value||0).toLocaleString('es-AR')}</div>
+            <div class="pa-stat-sub">${m.sub}</div>
+        </div>`).join('')}</div>`;
+
     const rows = clinics.length === 0
-        ? `<tr><td colspan="8"><div class="pa-empty"><i class="fa-solid fa-hospital"></i><p>No hay clínicas registradas.</p></div></td></tr>`
+        ? `<tr><td colspan="7"><div class="pa-empty"><i class="fa-solid fa-hospital"></i><p>No hay clínicas registradas.</p></div></td></tr>`
         : clinics.map(c => {
             const url = `${c.slug}.odentara.com`;
             const dbBadge = c.dbType === 'dedicated'
@@ -194,39 +345,48 @@ async function renderPlatformClinics(container) {
             const planBadge = c.plan
                 ? `<span class="pa-badge pa-badge-plan-${c.plan}">${c.plan.toUpperCase()}</span>`
                 : `<span style="color:#334155;font-size:11px">—</span>`;
+            const searchKey = `${c.name} ${url} ${c.notes || ''}`.toLowerCase().replace(/"/g,'&quot;');
             return `
-            <tr>
+            <tr data-clinic-row data-search="${searchKey}">
                 <td class="td-name">
-                    <div>
-                        <div style="font-size:13px;font-weight:600;color:#e2e8f0">${c.name}</div>
-                        <div style="font-family:'JetBrains Mono','Fira Mono',monospace;font-size:11px;color:#6366f1">${url}</div>
+                    <div style="display:flex;align-items:center;gap:9px">
+                        <span class="pa-status-light ${c.active ? 'pa-status-light-on' : 'pa-status-light-off'}" title="${c.active ? 'Activa' : 'Inactiva'}"></span>
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:#e2e8f0">${c.name}</div>
+                            <div style="font-family:'JetBrains Mono','Fira Mono',monospace;font-size:11px;color:#6366f1">${url}</div>
+                        </div>
                     </div>
                 </td>
                 <td style="font-size:12px;color:#94a3b8;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${c.notes ? c.notes.replace(/"/g,'&quot;') : ''}">${c.notes || '<span style="color:#334155">—</span>'}</td>
                 <td>${dbBadge}</td>
                 <td>${planBadge}</td>
-                <td style="font-size:11px;color:#475569">
-                    <span title="Usuarios"><i class="fa-solid fa-users" style="width:12px"></i> ${c.stats.users}</span> &nbsp;
+                <td style="font-size:11px;color:#475569" class="pa-num">
+                    <span title="Pacientes"><i class="fa-solid fa-person" style="width:12px"></i> ${c.stats.patients}</span> &nbsp;
                     <span title="Profesionales"><i class="fa-solid fa-user-doctor" style="width:12px"></i> ${c.stats.professionals}</span> &nbsp;
-                    <span title="Pacientes"><i class="fa-solid fa-person" style="width:12px"></i> ${c.stats.patients}</span>
+                    <span title="Usuarios"><i class="fa-solid fa-users" style="width:12px"></i> ${c.stats.users}</span>
                 </td>
-                <td style="font-size:11px;color:#475569">${new Date(c.createdAt).toLocaleDateString('es-AR')}</td>
+                <td style="font-size:11px;color:#475569" class="pa-num">${new Date(c.createdAt).toLocaleDateString('es-AR')}</td>
                 <td>
-                    <div style="display:flex;gap:6px;justify-content:flex-end">
-                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Ver usuarios" onclick="window.platformViewUsers(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="fa-solid fa-users"></i></button>
-                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Crear admin" onclick="window.platformOpenAdminModal(${c.id})"><i class="fa-solid fa-user-plus"></i></button>
-                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Ingresar como clínica" onclick="window.platformLoginAsClinic(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="fa-solid fa-right-to-bracket"></i></button>
-                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Editar" onclick="window.platformEditClinic(${c.id})"><i class="fa-solid fa-pen"></i></button>
-                        <button class="pa-btn ${c.active ? 'pa-btn-danger' : 'pa-btn-ghost'} pa-btn-sm pa-btn-icon" title="${c.active ? 'Desactivar' : 'Activar'}" onclick="window.platformToggleClinic(${c.id})">
-                            <i class="fa-solid ${c.active ? 'fa-ban' : 'fa-circle-check'}"></i>
+                    <div class="pa-row-actions">
+                        <button class="pa-btn pa-btn-primary pa-btn-sm" onclick="window.platformLoginAsClinic(${c.id},'${c.name.replace(/'/g,"\\'")}')">
+                            <i class="fa-solid fa-right-to-bracket"></i> Ingresar
+                        </button>
+                        <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Más acciones" onclick="window.platformRowMenu(event, ${c.id})">
+                            <i class="fa-solid fa-ellipsis-vertical"></i>
                         </button>
                     </div>
                 </td>
-                <td style="text-align:center;width:32px" title="${c.active ? 'Activa' : 'Inactiva'}">
-                    <span class="pa-status-light ${c.active ? 'pa-status-light-on' : 'pa-status-light-off'}"></span>
-                </td>
             </tr>`;
         }).join('');
+
+    const toolbarHtml = clinics.length === 0 ? '' : `
+        <div class="pa-toolbar">
+            <div class="pa-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input class="pa-input" type="search" placeholder="Buscar por nombre o URL..." oninput="window.platformFilterClinics(this.value)">
+            </div>
+            <span class="pa-toolbar-count" id="pa-clinics-count">${clinics.length} clínica${clinics.length !== 1 ? 's' : ''}</span>
+        </div>`;
 
     container.innerHTML = `
     <div class="pa-root">
@@ -241,8 +401,11 @@ async function renderPlatformClinics(container) {
                 </button>
             </div>
 
+            ${summaryHtml}
+            ${toolbarHtml}
+
             <div class="pa-table-wrap">
-                <table class="pa-table">
+                <table class="pa-table pa-table-clinics">
                     <thead>
                         <tr>
                             <th>Clínica / URL</th>
@@ -252,10 +415,9 @@ async function renderPlatformClinics(container) {
                             <th>Recursos</th>
                             <th>Creada</th>
                             <th style="text-align:right">Acciones</th>
-                            <th style="width:32px"></th>
                         </tr>
                     </thead>
-                    <tbody>${rows}</tbody>
+                    <tbody id="pa-clinics-tbody">${rows}</tbody>
                 </table>
             </div>
         `)}
@@ -264,6 +426,57 @@ async function renderPlatformClinics(container) {
     ${renderPlatformClinicModal()}
     ${renderPlatformAdminModal()}
     `;
+}
+
+// Construye un donut chart en CSS (conic-gradient) + leyenda a partir de
+// entries = [{label, value, color}]. Sin dependencias externas.
+function paPieChart(title, entries) {
+    const total = entries.reduce((sum, e) => sum + e.value, 0);
+    if (total === 0) {
+        return `<div class="pa-chart-card"><div class="pa-chart-title">${title}</div><div class="pa-chart-empty">Sin datos todavía</div></div>`;
+    }
+    let acc = 0;
+    const stops = entries.filter(e => e.value > 0).map(e => {
+        const from = (acc / total) * 360;
+        acc += e.value;
+        const to = (acc / total) * 360;
+        return `${e.color} ${from}deg ${to}deg`;
+    }).join(', ');
+
+    const legend = entries.filter(e => e.value > 0).map(e => `
+        <div class="pa-legend-item">
+            <span class="pa-legend-dot" style="background:${e.color}"></span>
+            <span class="pa-legend-label">${e.label}</span>
+            <span class="pa-legend-value">${e.value.toLocaleString('es-AR')}</span>
+            <span style="color:#334155">${Math.round((e.value/total)*100)}%</span>
+        </div>
+    `).join('');
+
+    return `
+        <div class="pa-chart-card">
+            <div class="pa-chart-title">${title}</div>
+            <div class="pa-chart-body">
+                <div class="pa-pie-donut" style="background:conic-gradient(${stops})"></div>
+                <div class="pa-pie-legend">${legend}</div>
+            </div>
+        </div>`;
+}
+
+// Barras verticales simples a partir de entries = [{label, count}]
+function paBarChart(title, entries) {
+    const max = Math.max(1, ...entries.map(e => e.count));
+    const bars = entries.map(e => `
+        <div class="pa-bar-col">
+            <span class="pa-bar-value">${e.count}</span>
+            <div class="pa-bar" style="height:${Math.max(2, (e.count/max)*100)}%"></div>
+            <span class="pa-bar-label">${e.label}</span>
+        </div>
+    `).join('');
+    return `
+        <div class="pa-chart-card">
+            <div class="pa-chart-title">${title}</div>
+            <div class="pa-bar-chart">${bars}</div>
+        </div>`;
 }
 
 async function renderPlatformStats(container) {
@@ -277,6 +490,13 @@ async function renderPlatformStats(container) {
         container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${e.message}</p></div>`;
         return;
     }
+
+    const clinicsByPlan = s.clinicsByPlan || {};
+    const clinicsByDbType = s.clinicsByDbType || {};
+    const usersByRole = s.usersByRole || {};
+    const appointmentsByStatus = s.appointmentsByStatus || {};
+    const billingStatus = s.billingStatus || {};
+    const patientsByMonth = s.patientsByMonth || [];
 
     container.innerHTML = `
     <div class="pa-root">
@@ -296,13 +516,51 @@ async function renderPlatformStats(container) {
                     { label:'Pacientes',           value: s.totalPatients,          sub:'registrados',           icon:'fa-person',         color:'#c084fc' },
                     { label:'Profesionales',       value: s.totalProfessionals,     sub:'activos',               icon:'fa-user-doctor',    color:'#fb923c' },
                     { label:'Turnos este mes',     value: s.appointmentsThisMonth,  sub:'en el mes actual',      icon:'fa-calendar-check', color:'#2dd4bf' },
+                    { label:'Ingresos aproximados', value: `$${(s.estimatedMonthlyRevenue||0).toLocaleString('es-AR')}`, sub:'por mes, según plan de c/clínica activa', icon:'fa-sack-dollar', color:'#facc15', raw:true },
                 ].map(m => `
                     <div class="pa-stat-card">
                         <div class="pa-stat-label"><i class="fa-solid ${m.icon}" style="color:${m.color};margin-right:6px"></i>${m.label}</div>
-                        <div class="pa-stat-value">${(m.value||0).toLocaleString('es-AR')}</div>
+                        <div class="pa-stat-value">${m.raw ? m.value : (m.value||0).toLocaleString('es-AR')}</div>
                         <div class="pa-stat-sub">${m.sub}</div>
                     </div>
                 `).join('')}
+            </div>
+
+            <div class="pa-charts-grid">
+                ${paPieChart('Clínicas por plan', [
+                    { label:'Inicial',  value: clinicsByPlan.inicial||0,  color:'#38bdf8' },
+                    { label:'Clínica',  value: clinicsByPlan.clinica||0,  color:'#4ade80' },
+                    { label:'Pro',      value: clinicsByPlan.pro||0,      color:'#fbbf24' },
+                    { label:'Sin plan', value: clinicsByPlan.sinPlan||0,  color:'#475569' },
+                ])}
+
+                ${paPieChart('Base de datos', [
+                    { label:'Compartida', value: clinicsByDbType.shared||0,    color:'#60a5fa' },
+                    { label:'Dedicada',   value: clinicsByDbType.dedicated||0, color:'#c084fc' },
+                ])}
+
+                ${paPieChart('Usuarios por rol', [
+                    { label:'Superadmin',   value: usersByRole.superadmin||0,   color:'#818cf8' },
+                    { label:'Profesional',  value: usersByRole.professional||0, color:'#2dd4bf' },
+                    { label:'Secretario',   value: usersByRole.secretary||0,    color:'#fb923c' },
+                    { label:'Admin',        value: usersByRole.admin||0,        color:'#f472b6' },
+                ])}
+
+                ${paPieChart('Turnos del mes por estado', [
+                    { label:'Confirmado',  value: appointmentsByStatus.confirmed||0,   color:'#4ade80' },
+                    { label:'Enviado',     value: appointmentsByStatus.sent||0,        color:'#60a5fa' },
+                    { label:'Sin enviar',  value: appointmentsByStatus.not_sent||0,    color:'#94a3b8' },
+                    { label:'Reprogramado',value: appointmentsByStatus.rescheduled||0, color:'#fbbf24' },
+                    { label:'Cancelado',   value: appointmentsByStatus.cancelled||0,   color:'#f87171' },
+                ])}
+
+                ${paPieChart('Cobros del mes', [
+                    { label:'Pagado',   value: billingStatus.paid||0,    color:'#4ade80' },
+                    { label:'Pendiente',value: billingStatus.pending||0, color:'#fbbf24' },
+                    { label:'Vencido',  value: billingStatus.overdue||0, color:'#f87171' },
+                ])}
+
+                ${paBarChart('Pacientes nuevos — últimos 6 meses', patientsByMonth.map(m => ({ label: m.label, count: m.count })))}
             </div>
         `)}
     </div>`;
@@ -318,7 +576,7 @@ async function renderPlatformSubscriptions(container) {
         if (res.ok) { data = res; window._platformSubClinics = data.clinics; }
     } catch(e) { console.error(e); }
 
-    const PLAN_AMOUNTS = { inicial: 29, clinica: 49, pro: 89 };
+    const PLAN_AMOUNTS = { inicial: 45000, clinica: 75000, pro: 125000 };
     const PERIOD_LABELS = { '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre' };
     function periodLabel(p) { const [y,m] = p.split('-'); return `${PERIOD_LABELS[m]} ${y}`; }
     function now() { return new Date(); }
@@ -342,13 +600,13 @@ async function renderPlatformSubscriptions(container) {
             ? `<span style="color:#f87171;font-size:11px;font-weight:600">${owed} mes${owed!==1?'es':''} adeudado${owed!==1?'s':''}</span>`
             : `<span style="color:#34d399;font-size:11px">Al día</span>`;
         const lastPay = c.lastPayment
-            ? `<span style="font-size:11px;color:#94a3b8">USD ${Number(c.lastPayment.amount).toLocaleString()} · ${periodLabel(c.lastPayment.period)}</span>`
+            ? `<span style="font-size:11px;color:#94a3b8">$${Number(c.lastPayment.amount).toLocaleString('es-AR')} · ${periodLabel(c.lastPayment.period)}</span>`
             : `<span style="font-size:11px;color:#475569">Sin pagos</span>`;
         return { statusSort, html: `
             <tr>
                 <td style="font-size:13px;font-weight:600;color:#e2e8f0">${c.name}</td>
                 <td>${c.plan ? `<span class="pa-badge pa-badge-plan-${c.plan}">${c.plan.toUpperCase()}</span>` : '<span style="color:#475569;font-size:11px">Sin plan</span>'}</td>
-                <td style="color:#94a3b8;font-size:12px">${suggested !== '—' ? `USD ${suggested}` : '—'}</td>
+                <td style="color:#94a3b8;font-size:12px">${suggested !== '—' ? `$${Number(suggested).toLocaleString('es-AR')}` : '—'}</td>
                 <td>${statusBadge}</td>
                 <td>${owedBadge}</td>
                 <td>${lastPay}</td>
@@ -366,7 +624,7 @@ async function renderPlatformSubscriptions(container) {
         return `<tr>
             <td style="font-size:12px;color:#e2e8f0">${clinic?.name || '—'}</td>
             <td style="font-size:12px;color:#94a3b8">${periodLabel(p.period)}</td>
-            <td style="font-size:12px;font-weight:600;color:#34d399">USD ${Number(p.amount).toLocaleString()}</td>
+            <td style="font-size:12px;font-weight:600;color:#34d399">$${Number(p.amount).toLocaleString('es-AR')}</td>
             <td style="font-size:11px;color:#94a3b8">${p.paymentMethod}</td>
             <td style="font-size:11px;color:#475569">${new Date(p.paidAt).toLocaleDateString('es-AR')}</td>
             <td style="font-size:11px;color:#475569">${escapeHtml(p.notes || '—')}</td>
@@ -410,7 +668,7 @@ async function renderPlatformSubscriptions(container) {
 
             <div class="pa-table-wrap" style="margin-bottom:32px">
                 <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569;padding:0 0 8px">Estado del mes actual</div>
-                <table class="pa-table">
+                <table class="pa-table pa-table-subs">
                     <thead><tr>
                         <th>Clínica</th><th>Plan</th><th>Monto sugerido</th><th>Estado mes actual</th><th>Deuda acumulada</th><th>Último pago</th><th style="text-align:right">Acción</th>
                     </tr></thead>
@@ -420,7 +678,7 @@ async function renderPlatformSubscriptions(container) {
 
             <div class="pa-table-wrap">
                 <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569;padding:0 0 8px">Historial de pagos</div>
-                <table class="pa-table">
+                <table class="pa-table pa-table-payments">
                     <thead><tr><th>Clínica</th><th>Período</th><th>Monto</th><th>Método</th><th>Fecha</th><th>Notas</th><th></th></tr></thead>
                     <tbody>${historialRows || '<tr><td colspan="7" style="text-align:center;color:#475569;padding:24px">Sin pagos registrados aún</td></tr>'}</tbody>
                 </table>
@@ -455,8 +713,8 @@ async function renderPlatformSubscriptions(container) {
                     </div>
                     <div class="pa-form-row">
                         <div class="pa-form-group">
-                            <label class="pa-label">Monto (USD) <span class="req">*</span></label>
-                            <input id="ppf-amount" class="pa-input" type="number" min="1" step="0.01" placeholder="49" required>
+                            <label class="pa-label">Monto (ARS) <span class="req">*</span></label>
+                            <input id="ppf-amount" class="pa-input" type="number" min="1" step="0.01" placeholder="75000" required>
                         </div>
                         <div class="pa-form-group">
                             <label class="pa-label">Forma de pago <span class="req">*</span></label>
@@ -507,7 +765,7 @@ window.platformOpenPaymentModal = async function(clinicId, clinicName, plan) {
         if (clinicId) sel.value = clinicId;
     }
 
-    const PLAN_AMOUNTS = { inicial: 29, clinica: 49, pro: 89 };
+    const PLAN_AMOUNTS = { inicial: 45000, clinica: 75000, pro: 125000 };
     const amountInput = document.getElementById('ppf-amount');
     if (amountInput && plan && PLAN_AMOUNTS[plan]) amountInput.value = PLAN_AMOUNTS[plan];
     else if (amountInput && clinicId) {
@@ -564,6 +822,7 @@ function renderPlatformShell(activeView, mainHtml) {
         { id:'platform-clinics',       icon:'fa-hospital',        label:'Clínicas'      },
         { id:'platform-subscriptions', icon:'fa-dollar-sign',     label:'Cobros'        },
         { id:'platform-stats',         icon:'fa-chart-bar',       label:'Estadísticas'  },
+        { id:'platform-audit',         icon:'fa-clipboard-list',  label:'Auditoría'     },
     ];
     const navHtml = NAV.map(n => `
         <div class="pa-nav-item ${n.id === activeView ? 'active' : ''}" onclick="loadView('${n.id}','${n.label}',{skipSync:true})">
@@ -638,10 +897,10 @@ function renderPlatformClinicModal() {
                         <div class="pa-form-group" style="grid-column:1/-1">
                             <label class="pa-label">Plan</label>
                             <select id="pcf-plan" class="pa-select">
-                                <option value="">Sin plan</option>
-                                <option value="inicial">Inicial — USD 29/mes (1 profesional)</option>
-                                <option value="clinica">Clínica — USD 49/mes (3 profesionales)</option>
-                                <option value="pro">Pro — USD 89/mes (ilimitados)</option>
+                                <option value="">Sin plan (ilimitado)</option>
+                                <option value="inicial">Inicial — $45.000/mes · 1 prof · carga manual (sin IA)</option>
+                                <option value="clinica">Clínica — $75.000/mes · 3 prof · IA 100 fichas/mes</option>
+                                <option value="pro">Pro — $125.000/mes · ilimitado · IA 500 fichas/mes</option>
                             </select>
                         </div>
                     </div>
@@ -1065,6 +1324,64 @@ window.platformViewUsers = async function(clinicId, clinicName) {
     }
 };
 
+// Filtra la tabla de clínicas del lado del cliente (sin tocar el server)
+window.platformFilterClinics = function(term) {
+    const t = (term || '').trim().toLowerCase();
+    let visible = 0;
+    document.querySelectorAll('#pa-clinics-tbody tr[data-clinic-row]').forEach(row => {
+        const match = (row.dataset.search || '').includes(t);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    const countEl = document.getElementById('pa-clinics-count');
+    if (countEl) countEl.textContent = `${visible} clínica${visible !== 1 ? 's' : ''}`;
+};
+
+// Menú de acciones secundarias por clínica (overflow ⋯)
+window.platformCloseRowMenu = function() {
+    document.getElementById('pa-row-menu')?.remove();
+    document.removeEventListener('click', window.platformCloseRowMenu);
+    document.removeEventListener('scroll', window.platformCloseRowMenu, true);
+};
+
+window.platformRowMenu = function(event, clinicId) {
+    event.stopPropagation();
+    const c = (state._platformClinics || []).find(x => x.id === clinicId);
+    if (!c) return;
+    const btn = event.currentTarget;
+    // Si el menú ya está abierto para este botón, alternar (cerrar)
+    if (document.getElementById('pa-row-menu')) { window.platformCloseRowMenu(); return; }
+
+    const esc = s => String(s).replace(/'/g, "\\'");
+    const menu = document.createElement('div');
+    menu.className = 'pa-menu';
+    menu.id = 'pa-row-menu';
+    menu.innerHTML = `
+        <button class="pa-menu-item" onclick="window.platformCloseRowMenu();window.platformViewUsers(${c.id},'${esc(c.name)}')"><i class="fa-solid fa-users"></i> Ver usuarios</button>
+        <button class="pa-menu-item" onclick="window.platformCloseRowMenu();window.platformOpenAdminModal(${c.id})"><i class="fa-solid fa-user-plus"></i> Crear admin</button>
+        <button class="pa-menu-item" onclick="window.platformCloseRowMenu();window.platformEditClinic(${c.id})"><i class="fa-solid fa-pen"></i> Editar clínica</button>
+        <div class="pa-menu-divider"></div>
+        <button class="pa-menu-item ${c.active ? 'pa-menu-item-danger' : ''}" onclick="window.platformCloseRowMenu();window.platformToggleClinic(${c.id})">
+            <i class="fa-solid ${c.active ? 'fa-ban' : 'fa-circle-check'}"></i> ${c.active ? 'Desactivar' : 'Activar'}
+        </button>`;
+    document.body.appendChild(menu);
+
+    // Posicionar fijo, alineado a la derecha del botón, sin salirse de la pantalla
+    const r = btn.getBoundingClientRect();
+    const mw = menu.offsetWidth || 184;
+    const mh = menu.offsetHeight || 160;
+    let top = r.bottom + 4;
+    if (top + mh > window.innerHeight - 8) top = r.top - mh - 4; // abrir hacia arriba si no entra
+    menu.style.top = Math.max(8, top) + 'px';
+    menu.style.left = Math.max(8, r.right - mw) + 'px';
+
+    // Cerrar al hacer click afuera o al scrollear (en el próximo tick para no capturar este click)
+    setTimeout(() => {
+        document.addEventListener('click', window.platformCloseRowMenu);
+        document.addEventListener('scroll', window.platformCloseRowMenu, true);
+    }, 0);
+};
+
 function showPlatformAlert(msg, type = 'info') {
     const colors     = { error:'#7f1d1d',  success:'#052e16', info:'#0c1a2e' };
     const textColors = { error:'#fca5a5',  success:'#4ade80', info:'#60a5fa' };
@@ -1075,5 +1392,172 @@ function showPlatformAlert(msg, type = 'info') {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 4000);
 }
+
+// ── Auditoría ─────────────────────────────────────────────────────────────────
+async function renderPlatformAudit(container) {
+    injectPlatformStyles();
+
+    if (!window._platformAuditFilters) {
+        window._platformAuditFilters = { clinicId:'', userId:'', entityType:'', action:'', dateFrom:'', dateTo:'', page:1 };
+    }
+    const filters = window._platformAuditFilters;
+
+    let clinics = [];
+    try {
+        const res = await apiFetch('/platform/clinics');
+        if (res.ok) clinics = res.clinics;
+    } catch(e) { console.error(e); }
+
+    let users = [];
+    if (filters.clinicId) {
+        try {
+            const res = await apiFetch(`/platform/clinics/${filters.clinicId}/users`);
+            if (res.ok) users = res.users;
+        } catch(e) { console.error(e); }
+    }
+
+    const qs = new URLSearchParams();
+    if (filters.clinicId) qs.set('clinicId', filters.clinicId);
+    if (filters.userId) qs.set('userId', filters.userId);
+    if (filters.entityType) qs.set('entityType', filters.entityType);
+    if (filters.action) qs.set('action', filters.action);
+    if (filters.dateFrom) qs.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo) qs.set('dateTo', filters.dateTo);
+    qs.set('page', filters.page || 1);
+    qs.set('pageSize', 30);
+
+    let data = { logs: [], total: 0, page: 1, pageSize: 30, entityTypes: [] };
+    try {
+        const res = await apiFetch(`/platform/audit-logs?${qs.toString()}`);
+        if (res.ok) data = res;
+    } catch(e) { console.error(e); }
+
+    window._platformAuditLogs = data.logs; // para el modal de detalle
+
+    const ACTION_LABELS = { create:'Creación', update:'Modificación', delete:'Eliminación', login:'Ingreso', logout:'Salida' };
+    const ACTION_COLORS = { create:'#34d399', update:'#60a5fa', delete:'#f87171', login:'#a5b4fc', logout:'#94a3b8' };
+
+    const rows = data.logs.map(log => {
+        const color = ACTION_COLORS[log.action] || '#94a3b8';
+        const label = ACTION_LABELS[log.action] || log.action;
+        return `<tr>
+            <td style="font-size:11px;color:#475569;white-space:nowrap">${new Date(log.createdAt).toLocaleString('es-AR')}</td>
+            <td style="font-size:12px;color:#e2e8f0">${escapeHtml(log.clinicName || '—')}</td>
+            <td>
+                <div style="font-size:12px;font-weight:600;color:#e2e8f0">${escapeHtml(log.user?.fullName || '—')}</div>
+                <div style="font-size:10px;color:#475569">${escapeHtml(log.user?.email || '')}</div>
+            </td>
+            <td><span class="pa-badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${label}</span></td>
+            <td style="font-size:12px;color:#94a3b8">${escapeHtml(log.entityType)}</td>
+            <td style="font-size:11px;color:#475569;font-family:'JetBrains Mono','Fira Mono',monospace">#${escapeHtml(String(log.entityId))}</td>
+            <td style="text-align:right">
+                <button class="pa-btn pa-btn-ghost pa-btn-sm pa-btn-icon" title="Ver detalle" onclick="window.platformShowAuditDetail(${log.id})"><i class="fa-solid fa-eye"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
+    const currentPage = data.page || 1;
+
+    const clinicOptions = clinics.map(c => `<option value="${c.id}" ${String(c.id)===String(filters.clinicId)?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
+    const userOptions = users.map(u => `<option value="${u.id}" ${String(u.id)===String(filters.userId)?'selected':''}>${escapeHtml(u.fullName)}</option>`).join('');
+    const entityOptions = (data.entityTypes || []).map(t => `<option value="${t}" ${t===filters.entityType?'selected':''}>${escapeHtml(t)}</option>`).join('');
+    const hasFilters = !!(filters.clinicId || filters.userId || filters.entityType || filters.action || filters.dateFrom || filters.dateTo);
+
+    container.innerHTML = `
+    <div class="pa-root">
+        ${renderPlatformShell('platform-audit', `
+            <div class="pa-page-header">
+                <div>
+                    <div class="pa-page-title">Auditoría</div>
+                    <div class="pa-page-sub">${data.total} movimiento${data.total !== 1 ? 's' : ''} hacia la base de datos</div>
+                </div>
+            </div>
+
+            <div class="pa-toolbar" style="flex-wrap:wrap;row-gap:10px">
+                <select class="pa-select" style="max-width:190px" onchange="window.platformAuditSetFilter('clinicId', this.value)">
+                    <option value="">Todas las clínicas</option>
+                    ${clinicOptions}
+                </select>
+                <select class="pa-select" style="max-width:190px" onchange="window.platformAuditSetFilter('userId', this.value)" ${!filters.clinicId ? 'disabled title="Elegí una clínica primero"' : ''}>
+                    <option value="">Todos los usuarios</option>
+                    ${userOptions}
+                </select>
+                <select class="pa-select" style="max-width:160px" onchange="window.platformAuditSetFilter('entityType', this.value)">
+                    <option value="">Todo tipo</option>
+                    ${entityOptions}
+                </select>
+                <select class="pa-select" style="max-width:150px" onchange="window.platformAuditSetFilter('action', this.value)">
+                    <option value="">Toda acción</option>
+                    <option value="create" ${filters.action==='create'?'selected':''}>Creación</option>
+                    <option value="update" ${filters.action==='update'?'selected':''}>Modificación</option>
+                    <option value="delete" ${filters.action==='delete'?'selected':''}>Eliminación</option>
+                </select>
+                <input type="date" class="pa-input" style="max-width:150px" value="${filters.dateFrom || ''}" onchange="window.platformAuditSetFilter('dateFrom', this.value)">
+                <input type="date" class="pa-input" style="max-width:150px" value="${filters.dateTo || ''}" onchange="window.platformAuditSetFilter('dateTo', this.value)">
+                ${hasFilters ? `<button class="pa-btn pa-btn-ghost pa-btn-sm" onclick="window.platformAuditClearFilters()"><i class="fa-solid fa-xmark"></i> Limpiar</button>` : ''}
+            </div>
+
+            <div class="pa-table-wrap">
+                <table class="pa-table pa-table-audit">
+                    <thead><tr>
+                        <th>Fecha</th><th>Clínica</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>ID</th><th></th>
+                    </tr></thead>
+                    <tbody>
+                        ${rows || `<tr><td colspan="7"><div class="pa-empty"><i class="fa-solid fa-clipboard-list"></i><p>No hay movimientos registrados con estos filtros.</p></div></td></tr>`}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pa-toolbar" style="margin-top:14px">
+                <button class="pa-btn pa-btn-ghost pa-btn-sm" ${currentPage<=1?'disabled':''} onclick="window.platformAuditGoPage(${currentPage-1})"><i class="fa-solid fa-chevron-left"></i> Anterior</button>
+                <span class="pa-toolbar-count">Página ${currentPage} de ${totalPages}</span>
+                <button class="pa-btn pa-btn-ghost pa-btn-sm" ${currentPage>=totalPages?'disabled':''} onclick="window.platformAuditGoPage(${currentPage+1})">Siguiente <i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+        `)}
+    </div>`;
+}
+
+window.platformAuditSetFilter = function(key, value) {
+    window._platformAuditFilters = window._platformAuditFilters || {};
+    window._platformAuditFilters[key] = value;
+    if (key === 'clinicId') window._platformAuditFilters.userId = ''; // resetear usuario al cambiar de clínica
+    window._platformAuditFilters.page = 1;
+    loadView('platform-audit', 'Auditoría', { skipSync: true });
+};
+
+window.platformAuditClearFilters = function() {
+    window._platformAuditFilters = { clinicId:'', userId:'', entityType:'', action:'', dateFrom:'', dateTo:'', page:1 };
+    loadView('platform-audit', 'Auditoría', { skipSync: true });
+};
+
+window.platformAuditGoPage = function(page) {
+    if (page < 1) return;
+    window._platformAuditFilters.page = page;
+    loadView('platform-audit', 'Auditoría', { skipSync: true });
+};
+
+window.platformShowAuditDetail = function(id) {
+    const log = (window._platformAuditLogs || []).find(l => l.id === id);
+    if (!log) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'pa-modal-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div class="pa-modal" style="max-width:640px">
+            <div class="pa-modal-header">
+                <span class="pa-modal-title">Detalle del movimiento #${log.id}</span>
+                <button class="pa-modal-close" onclick="this.closest('.pa-modal-overlay').remove()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pa-modal-body">
+                <div style="font-size:11px;color:#475569;margin-bottom:10px">
+                    ${new Date(log.createdAt).toLocaleString('es-AR')} · ${escapeHtml(log.entityType)} #${escapeHtml(String(log.entityId))} · ${escapeHtml(log.clinicName || 'Sin clínica')}
+                </div>
+                ${log.beforeData ? `<div class="pa-label" style="margin-top:10px">Antes</div><pre style="background:#0a0d14;border:1px solid #1e2535;border-radius:8px;padding:12px;font-size:11px;color:#94a3b8;overflow:auto;max-height:220px">${escapeHtml(JSON.stringify(log.beforeData, null, 2))}</pre>` : ''}
+                ${log.afterData ? `<div class="pa-label" style="margin-top:10px">Después</div><pre style="background:#0a0d14;border:1px solid #1e2535;border-radius:8px;padding:12px;font-size:11px;color:#94a3b8;overflow:auto;max-height:220px">${escapeHtml(JSON.stringify(log.afterData, null, 2))}</pre>` : ''}
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+};
 
 // ── Fin Ultra-Admin Views ─────────────────────────────────────────────────────

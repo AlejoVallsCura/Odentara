@@ -78,5 +78,4 @@ const state = {
     clinicalDraft:               null,
     loadingCount:                0,
     clinicalImageViewer:         null,
-    clinicalOdontoProfessionalId: null,
 };

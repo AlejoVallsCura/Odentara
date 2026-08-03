@@ -22,6 +22,17 @@ const { sendPasswordResetEmail } = require("../lib/email");
 const router = express.Router();
 
 /**
+ * Hash del token de reseteo tal como se guarda en la base.
+ * SHA-256 sin salt a propósito: el token ya son 32 bytes aleatorios, así que no
+ * hay nada que adivinar por fuerza bruta ni diccionario que aplique, y hace
+ * falta que el hash sea determinístico para poder buscar la fila por él.
+ * Devuelve 64 caracteres hex, que es justo el ancho de la columna.
+ */
+function hashResetToken(rawToken) {
+  return crypto.createHash("sha256").update(String(rawToken)).digest("hex");
+}
+
+/**
  * Verifica el token de Cloudflare Turnstile.
  * Si TURNSTILE_SECRET_KEY no está configurada, se omite la verificación
  * (útil en desarrollo local sin las keys).
@@ -264,13 +275,21 @@ router.get("/me", requireAuth, async (req, res) => {
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
 // Invalida el token actual server-side para que no pueda reutilizarse.
-router.post("/logout", requireAuth, (req, res) => {
+router.post("/logout", requireAuth, async (req, res) => {
   try {
     const payload = require("../lib/auth").verifyToken(req.rawToken);
     if (payload?.jti && payload?.exp) {
-      revokeToken(payload.jti, payload.exp * 1000);
+      // Se espera la escritura: si falla, el token seguiría siendo válido y el
+      // usuario tiene que saber que la sesión no se cerró.
+      await revokeToken(payload.jti, payload.exp * 1000);
     }
-  } catch (_) { /* token ya inválido, no pasa nada */ }
+  } catch (error) {
+    logSecurityEvent("LOGOUT_REVOKE_FAILED", req, { reason: error.message });
+    return res.status(500).json({
+      ok: false,
+      error: "No se pudo cerrar la sesión. Intentá de nuevo.",
+    });
+  }
   return res.json({ ok: true });
 });
 
@@ -295,11 +314,14 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
           .then((rows) => rows.map((r) => r.id));
         await prisma.passwordResetToken.deleteMany({ where: { userId: { in: allUserIds } } });
 
+        // El token viaja al usuario por mail; en la base solo queda su hash.
+        // Así, si la base se filtra, los tokens vigentes no alcanzan para tomar
+        // ninguna cuenta — el valor original no se puede reconstruir.
         const token = crypto.randomBytes(32).toString("hex");
         const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
 
         await prisma.passwordResetToken.create({
-          data: { userId: user.id, token, expiresAt },
+          data: { userId: user.id, tokenHash: hashResetToken(token), expiresAt },
         });
 
         // RESET_PASSWORD_URL permite apuntar al subdominio de la app (app.odentara.com)
@@ -313,6 +335,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
 
         try {
           await sendPasswordResetEmail({ to: user.email, resetUrl, userName: user.fullName });
+          console.log(`[forgot-password] Mail de recuperación enviado a userId=${user.id}`);
         } catch (emailErr) {
           console.error("[forgot-password] Error enviando email:", emailErr.message);
         }
@@ -341,8 +364,9 @@ router.post("/reset-password", forgotPasswordLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: "La contraseña debe tener al menos 8 caracteres." });
     }
 
+    const tokenHash = hashResetToken(token);
     const resetToken = await prisma.passwordResetToken.findUnique({
-      where: { token },
+      where: { tokenHash },
       include: { user: { select: { id: true, email: true, active: true, deletedAt: true } } },
     });
 
@@ -360,10 +384,12 @@ router.post("/reset-password", forgotPasswordLimiter, async (req, res) => {
     await prisma.$transaction(async (tx) => {
       await tx.user.updateMany({
         where: { email: resetToken.user.email, deletedAt: null },
-        data: { passwordHash },
+        // sessionsValidFrom invalida todos los tokens emitidos hasta ahora: si
+        // alguien había entrado con la contraseña vieja, cambiarla lo saca.
+        data: { passwordHash, sessionsValidFrom: new Date() },
       });
       await tx.passwordResetToken.update({
-        where: { token },
+        where: { tokenHash },
         data: { usedAt: new Date() },
       });
     });

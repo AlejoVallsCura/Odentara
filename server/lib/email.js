@@ -27,6 +27,16 @@ function isEmailConfigured() {
   return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+/**
+ * Qué variables de SMTP faltan. Se usa para avisar al arrancar en vez de
+ * descubrirlo recién cuando un usuario no recibe el mail de recuperación: los
+ * envíos fallan en silencio (el endpoint devuelve 200 igual, a propósito, para
+ * no revelar qué mails existen), así que sin este chequeo no queda rastro.
+ */
+function getMissingEmailVars() {
+  return ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"].filter((v) => !process.env[v]);
+}
+
 function createTransport() {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -328,4 +338,4 @@ async function sendAppointmentReminderEmail({ to, patientName, professionalName,
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendContactEmail, sendAppointmentReminderEmail, isEmailConfigured };
+module.exports = { sendPasswordResetEmail, sendContactEmail, sendAppointmentReminderEmail, isEmailConfigured, getMissingEmailVars };
