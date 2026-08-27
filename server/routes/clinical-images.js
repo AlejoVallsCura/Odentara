@@ -108,8 +108,12 @@ router.get("/serve/:id", async (req, res) => {
     // clínica de base dedicada, el mismo id apunta a un archivo distinto en cada
     // base y se serviría el de otra clínica.
     const prisma = await getClinicPrisma(clinicId);
+    // El clinicId va en el where aunque con base dedicada sea redundante: con la
+    // base compartida que corre hoy, getClinicPrisma() devuelve el MISMO cliente
+    // para todas las clinicas, asi que sin este filtro el aislamiento dependia
+    // por completo de que la firma HMAC fuera infalsificable, sin nada detras.
     const image = await prisma.clinicalImage.findFirst({
-      where: { id: imageId, deletedAt: null },
+      where: { id: imageId, deletedAt: null, patient: { clinicId } },
     });
 
     if (!image || !isR2Key(image.imageUrl)) {

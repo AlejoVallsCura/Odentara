@@ -131,7 +131,19 @@ function getPlanConfig(plan) {
   // recarga si el snapshot venció. No bloquea — devuelve los valores actuales y
   // el próximo request ya usa los recién leídos.
   ensureFreshPlans();
-  return PLAN_CONFIG[plan] || UNLIMITED_CONFIG;
+  // "Sin plan" y "plan que no existe" son cosas distintas y antes caian las dos
+  // en UNLIMITED_CONFIG. Un codigo con un espacio de mas, un typo al cargarlo o
+  // un plan renombrado desde el panel dejaba a esa clinica con Pro gratis,
+  // incluidas las extracciones de IA, que son las que tienen costo por uso.
+  if (plan === null || plan === undefined || plan === "") return UNLIMITED_CONFIG;
+
+  const config = PLAN_CONFIG[plan];
+  if (config) return config;
+
+  // Fail closed: el plan mas restrictivo. Y se avisa, porque llegar aca significa
+  // que hay una clinica apuntando a un plan inexistente.
+  console.error(`[plan-limits] Plan desconocido "${plan}": se aplica el mas restrictivo.`);
+  return PLAN_CONFIG.inicial || FALLBACK_PLANS.inicial;
 }
 
 /** Límite mensual de extracciones por IA del plan (0 = no incluido, Infinity = sin plan). */

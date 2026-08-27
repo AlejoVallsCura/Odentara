@@ -82,11 +82,27 @@ function normalizeExceptions(exceptions = []) {
 // Validación de color
 // -----------------------------------------------------------------------------
 
+// Cada formato va anclado de punta a punta.
+//
+// El regex anterior era /^#[0-9a-fA-F]{3,8}$|^rgb(|^hsl(/ y el `$` cerraba
+// SOLO la rama hex: `^rgb(` no tenia fin, asi que
+// `rgb(0,0,0)" onload="alert(1)` pasaba entero y quedaba guardado para
+// inyectarse despues en un atributo de estilo.
+//
+// Se conservan los tres formatos —hay tests que los declaran validos— pero cada
+// uno tiene que coincidir COMPLETO, sin cola.
+const FORMATOS_DE_COLOR = [
+  /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/,
+  /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*(?:0|1|0?\.\d+)\s*)?\)$/,
+  /^hsla?\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*(?:,\s*(?:0|1|0?\.\d+)\s*)?\)$/,
+];
+
 function normalizeColor(rawColor) {
   if (!rawColor) return null;
   const color = String(rawColor).trim();
-  return /^#[0-9a-fA-F]{3,8}$|^rgb\(|^hsl\(/.test(color) ? color : null;
+  return FORMATOS_DE_COLOR.some((re) => re.test(color)) ? color : null;
 }
+
 
 // Selector estándar de includes para queries de professional
 const PROFESSIONAL_INCLUDE = {

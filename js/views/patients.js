@@ -705,6 +705,7 @@ function openPatientImportModal(initialMode = 'file') {
                 <td style="padding:4px;border-bottom:1px solid var(--border)"><input data-i="${i}" data-f="dni" value="${escapeHtml(p.dni || '')}" style="width:88px;border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px;font-family:monospace"></td>
                 <td style="padding:4px;border-bottom:1px solid var(--border)"><input data-i="${i}" data-f="phone" value="${escapeHtml(p.phone || '')}" style="width:100px;border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px"></td>
                 <td style="padding:4px;border-bottom:1px solid var(--border)"><input data-i="${i}" data-f="insuranceName" value="${escapeHtml(p.insuranceName || '')}" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px"></td>
+                <td style="padding:4px;border-bottom:1px solid var(--border)"><input data-i="${i}" data-f="credentialNumber" value="${escapeHtml(p.credentialNumber || '')}" style="width:104px;border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px;font-family:monospace"></td>
                 <td style="padding:4px;border-bottom:1px solid var(--border);text-align:center"><button data-del="${i}" class="btn btn-icon btn-icon-danger"><i class="fa-solid fa-trash-can"></i></button></td>
             </tr>`;
         $('#photo-review').innerHTML = `
@@ -717,6 +718,7 @@ function openPatientImportModal(initialMode = 'file') {
                         <th style="padding:6px;text-align:left;border-bottom:1px solid var(--border)">DNI</th>
                         <th style="padding:6px;text-align:left;border-bottom:1px solid var(--border)">Teléfono</th>
                         <th style="padding:6px;text-align:left;border-bottom:1px solid var(--border)">Obra social</th>
+                        <th style="padding:6px;text-align:left;border-bottom:1px solid var(--border)">Afiliado N°</th>
                         <th style="padding:6px;border-bottom:1px solid var(--border)"></th>
                     </tr></thead>
                     <tbody id="review-tbody">${_reviewRows.map(rowHtml).join('')}</tbody>
@@ -736,7 +738,7 @@ function openPatientImportModal(initialMode = 'file') {
         tbody.querySelectorAll('button[data-del]').forEach(b => {
             b.onclick = () => { _reviewRows.splice(Number(b.dataset.del), 1); renderReview(); recomputeConfirm(); };
         });
-        $('#review-add').onclick = () => { _reviewRows.push({ fullName: '', dni: '', phone: '', email: '', address: '', insuranceName: '', insurancePlan: '', birthDate: '' }); renderReview(); };
+        $('#review-add').onclick = () => { _reviewRows.push({ fullName: '', dni: '', phone: '', email: '', address: '', insuranceName: '', insurancePlan: '', credentialNumber: '', birthDate: '' }); renderReview(); };
         _reviewRows.forEach((_, i) => updateReviewBadge(i));
         recomputeConfirm();
     }
@@ -776,7 +778,8 @@ function openPatientImportModal(initialMode = 'file') {
             const seen = new Set();
             patients = _reviewRows.filter(reviewRowValid).map(p => ({
                 fullName: p.fullName, dni: p.dni, phone: p.phone, email: p.email,
-                address: p.address, insuranceName: p.insuranceName, insurancePlan: p.insurancePlan, birthDate: p.birthDate,
+                address: p.address, insuranceName: p.insuranceName, insurancePlan: p.insurancePlan,
+                credentialNumber: p.credentialNumber, birthDate: p.birthDate,
                 medicalHistory: p.medicalHistory || null,
             })).filter(r => {
                 const dni = String(r.dni).replace(/\D/g, '');

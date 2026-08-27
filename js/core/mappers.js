@@ -17,7 +17,20 @@ function deriveTypeFromRoles(roleCodes) {
 }
 
 // Normaliza fechas que pueden venir como 'YYYY-MM-DD' o ISO completo
-function coerceAppointmentDate(value) {
+/**
+ * Normaliza a 'YYYY-MM-DD' un valor que representa UN DÍA, no un instante.
+ *
+ * La distinción es la que importa y es la que se pasó por alto con la fecha de
+ * nacimiento. El servidor guarda estos campos con `new Date('1990-09-09')`, y el
+ * estándar dice que una fecha SIN hora se interpreta en UTC: queda
+ * 1990-09-09T00:00:00Z. Si después se lee con getters locales, en Argentina
+ * (UTC-3) eso es el 8 a las 21:00 y la fecha aparece un día antes.
+ *
+ * Por eso se leen con getters UTC: se recupera el día que se guardó, sin
+ * importar la zona del navegador. Un timestamp real (cuándo se sacó una foto)
+ * es otra cosa y sí va con hora local — ese usa formatDateToLocalIso.
+ */
+function coerceDateOnly(value) {
     if (!value) return '';
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
@@ -26,8 +39,15 @@ function coerceAppointmentDate(value) {
             return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
         }
     }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${String(value.getUTCDate()).padStart(2, '0')}`;
+    }
     return formatDateToLocalIso(new Date(value));
 }
+
+// Nombre histórico: lo usan billing.js y este archivo en varios lugares. La
+// lógica es la misma para turnos, movimientos y nacimiento — todos son días.
+const coerceAppointmentDate = coerceDateOnly;
 
 // Normaliza horas que pueden venir como 'HH:MM' o ISO completo
 function coerceAppointmentTime(value) {
@@ -96,7 +116,12 @@ function mapApiPatientToLegacy(patient = {}) {
         id:             patient.id,
         name:           patient.fullName,
         dni:            patient.dni,
-        fechaNacimiento: patient.birthDate ? formatDateToLocalIso(new Date(patient.birthDate)) : '',
+        // coerceDateOnly y no formatDateToLocalIso: la fecha de nacimiento es un
+        // día, no un instante. El servidor la guarda como medianoche UTC, y
+        // leerla con getters locales la corría un día para atrás en Argentina
+        // (un nacido el 9/9 aparecía el 8/9). Se notó con la importación por IA
+        // porque ahí el dato llega del servidor sin pasar por el formulario.
+        fechaNacimiento: coerceDateOnly(patient.birthDate),
         obraSocial:     [patient.insuranceName, patient.insurancePlan].filter(Boolean).join(' ').trim(),
         credencial:     patient.credentialNumber || '',
         domicilio:      patient.address || '',

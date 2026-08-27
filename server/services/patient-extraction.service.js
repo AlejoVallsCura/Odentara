@@ -60,12 +60,13 @@ const PATIENT_SCHEMA = {
           address:       { type: "string" },
           insuranceName: { type: "string" },
           insurancePlan: { type: "string" },
+          credentialNumber: { type: "string" },
           birthDate:     { type: "string" },
           medicalHistory: MEDICAL_HISTORY_SCHEMA,
         },
         required: [
           "fullName", "dni", "phone", "email",
-          "address", "insuranceName", "insurancePlan", "birthDate",
+          "address", "insuranceName", "insurancePlan", "credentialNumber", "birthDate",
           "medicalHistory",
         ],
         additionalProperties: false,
@@ -89,6 +90,11 @@ Reglas — datos de contacto:
 - phone: solo dígitos del teléfono/celular.
 - birthDate: en formato YYYY-MM-DD si podés inferirlo; si no, dejalo vacío.
 - email, address, insuranceName (obra social), insurancePlan (plan): completá si están presentes.
+- credentialNumber: el número de afiliado/credencial de la obra social. En las
+  fichas de papel suele estar rotulado "Afiliado N°", "N° de afiliado",
+  "Credencial" o "Socio N°", en el mismo renglón que la obra social. Copialo tal
+  cual, con las barras y los guiones que tenga (por ejemplo "1343329/00"): no es
+  un número a normalizar, es un identificador.
 - Si un campo no está en la imagen, devolvé una cadena vacía "" — NUNCA inventes datos.
 - Si un dato es ilegible o dudoso, dejalo vacío en vez de adivinar.
 - No incluyas encabezados de tabla ni texto que no sea un paciente.
@@ -186,6 +192,8 @@ function normalizeExtracted(patients) {
       address:       trim(p.address, 500),
       insuranceName: trim(p.insuranceName, 255),
       insurancePlan: trim(p.insurancePlan, 255),
+      // Sin quitarle nada: la barra de "1343329/00" es parte del número de afiliado.
+      credentialNumber: trim(p.credentialNumber, 100),
       birthDate:     /^\d{4}-\d{2}-\d{2}$/.test(String(p.birthDate || "").trim())
                        ? String(p.birthDate).trim()
                        : "",

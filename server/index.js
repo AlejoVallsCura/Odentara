@@ -2,7 +2,15 @@ const { loadEnv } = require("./lib/load-env");
 loadEnv();
 
 // --- Validación de variables de entorno obligatorias ---
+// En produccion tambien se exige la clave de Turnstile. verifyTurnstile()
+// devuelve true si no la encuentra —correcto en local, donde no hay claves—,
+// pero esa variable no estaba aca: si se perdia en un deploy o no llegaba al
+// worker, el login quedaba sin captcha y el proceso arrancaba sin una sola
+// advertencia. La unica defensa restante es authLimiter, y su store vive en la
+// memoria de cada worker, asi que el limite real se multiplica por la cantidad
+// de workers (ver OD-AUTH-10 B en la auditoria).
 const REQUIRED_ENV = ["DATABASE_URL", "JWT_SECRET"];
+if (process.env.NODE_ENV === "production") REQUIRED_ENV.push("TURNSTILE_SECRET_KEY");
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
 if (missingEnv.length > 0) {
   console.error(

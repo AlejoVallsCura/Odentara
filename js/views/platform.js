@@ -270,6 +270,13 @@ function injectPlatformStyles() {
                 width:100%; flex-direction:row; overflow-x:auto; overflow-y:hidden;
                 padding:0; border-right:none; border-bottom:1px solid #1e2535;
                 gap:0; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+                /* Resetea el min-height de escritorio. Allá evita que la columna
+                   termine a media altura; acá el sidebar es una barra horizontal,
+                   y esos 100vh la estiraban a casi toda la pantalla: los ítems
+                   quedaban flotando en el medio y el contenido empujado abajo.
+                   flex-shrink vuelve a 1 porque en columna no debe achicarse,
+                   pero como fila tiene que poder ceder alto. */
+                min-height:0; flex-shrink:1; align-items:stretch;
             }
             .pa-sidebar::-webkit-scrollbar { display:none; }
             .pa-nav-section { display:none; }

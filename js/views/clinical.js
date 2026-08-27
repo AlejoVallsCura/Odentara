@@ -76,6 +76,27 @@ function clinicalRecordEntriesToLegacyOdontogram(entries = []) {
     return odontograma;
 }
 
+/**
+ * Emite una entrada validando la cara contra el contrato compartido.
+ *
+ * El servidor ahora RECHAZA una cara desconocida en vez de guardarla como null
+ * (ver shared/tooth-faces.js). Eso es lo correcto, pero significa que un mapeo
+ * incompleto acá se convierte en un guardado fallido. Validar antes de emitir
+ * hace que el problema aparezca en la consola del navegador, con el nombre de
+ * la posición sin mapear, en vez de como un error opaco del servidor.
+ *
+ * Esto ya pasó al revés: `bottom` se mapeaba a 'P', el servidor no aceptaba 'P'
+ * y la lesión palatina se guardaba como null sin que nadie se enterara.
+ */
+function pushEntradaDeOdontograma(entries, toothNumber, cara, status) {
+    const normalizada = normalizarCaraDental(cara);
+    if (normalizada === undefined) {
+        console.error(`[odontograma] Cara desconocida "${cara}" en la pieza ${toothNumber}: la entrada no se guarda.`);
+        return;
+    }
+    entries.push({ toothNumber: String(toothNumber), face: normalizada, status });
+}
+
 function legacyOdontogramToEntries(odontograma = {}) {
     const entries = [];
     const faceMap = {
@@ -134,11 +155,7 @@ function legacyOdontogramToEntries(odontograma = {}) {
                 ['top', 'right', 'bottom', 'left', 'center'].forEach((faceKey) => {
                     const faceStatus = toothData[faceKey];
                     if (!faceStatus || faceStatus === 'sano') return;
-                    entries.push({
-                        toothNumber: String(toothNumber),
-                        face: faceMap[faceKey],
-                        status: statusMap[faceStatus] || 'healthy'
-                    });
+                    pushEntradaDeOdontograma(entries, toothNumber, faceMap[faceKey], statusMap[faceStatus] || 'healthy');
                 });
             }
             return;
@@ -148,11 +165,7 @@ function legacyOdontogramToEntries(odontograma = {}) {
             const status = toothData[faceKey];
             if (!status || status === 'sano') return;
 
-            entries.push({
-                toothNumber: String(toothNumber),
-                face: faceMap[faceKey],
-                status: statusMap[status] || 'healthy'
-            });
+            pushEntradaDeOdontograma(entries, toothNumber, faceMap[faceKey], statusMap[status] || 'healthy');
         });
     });
 
