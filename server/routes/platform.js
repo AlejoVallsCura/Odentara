@@ -11,7 +11,7 @@ const { normalizarMoneda, balanceGeneral } = require("../../shared/money");
 const { logSecurityEvent } = require("../lib/security-logger");
 const path = require("path");
 const fs = require("fs");
-const { signToken: firmarDescarga, verifyToken: verificarDescarga } = require("../lib/signed-token");
+const { emitirAutorizacion, reclamarAutorizacion } = require("../lib/single-use-token");
 const { backupRoot } = require("../lib/backup-runner");
 const {
   getSchedule,
@@ -1234,7 +1234,7 @@ router.put("/backups/schedule", requireAuth, requirePlatformAdmin, async (req, r
 //
 // Cinco minutos y un scope propio: aunque la URL quede en el historial o en un
 // log de proxy, deja de servir enseguida y no vale para ninguna otra ruta.
-router.post("/backups/:archivo/download-token", requireAuth, requirePlatformAdmin, (req, res) => {
+router.post("/backups/:archivo/download-token", requireAuth, requirePlatformAdmin, async (req, res) => {
   const archivo = path.basename(String(req.params.archivo || ""));
   const completo = path.join(backupRoot(), "db", archivo);
 
@@ -1242,23 +1242,37 @@ router.post("/backups/:archivo/download-token", requireAuth, requirePlatformAdmi
     return res.status(404).json({ ok: false, error: "Ese backup ya no está disponible." });
   }
 
-  const token = firmarDescarga({ scope: "backup-download", parts: [archivo], ttlSeconds: 300 });
-  return res.json({ ok: true, url: `/api/platform/backups/${encodeURIComponent(archivo)}/download?t=${token}` });
+  // Autorización de UN SOLO USO guardada en base, no una firma sin estado. La
+  // anterior era replicable durante los 5 minutos, y la URL con el token queda
+  // en los logs del reverse proxy: cualquiera que la leyera ahí se bajaba la
+  // base entera. El nombre del archivo va en el payload, así que en la URL no
+  // queda nada manipulable.
+  const token = await emitirAutorizacion({
+    scope: "backup-download",
+    payload: { archivo },
+    ttlSegundos: 300,
+  });
+  return res.json({ ok: true, url: `/api/platform/backups/download?t=${token}` });
 });
 
-router.get("/backups/:archivo/download", async (req, res) => {
-  // path.basename descarta cualquier intento de subir de directorio: el nombre
-  // viaja en la URL y no se puede confiar en él aunque esté firmado.
-  const archivo = path.basename(String(req.params.archivo || ""));
-  const ok = verificarDescarga({
-    token: String(req.query.t || ""),
+router.get("/backups/download", async (req, res) => {
+  // El nombre del archivo ya NO viaja en la URL: sale del payload que se guardó
+  // al emitir la autorización. Antes venía en el path y había que desconfiar de
+  // él aunque estuviera firmado; ahora directamente no es manipulable.
+  const payload = await reclamarAutorizacion({
     scope: "backup-download",
-    parts: [archivo],
+    token: String(req.query.t || ""),
   });
 
-  if (!ok) {
-    return res.status(403).json({ ok: false, error: "Enlace de descarga vencido o inválido." });
+  if (!payload) {
+    return res.status(403).json({
+      ok: false,
+      error: "Este enlace de descarga ya se usó o venció. Generalo de nuevo.",
+    });
   }
+
+  // basename igual, por si la fila se escribió alguna vez con una ruta.
+  const archivo = path.basename(String(payload.archivo || ""));
 
   const completo = path.join(backupRoot(), "db", archivo);
   if (!archivo.endsWith(".sql.gz") || !fs.existsSync(completo)) {

@@ -631,6 +631,43 @@ model RevokedToken {
  * la plataforma levanta varios procesos worker y el que autoriza la descarga
  * no es necesariamente el que la sirve.
  */
+/**
+ * Autorización de UN SOLO USO para una URL que no puede llevar header de
+ * autorización: una descarga por navegación, un salto entre subdominios.
+ *
+ * Generaliza el patrón que ya usaba ClinicalExportToken, porque los otros dos
+ * lugares que lo necesitaban se habían resuelto con firmas sin estado y eso los
+ * dejaba REUTILIZABLES dentro de su ventana:
+ *
+ *   - la descarga del backup completo de la base (HMAC, 5 min)
+ *   - el canje que devuelve la sesión de 24 h al saltar de subdominio (JWT, 2 min)
+ *
+ * Los dos viajan en la query string, o sea que quedan en los logs del reverse
+ * proxy. Con un token sin estado, cualquiera que lo lea dentro de la ventana lo
+ * puede volver a usar. Estaban calibrados al revés: el activo más chico —los
+ * archivos de un paciente— tenía el control más fuerte, y la base entera y una
+ * sesión completa tenían el más débil.
+ *
+ * El token es opaco: lo que hace falta al consumirlo vive acá, del lado del
+ * servidor, así que no hay nada manipulable ni sensible en la URL.
+ */
+model SingleUseToken {
+  token     String    @id @db.VarChar(64)
+  /// "backup-download" | "auth-exchange". Un token de un scope no sirve en otro.
+  scope     String    @db.VarChar(40)
+  /// Lo mínimo para completar la acción: el nombre del archivo, o el usuario.
+  payload   Json
+  /// Se marca al consumirlo. El reclamo es un UPDATE condicional sobre este
+  /// campo, no un read-then-write, así que dos pedidos simultáneos no pasan los
+  /// dos.
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@index([scope, expiresAt])
+}
+
 model ClinicalExportToken {
   token     String   @id @db.VarChar(64)
   clinicId  Int

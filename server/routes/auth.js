@@ -8,8 +8,6 @@ const {
   signToken,
   serializeUser,
   buildPermissionSummary,
-  signExchangeToken,
-  verifyExchangeToken,
   signClinicSelectionToken,
   verifyClinicSelectionToken,
 } = require("../lib/auth");
@@ -18,6 +16,7 @@ const { authLimiter, forgotPasswordLimiter } = require("../middleware/rate-limit
 const { revokeToken } = require("../lib/token-revocation");
 const { logSecurityEvent } = require("../lib/security-logger");
 const { sendPasswordResetEmail } = require("../lib/email");
+const { emitirAutorizacion, reclamarAutorizacion } = require("../lib/single-use-token");
 
 const router = express.Router();
 
@@ -464,28 +463,59 @@ router.post("/reset-password", forgotPasswordLimiter, async (req, res) => {
   }
 });
 
-// ── Token exchange (evita pasar el JWT completo en la URL al redirigir entre subdominios) ──
-// Genera un JWT de corta vida (2 min) que encapsula el token real — sin estado en servidor.
-// Funciona con reinicios de proceso y múltiples instancias (auto-validante por firma).
+// ── Canje de sesión al saltar de subdominio ──────────────────────────────────
+//
+// El navegador no puede llevar el header Authorization en una navegación, así
+// que al pasar de app.odentara.com al subdominio de la clínica hay que mover la
+// sesión por la URL. Antes eso era un JWT de 2 minutos que ENCAPSULABA el token
+// real, y traía dos problemas:
+//
+//   1. Era reutilizable dentro de la ventana. La URL con el código queda en los
+//      logs del reverse proxy, así que cualquiera que la leyera ahí se quedaba
+//      con una sesión de 24 horas.
+//   2. Guardaba el JWT real adentro de otro JWT, o sea que el secreto viajaba
+//      igual, solo que envuelto.
+//
+// Ahora es un token opaco de UN SOLO USO. Y no guarda ninguna credencial: en la
+// base queda el id del usuario, y la sesión se firma FRESCA al canjear.
 
-// POST /api/auth/exchange  — el cliente autentica y recibe un exchange token firmado
-router.post("/exchange", requireAuth, (req, res) => {
-  const code = signExchangeToken(req.rawToken);
+// POST /api/auth/exchange — autenticado: emite el código
+router.post("/exchange", requireAuth, async (req, res) => {
+  const code = await emitirAutorizacion({
+    scope: "auth-exchange",
+    payload: { userId: req.user.id, impersonatedBy: req.impersonatedBy || null },
+    ttlSegundos: 120,
+  });
   return res.json({ ok: true, code });
 });
 
-// GET /api/auth/exchange?code=<exchange_token>  — verifica el token y devuelve el JWT original
-router.get("/exchange", (req, res) => {
-  const code = req.query.code;
-  if (!code) {
-    return res.status(400).json({ ok: false, error: "Falta el código de intercambio." });
+// GET /api/auth/exchange?code=<codigo> — sin header: canjea el código por la sesión
+router.get("/exchange", async (req, res) => {
+  const payload = await reclamarAutorizacion({
+    scope: "auth-exchange",
+    token: String(req.query.code || ""),
+  });
+
+  if (!payload) {
+    return res.status(404).json({ ok: false, error: "Código inválido, ya usado o expirado." });
   }
-  try {
-    const token = verifyExchangeToken(code);
-    return res.json({ ok: true, token });
-  } catch (_err) {
-    return res.status(404).json({ ok: false, error: "Código inválido o expirado." });
+
+  // La sesión se firma acá y no se recupera de ningún lado: eso evita tener un
+  // JWT guardado en base, y de paso vuelve a comprobar que el usuario siga
+  // activo y no borrado en el momento del canje, no en el de la emisión.
+  const user = await getUserById(payload.userId);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "Código inválido, ya usado o expirado." });
   }
+
+  const token = signToken({
+    userId: user.id,
+    email: user.email,
+    roles: user.roles.map((entry) => entry.role.code),
+    ...(payload.impersonatedBy ? { impersonatedBy: payload.impersonatedBy } : {}),
+  });
+
+  return res.json({ ok: true, token });
 });
 
 module.exports = router;

@@ -14,6 +14,7 @@
  */
 
 const prisma = require("./prisma");
+const { purgarAutorizacionesVencidas } = require("./single-use-token");
 
 async function revokeToken(jti, expMs) {
   if (!jti) return;
@@ -82,6 +83,13 @@ function startTokenPurgeScheduler() {
   const purgar = () => {
     purgeExpiredRevokedTokens();
     purgeExpiredExportTokens();
+    // Las autorizaciones de un solo uso (descarga de backup, canje de sesión)
+    // se emiten seguido y viven 2 a 5 minutos: sin barrido, la tabla crece con
+    // filas que ya no sirven. Se engancha acá y no en un temporizador propio
+    // para no sumar otro reloj al proceso.
+    purgarAutorizacionesVencidas().catch((error) => {
+      console.error("[single-use-token] No se pudieron purgar las vencidas:", error.message);
+    });
   };
 
   purgar();

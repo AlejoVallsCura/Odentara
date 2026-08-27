@@ -90,24 +90,10 @@ function buildPermissionSummary(user) {
   };
 }
 
-/**
- * Crea un token de intercambio de corta vida (2 min) que encapsula el JWT real.
- * Se usa para pasar el token al subdominio de clínica via URL sin exponer el JWT principal.
- * No requiere estado en el servidor — es auto-validante por firma.
- */
-function signExchangeToken(rawJwt) {
-  return jwt.sign({ xjwt: rawJwt }, getJwtSecret(), { expiresIn: "2m" });
-}
-
-/**
- * Verifica el token de intercambio y devuelve el JWT original.
- * Lanza error si el token es inválido o expiró.
- */
-function verifyExchangeToken(exchangeToken) {
-  const payload = jwt.verify(exchangeToken, getJwtSecret());
-  if (!payload.xjwt) throw new Error("Exchange token sin JWT embebido");
-  return payload.xjwt;
-}
+// El canje entre subdominios ya no usa un JWT que encapsula otro JWT. Pasó a
+// ser un token opaco de un solo uso guardado en base (lib/single-use-token.js):
+// el anterior era reutilizable dentro de sus 2 minutos y la URL con el codigo
+// queda en los logs del reverse proxy.
 
 /**
  * Token de corta vida (10 min) que acredita que el usuario verificó su contraseña
@@ -129,8 +115,6 @@ module.exports = {
   normalizeEmail,
   signToken,
   verifyToken,
-  signExchangeToken,
-  verifyExchangeToken,
   signClinicSelectionToken,
   verifyClinicSelectionToken,
   serializeUser,
