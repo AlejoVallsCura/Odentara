@@ -11,7 +11,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "test": "node --test \"server/tests/*.test.js\""
+    "test": "node --test \"server/tests/*.test.js\"",
+    "backup:db": "node scripts/backup-db.js",
+    "backup:r2": "node scripts/backup-r2.js",
+    "backup:verify": "node scripts/verify-restore.js",
+    "check:assets": "node scripts/check-asset-version.js",
+    "backup:restore": "node scripts/restore-db.js",
+    "backup:cron": "node scripts/backup-cron.js"
   },
   "repository": {
     "type": "git",
@@ -34,6 +40,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1049.0",
     "@prisma/adapter-mariadb": "^7.7.0",
     "@prisma/client": "^7.7.0",
+    "archiver": "^7.0.1",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
@@ -42,7 +49,7 @@
     "express-rate-limit": "^8.4.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "mariadb": "^3.5.2",
+    "mariadb": "^3.5.3",
     "multer": "^2.1.1",
     "node-cron": "^4.2.1",
     "nodemailer": "^9.0.3",

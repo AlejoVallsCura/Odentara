@@ -66,12 +66,6 @@ function serializeEntry(entry) {
 // Validación de acceso
 // -----------------------------------------------------------------------------
 
-function canUseProfessional(permissions, professionalId) {
-  if (!professionalId) return true;
-  if (canAccessWholeClinic(permissions)) return true;
-  return getAccessibleProfessionalIds(permissions).includes(Number(professionalId));
-}
-
 async function ensureAccessibleAppointment(prisma, permissions, appointmentId, patientId) {
   if (!appointmentId) return true;
   const appointment = await prisma.appointment.findFirst({
@@ -92,6 +86,5 @@ module.exports = {
   formatDateOnly,
   parseDateOnlyInput,
   serializeEntry,
-  canUseProfessional,
   ensureAccessibleAppointment,
 };

@@ -1,4 +1,5 @@
 const rateLimit = require("express-rate-limit");
+const { ipKeyGenerator } = require("express-rate-limit");
 const { logSecurityEvent } = require("../lib/security-logger");
 
 // En desarrollo (localhost) no aplicar rate limiting para no interferir
@@ -10,91 +11,104 @@ function skipLocalhost(req) {
   return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
 }
 
-// API general: 600 req / 15 min por IP
-// (~40 req/min: cubre navegación fluida con múltiples llamadas paralelas)
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 600,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: skipLocalhost,
-  message: {
-    ok: false,
-    error: "Demasiadas peticiones. Intenta nuevamente en 15 minutos.",
-  },
-  handler(req, res, _next, options) {
-    logSecurityEvent("RATE_LIMIT_EXCEEDED", req, { limit: "api-general" });
-    res.status(options.statusCode).json(options.message);
-  },
+const MINUTOS = 60 * 1000;
+
+/**
+ * Fábrica de limitadores.
+ *
+ * Los cinco limitadores originales eran el mismo bloque de veinte líneas
+ * repetido, con dos números y un texto distintos. El riesgo concreto de esa
+ * duplicación no era el largo sino la deriva: al agregar el sexto había que
+ * acordarse de copiar también el `skip`, el `handler` que audita y los
+ * `standardHeaders`, y olvidarse de cualquiera de ellos pasa silenciosamente.
+ *
+ * @param {object} opts
+ * @param {string} opts.nombre Identificador que queda en el evento de auditoría.
+ * @param {number} opts.ventanaMinutos
+ * @param {number} opts.maximo
+ * @param {string} opts.mensaje
+ * @param {boolean} [opts.soloFallidos] No contar las respuestas exitosas.
+ * @param {(req: object) => string} [opts.claveDe] Agrupar por algo que no sea la IP.
+ */
+function crearLimitador({ nombre, ventanaMinutos, maximo, mensaje, soloFallidos = false, claveDe }) {
+  return rateLimit({
+    windowMs: ventanaMinutos * MINUTOS,
+    max: maximo,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipLocalhost,
+    ...(soloFallidos ? { skipSuccessfulRequests: true } : {}),
+    ...(claveDe ? { keyGenerator: claveDe } : {}),
+    message: { ok: false, error: mensaje },
+    handler(req, res, _next, options) {
+      logSecurityEvent("RATE_LIMIT_EXCEEDED", req, { limit: nombre });
+      res.status(options.statusCode).json(options.message);
+    },
+  });
+}
+
+// API general (~40 req/min: cubre navegación fluida con llamadas paralelas)
+const apiLimiter = crearLimitador({
+  nombre: "api-general",
+  ventanaMinutos: 15,
+  maximo: 600,
+  mensaje: "Demasiadas peticiones. Intenta nuevamente en 15 minutos.",
 });
 
-// Auth: 10 intentos fallidos / 15 min por IP
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true, // solo cuenta intentos fallidos
-  skip: skipLocalhost,
-  message: {
-    ok: false,
-    error: "Demasiados intentos de acceso. Intenta nuevamente en 15 minutos.",
-  },
-  handler(req, res, _next, options) {
-    logSecurityEvent("RATE_LIMIT_EXCEEDED", req, { limit: "auth-login" });
-    res.status(options.statusCode).json(options.message);
-  },
+const authLimiter = crearLimitador({
+  nombre: "auth-login",
+  ventanaMinutos: 15,
+  maximo: 10,
+  soloFallidos: true,
+  mensaje: "Demasiados intentos de acceso. Intenta nuevamente en 15 minutos.",
 });
 
-// Forgot password: 5 requests / hora por IP (anti-abuso)
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: skipLocalhost,
-  message: {
-    ok: false,
-    error: "Demasiados intentos. Intentá de nuevo en 1 hora.",
-  },
-  handler(req, res, _next, options) {
-    logSecurityEvent("RATE_LIMIT_EXCEEDED", req, { limit: "forgot-password" });
-    res.status(options.statusCode).json(options.message);
-  },
+const forgotPasswordLimiter = crearLimitador({
+  nombre: "forgot-password",
+  ventanaMinutos: 60,
+  maximo: 5,
+  mensaje: "Demasiados intentos. Intentá de nuevo en 1 hora.",
 });
 
-// Endpoints de gestión de usuarios/roles: 200 req / 15 min por IP
-const sensitiveLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: skipLocalhost,
-  message: {
-    ok: false,
-    error: "Demasiadas peticiones a esta función. Intenta nuevamente en 15 minutos.",
-  },
-  handler(req, res, _next, options) {
-    logSecurityEvent("RATE_LIMIT_EXCEEDED", req, { limit: "sensitive" });
-    res.status(options.statusCode).json(options.message);
-  },
+// Endpoints de gestión de usuarios/roles
+const sensitiveLimiter = crearLimitador({
+  nombre: "sensitive",
+  ventanaMinutos: 15,
+  maximo: 200,
+  mensaje: "Demasiadas peticiones a esta función. Intenta nuevamente en 15 minutos.",
 });
 
-// Formulario de contacto landing: 5 envíos / hora por IP
-const contactLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: skipLocalhost,
-  message: {
-    ok: false,
-    error: "Demasiados envios. Intentá de nuevo en 1 hora.",
-  },
-  handler(req, res, _next, options) {
-    logSecurityEvent("RATE_LIMIT_EXCEEDED", req, { limit: "contact-form" });
-    res.status(options.statusCode).json(options.message);
-  },
+const contactLimiter = crearLimitador({
+  nombre: "contact-form",
+  ventanaMinutos: 60,
+  maximo: 5,
+  mensaje: "Demasiados envios. Intentá de nuevo en 1 hora.",
 });
 
-module.exports = { apiLimiter, authLimiter, sensitiveLimiter, forgotPasswordLimiter, contactLimiter };
+/**
+ * Exportación de historias clínicas.
+ *
+ * Es el endpoint más caro del sistema y, sobre todo, el que más datos entrega
+ * de una sola vez: un límite bajo es lo que separa un uso normal de una
+ * descarga masiva de la base de pacientes. Se agrupa por usuario y no por IP
+ * porque toda la clínica sale por la misma IP del consultorio.
+ */
+const exportLimiter = crearLimitador({
+  nombre: "clinical-export",
+  ventanaMinutos: 15,
+  maximo: 5,
+  mensaje: "Demasiadas descargas seguidas. Esperá unos minutos e intentá de nuevo.",
+  // ipKeyGenerator y no req.ip pelado: con IPv6, cada usuario dispone de un
+  // rango enorme de direcciones y podría saltarse el límite cambiando de una a
+  // otra. El helper agrupa por subred en vez de por dirección.
+  claveDe: (req) => (req.user?.id ? `user:${req.user.id}` : `ip:${ipKeyGenerator(req.ip)}`),
+});
+
+module.exports = {
+  apiLimiter,
+  authLimiter,
+  sensitiveLimiter,
+  forgotPasswordLimiter,
+  contactLimiter,
+  exportLimiter,
+};

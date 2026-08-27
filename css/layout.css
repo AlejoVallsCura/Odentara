@@ -278,6 +278,10 @@
     line-height: 1.2;
 }
 
+/* Un renglon por moneda en los totales de caja. Con una sola moneda se ve igual
+   que un total comun; con dos, se achica para que entren las dos sin desarmar
+   la grilla de cards. */
+
 /* Data Tables */
 .table-container {
     background: #fff;

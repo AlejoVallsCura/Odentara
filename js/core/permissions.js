@@ -67,6 +67,54 @@ function canManageUsersUi() {
     return !!state.user && state.user.roles.includes('superadmin');
 }
 
+/**
+ * Secciones de Configuracion que puede ver el usuario actual.
+ *
+ * Una sola lista para los dos lugares que la muestran: el submenu del sidebar
+ * (router.js) y la pantalla de Configuracion (settings.js). Antes eran dos listas
+ * escritas a mano, y pasó lo previsible: se agregó "Mensaje de confirmacion" a la
+ * de la pantalla y la del sidebar quedó sin él, así que la seccion existia pero no
+ * habia forma de llegar desde el menu. Con dos listas eso vuelve a pasar cada vez
+ * que se agrega una seccion.
+ *
+ * `label` es el nombre corto del sidebar; `labelLargo` el de la pantalla, que
+ * tiene mas lugar.
+ */
+function getSettingsSections() {
+    const roles = state.user?.roles || [];
+    const esAdmin      = roles.some(r => ['superadmin', 'admin'].includes(r));
+    const esSecretaria = roles.includes('secretary');
+
+    const puedeClinica = esAdmin || esSecretaria;
+
+    return [
+        { id: 'clinic-settings', icon: 'fa-hospital', label: 'Clínica',
+          labelLargo: 'Configuración clínica',
+          description: 'Nombre comercial e identidad visual de profesionales.',
+          visible: puedeClinica },
+        { id: 'confirmation-message', icon: 'fa-comment-dots', label: 'Mensaje',
+          labelLargo: 'Mensaje de confirmación',
+          description: 'Texto que se envía por WhatsApp al confirmar un turno.',
+          visible: puedeClinica },
+        { id: 'create-user', icon: 'fa-user-plus', label: 'Crear usuario',
+          labelLargo: 'Crear usuario',
+          description: 'Alta de nuevos usuarios y permisos.',
+          visible: esAdmin },
+        { id: 'create-professional', icon: 'fa-user-doctor', label: 'Crear profesional',
+          labelLargo: 'Crear profesional',
+          description: 'Registro de profesionales y datos base.',
+          visible: esAdmin },
+        { id: 'users-list', icon: 'fa-users-gear', label: 'Usuarios existentes',
+          labelLargo: 'Usuarios existentes',
+          description: 'Listado de usuarios y accesos asignados.',
+          visible: esAdmin },
+        { id: 'professionals-list', icon: 'fa-address-card', label: 'Profesionales existentes',
+          labelLargo: 'Profesionales existentes',
+          description: 'Vista de profesionales y acceso al calendario.',
+          visible: esAdmin },
+    ].filter(seccion => seccion.visible);
+}
+
 function canAccessSettingsUi() {
     return !!state.user && state.user.roles.some(r => ['superadmin', 'admin', 'secretary'].includes(r));
 }
@@ -191,58 +239,50 @@ function getBillingEntriesForPatient(patientId) {
         .sort((a, b) => String(b.date).localeCompare(String(a.date)) || (b.id - a.id));
 }
 
+/**
+ * Cuenta corriente de un paciente, separada por profesional Y POR MONEDA.
+ *
+ * Una fila por cada combinación: la misma profesional puede tener un saldo en
+ * pesos y otro en dólares, y son dos saldos distintos. Sumarlos daría un número
+ * que no significa nada (ver shared/money.js).
+ */
 function getPatientCurrentAccountSummary(patientId) {
     const patient = getAccessiblePatients().find(p => p.id === patientId);
     const entries = getBillingEntriesForPatient(patientId);
     const professionals = getAccessibleProfessionals();
-    const byProfMap = new Map();
 
+    const porProfesional = new Map();
     entries.forEach(entry => {
         const prof = professionals.find(p => p.id === entry.professionalId);
         if (!prof) return;
-        if (!byProfMap.has(entry.professionalId)) {
-            byProfMap.set(entry.professionalId, { professionalId: prof.id, professionalName: prof.name, deuda: 0, pagado: 0 });
-        }
-        const item = byProfMap.get(entry.professionalId);
-        if (entry.type === 'debt') item.deuda += entry.amount;
-        if (entry.type === 'income' || entry.type === 'payment') item.pagado += entry.amount;
+        if (!porProfesional.has(prof.id)) porProfesional.set(prof.id, { prof, movimientos: [] });
+        porProfesional.get(prof.id).movimientos.push(entry);
     });
 
-    const byProfessional = Array.from(byProfMap.values())
-        .map(item => ({ ...item, balance: item.deuda - item.pagado }))
-        .sort((a, b) => a.professionalName.localeCompare(b.professionalName));
+    const byProfessional = [...porProfesional.values()]
+        .flatMap(({ prof, movimientos }) =>
+            resumirPorMoneda(movimientos).map(saldo => ({
+                professionalId:   prof.id,
+                professionalName: prof.name,
+                moneda:           saldo.moneda,
+                deuda:            saldo.deuda,
+                pagado:           saldo.pagado,
+                balance:          saldo.balance
+            }))
+        )
+        .sort((a, b) =>
+            a.professionalName.localeCompare(b.professionalName) ||
+            a.moneda.localeCompare(b.moneda)
+        );
 
-    const deuda  = byProfessional.reduce((s, i) => s + i.deuda,  0);
-    const pagado = byProfessional.reduce((s, i) => s + i.pagado, 0);
-
-    return { patient, entries, byProfessional, deuda, pagado, balance: deuda - pagado };
+    return {
+        patient,
+        entries,
+        byProfessional,
+        // Cantidad de PROFESIONALES, no de filas: con dos monedas, una sola
+        // profesional genera dos filas y el conteo diría "2 profesionales".
+        professionalCount: porProfesional.size,
+        totalesPorMoneda: resumirPorMoneda(entries)
+    };
 }
 
-function getPatientCurrentAccountSummaries() {
-    return getAccessiblePatients()
-        .map(patient => {
-            const s = getPatientCurrentAccountSummary(patient.id);
-            return { patientId: patient.id, name: patient.name, dni: patient.dni,
-                     deuda: s.deuda, pagado: s.pagado, balance: s.balance,
-                     byProfessional: s.byProfessional, movementCount: s.entries.length };
-        })
-        .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function getPatientProfessionalAccountRows() {
-    return getAccessiblePatients()
-        .flatMap(patient => {
-            const s = getPatientCurrentAccountSummary(patient.id);
-            if (!s.byProfessional.length) {
-                return [{ patientId: patient.id, name: patient.name, dni: patient.dni,
-                          professionalId: null, professionalName: 'Sin movimientos',
-                          deuda: 0, pagado: 0, balance: 0 }];
-            }
-            return s.byProfessional.map(item => ({
-                patientId: patient.id, name: patient.name, dni: patient.dni,
-                professionalId: item.professionalId, professionalName: item.professionalName,
-                deuda: item.deuda, pagado: item.pagado, balance: item.balance
-            }));
-        })
-        .sort((a, b) => a.name.localeCompare(b.name) || a.professionalName.localeCompare(b.professionalName));
-}

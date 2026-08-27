@@ -8,6 +8,10 @@
 // -----------------------------------------------------------------------------
 
 const AUTH_STORAGE_KEY  = 'odentara_auth_v1';
+// Sesión de plataforma guardada mientras se impersona una clínica. Estaba
+// escrita como texto suelto en cuatro archivos; un error de tipeo en cualquiera
+// dejaba un token huérfano que nadie volvía a limpiar.
+const PLATFORM_AUTH_BACKUP_KEY = 'odentara_platform_auth_backup';
 const THEME_STORAGE_KEY = 'odentara_theme_v1';
 
 // Subdominios reservados que no son clínicas

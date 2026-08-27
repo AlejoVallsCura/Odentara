@@ -621,9 +621,23 @@
     background: rgba(255,255,255,0.72);
 }
 
+/* El sobreturno se superpone al turno que tiene debajo, así que termina antes
+   del borde derecho: ahí vive el chip de hora del turno de abajo (.cal-apt-meta,
+   flex-shrink:0, pegado a la derecha) y antes lo tapaba por completo — se veía
+   la fila de las 12:30 sin su horario.
+
+   El hueco reservado es fijo en rem y no un porcentaje porque lo que hay que
+   dejar libre es un chip de ancho casi constante ("12:30 · 30min"), no una
+   fracción de la columna: con porcentaje sobra espacio en pantalla ancha y falta
+   en angosta. Como el borde izquierdo se corrió a 40%, el sobreturno queda del
+   medio hacia la derecha sin llegar al final.
+
+   No hace falta variante angosta: por debajo de 1024px (isMobileLayout) el
+   calendario no usa esta línea de tiempo sino tarjetas .cal-mobile-card, así que
+   el ancho mínimo real donde aplica esta regla es ~1025px. */
 .cal-apt-overbook {
-    left: 52%;
-    right: 3px;
+    left: 40%;
+    right: 6.5rem;
     min-height: 26px;
     padding: 0.24rem 0.4rem 0.26rem;
     z-index: 20 !important;

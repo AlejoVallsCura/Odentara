@@ -4306,10 +4306,13 @@ body.theme-dark .cal-apt-meta {
 
 /* ── Tokens locales ──────────────────────────────────────────────── */
 #login-view {
-    --lg-teal:       #0f766e;
-    --lg-teal-mid:   #0d9488;
-    --lg-teal-vivid: #14b8a6;
-    --lg-teal-light: #99f6e4;
+    /* Paleta del login, en el teal de la marca pública. #0f766e es exactamente
+       el fondo de logo-teal2, así que el logo y la pantalla son el mismo color.
+       El interior de la app usa violeta; el teal es del login y la landing. */
+    --lg-brand:       #0f766e;
+    --lg-brand-mid:   #0d9488;
+    --lg-brand-vivid: #14b8a6;
+    --lg-brand-light: #99f6e4;
     --lg-panel-bg:   #040f0d;
     --lg-panel-mid:  #071510;
     display: flex !important;
@@ -4366,21 +4369,27 @@ body.theme-dark .cal-apt-meta {
 .login-brand-logo-wrap {
     width: 56px;
     height: 56px;
-    background: linear-gradient(135deg, var(--lg-teal) 0%, var(--lg-teal-vivid) 100%);
+    /* Sin fondo: el logo ya es un tile. Antes había un degradado acá y el
+       SVG encima, lo que dejaba un recuadro dentro de otro. */
+    background: none;
     border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 0 1px rgba(20,184,166,.4), 0 12px 32px rgba(15,118,110,.55);
+    box-shadow: 0 12px 32px rgba(15,118,110,.45);
     margin-bottom: 2rem;
     flex-shrink: 0;
 }
 
 .login-brand-logo-img {
-    width: 30px;
-    height: 30px;
+    /* Ocupa todo el contenedor: el PNG ya trae su propio tile redondeado, así
+       que el wrap solo define la medida. */
+    width: 100%;
+    height: 100%;
     object-fit: contain;
-    filter: brightness(0) invert(1);
+    /* Sin `filter: brightness(0) invert(1)`. Ese filtro existía para pintar de
+       blanco un SVG monocromo; sobre el logo a color lo dejaba como una
+       silueta blanca, perdiendo el diente y los acentos. */
 }
 
 /* SVG inline: ya tiene colores propios, no necesita el filter */
@@ -4432,7 +4441,7 @@ body.theme-dark .cal-apt-meta {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--lg-teal-vivid);
+    color: var(--lg-brand-vivid);
     flex-shrink: 0;
     font-size: 13px;
 }
@@ -4539,19 +4548,18 @@ body.theme-dark .cal-apt-meta {
 
 .login-mobile-logo-mark {
     width: 34px; height: 34px;
-    background: linear-gradient(135deg, #0f766e, #14b8a6);
+    background: none;
     border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 14px rgba(15,118,110,.4);
+    box-shadow: 0 4px 14px rgba(15,118,110,.35);
     flex-shrink: 0;
 }
 
 .login-mobile-logo-mark .login-brand-logo-img {
-    width: 19px; height: 19px;
-    filter: brightness(0) invert(1);
+    width: 100%; height: 100%;
 }
 
 .login-mobile-logo span {
@@ -4609,9 +4617,9 @@ body.theme-dark .cal-apt-meta {
 
 .login-form-inner .input-group input:focus,
 .login-form-inner .pwd-wrap input:focus {
-    border-color: #0d9488 !important;
+    border-color: var(--lg-brand-vivid) !important;
     background: rgba(15,118,110,.2) !important;
-    box-shadow: 0 0 0 3.5px rgba(15,118,110,.25) !important;
+    box-shadow: 0 0 0 3.5px rgba(20,184,166,.25) !important;
     outline: none !important;
 }
 
@@ -4629,9 +4637,9 @@ body.theme-dark .cal-apt-meta {
 
 .login-forgot-row .login-link-btn {
     font-size: .78rem;
-    color: #0d9488;
+    color: var(--lg-brand-mid);
 }
-.login-forgot-row .login-link-btn:hover { color: #0f766e; }
+.login-forgot-row .login-link-btn:hover { color: var(--lg-brand); }
 
 /* ── Submit button ───────────────────────────────────────────────── */
 .login-form-inner .btn-primary {
@@ -4641,7 +4649,7 @@ body.theme-dark .cal-apt-meta {
     font-weight: 600 !important;
     letter-spacing: .01em !important;
     width: 100% !important;
-    background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%) !important;
+    background: linear-gradient(135deg, var(--lg-brand) 0%, var(--lg-brand-mid) 100%) !important;
     box-shadow: 0 6px 20px rgba(15,118,110,.35) !important;
     color: #fff !important;
     border: none !important;
@@ -4700,7 +4708,7 @@ body.theme-dark .cal-apt-meta {
     border-radius: 50%;
     background: rgba(15,118,110,.1);
     border: 1.5px solid rgba(15,118,110,.25);
-    color: #0d9488;
+    color: var(--lg-brand-mid);
     font-size: 1.375rem;
     display: flex; align-items: center; justify-content: center;
     margin: 0 auto 1.25rem;
@@ -4820,8 +4828,8 @@ body.theme-dark .login-form-inner .pwd-wrap input {
 body.theme-dark .login-form-inner .input-group input:focus,
 body.theme-dark .login-form-inner .pwd-wrap input:focus {
     background: rgba(15,118,110,.2) !important;
-    border-color: #14b8a6 !important;
-    box-shadow: 0 0 0 3.5px rgba(20,184,166,.2) !important;
+    border-color: var(--lg-brand-vivid) !important;
+    box-shadow: 0 0 0 3.5px rgba(20,184,166,.25) !important;
 }
 
 body.theme-dark .login-form-footer {
@@ -4836,7 +4844,7 @@ body.theme-dark .login-form-inner .btn-ghost {
 
 body.theme-dark .login-forgot-row .login-link-btn,
 body.theme-dark .login-form-inner .login-link-btn {
-    color: #14b8a6 !important;
+    color: var(--lg-brand-vivid) !important;
 }
 
 body.theme-dark .login-success-title {
@@ -4908,13 +4916,13 @@ body.theme-dark .login-brand-side { /* already dark */ }
 }
 
 /* Colores — borde top + ícono */
-.stat-teal   { border-top-color: #0d9488; }
+.stat-teal   { border-top-color: var(--lg-brand-mid); }
 .stat-emerald { border-top-color: #059669; }
 .stat-rose   { border-top-color: #e11d48; }
 .stat-violet { border-top-color: #6d28d9; }
 .stat-amber  { border-top-color: #d97706; }
 
-.stat-teal   .stat-label i { color: #0d9488; }
+.stat-teal   .stat-label i { color: var(--lg-brand-mid); }
 .stat-emerald .stat-label i { color: #059669; }
 .stat-rose   .stat-label i { color: #e11d48; }
 .stat-violet .stat-label i { color: #6d28d9; }
@@ -4993,8 +5001,8 @@ body.theme-dark .prof-color-row    { background: transparent !important; }
 .login-form-inner .input-group input:focus,
 .login-form-inner .pwd-wrap input:focus {
     background:    rgba(15,118,110,.20) !important;
-    border-color:  #14b8a6             !important;
-    box-shadow:    0 0 0 3.5px rgba(20,184,166,.20) !important;
+    border-color:  var(--lg-brand-vivid) !important;
+    box-shadow:    0 0 0 3.5px rgba(20,184,166,.25) !important;
 }
 
 /* ── Indicador de hora actual en calendario (day view) ────────────────────── */
@@ -6145,4 +6153,1148 @@ body.theme-dark .patient-mh-body { border-top-color: rgba(148,163,184,0.14); }
    ================================================================ */
 html {
     font-size: 106.25%;
+}
+
+/* ================================================================
+   INSTALACIÓN PWA — banner e instructivo de iOS
+   Va al final de patches.css, que es la última hoja que carga
+   index.html: así no hay que pelear con !important de las capas
+   anteriores.
+   ================================================================ */
+
+#pwa-install-banner {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: calc(100% - 32px);
+    max-width: 460px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+    animation: pwa-install-in 260ms ease-out;
+}
+
+@keyframes pwa-install-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Quien pidió no ver animaciones tampoco quiere que un aviso se le deslice
+   en pantalla. */
+@media (prefers-reduced-motion: reduce) {
+    #pwa-install-banner { animation: none; }
+}
+
+.pwa-install-icon {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--primary-50, #eef2ff);
+    color: var(--primary-600, #4f46e5);
+    font-size: 17px;
+}
+
+.pwa-install-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pwa-install-text strong {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.pwa-install-text span {
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: #64748b;
+}
+
+.pwa-install-actions {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pwa-install-accept,
+.pwa-install-dismiss {
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.pwa-install-accept {
+    background: var(--primary-600, #4f46e5);
+    color: #ffffff;
+}
+
+.pwa-install-dismiss {
+    background: transparent;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.pwa-install-dismiss:hover { color: #475569; }
+
+/* Instructivo de iOS: en Safari no existe API de instalación, así que lo único
+   posible es explicar los pasos. */
+#pwa-ios-help {
+    position: fixed;
+    inset: 0;
+    z-index: 9100;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.pwa-ios-help-card {
+    width: 100%;
+    max-width: 380px;
+    padding: 24px;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
+}
+
+.pwa-ios-help-card h3 {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.pwa-ios-help-card ol {
+    margin: 0 0 20px;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    color: #475569;
+}
+
+.pwa-ios-help-close {
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    padding: 11px;
+    background: var(--primary-600, #4f46e5);
+    color: #ffffff;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* Modo oscuro */
+body.theme-dark #pwa-install-banner {
+    background: var(--gray-900, #0f172a);
+    border-color: rgba(255, 255, 255, 0.10);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+body.theme-dark .pwa-install-text strong { color: #f1f5f9; }
+body.theme-dark .pwa-install-text span   { color: #94a3b8; }
+
+body.theme-dark .pwa-install-icon {
+    background: rgba(99, 102, 241, 0.16);
+    color: #a5b4fc;
+}
+
+body.theme-dark .pwa-ios-help-card {
+    background: var(--gray-900, #0f172a);
+}
+
+body.theme-dark .pwa-ios-help-card h3 { color: #f1f5f9; }
+body.theme-dark .pwa-ios-help-card ol { color: #cbd5e1; }
+
+/* En pantallas chicas los botones van al lado, no apilados: el banner ocupa
+   demasiado alto si no. */
+@media (max-width: 420px) {
+    #pwa-install-banner { gap: 10px; padding: 12px; }
+    .pwa-install-icon { display: none; }
+    .pwa-install-actions { flex-direction: row; align-items: center; }
+}
+
+/* ================================================================
+   FILA "INSTALAR APLICACIÓN" — pie del sidebar
+   Mismo patrón que el control de "Modo oscuro" (etiqueta a la
+   izquierda, acción a la derecha) pero más compacta: es un control
+   ocasional, no una preferencia que se toca seguido.
+   Va al final de patches.css, la última hoja que carga index.html,
+   para no pelear contra los !important de las capas anteriores.
+   La fila solo existe en el DOM cuando la app es instalable — la
+   crea sincronizarBotonInstalar() en app.js.
+   ================================================================ */
+
+.sidebar-install-control {
+    margin-top: 0.6rem;
+    padding: 0.5rem 0.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border: 1px solid rgba(99, 102, 241, 0.20);
+    border-radius: 0.75rem;
+    /* Un violeta muy tenue lo distingue del control de tema sin gritar. */
+    background: linear-gradient(180deg, #ffffff 0%, #f5f5ff 100%);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.06);
+}
+
+.sidebar-install-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    color: var(--gray-700, #374151);
+}
+
+/* El ícono solo no comunica nada por sí mismo; la etiqueta de al lado es la
+   que da el significado. Por eso el botón es chico y la fila mantiene texto. */
+.sidebar-install-btn {
+    flex-shrink: 0;
+    width: 1.9rem;
+    height: 1.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 0.55rem;
+    background: #4f46e5;
+    color: #ffffff;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.sidebar-install-btn:hover {
+    background: #4338ca;
+    transform: translateY(-1px);
+}
+
+body.theme-dark .sidebar-install-control {
+    background: rgba(99, 102, 241, 0.10);
+    border-color: rgba(99, 102, 241, 0.22);
+    box-shadow: none;
+}
+
+body.theme-dark .sidebar-install-label {
+    color: #c7d2fe;
+}
+
+body.theme-dark .sidebar-install-btn {
+    background: #6366f1;
+    color: #ffffff;
+}
+
+body.theme-dark .sidebar-install-btn:hover {
+    background: #818cf8;
+}
+
+/* ================================================================
+   MARCAS DE LOGO — el contenedor no dibuja nada
+   ================================================================
+   Los cuatro contenedores de marca (sidebar, header móvil, y los dos
+   del login) venían de una época en que adentro iba un SVG monocromo:
+   cada uno pintaba su propio tile con degradado violeta, su padding y
+   su anillo. Ahora adentro va un PNG que YA ES un tile redondeado, así
+   que quedaba un marco alrededor del logo — y encima con otro radio
+   (0.6rem, 0.75rem y 0.85rem según cuál de las cuatro reglas en
+   conflicto ganara) que no coincidía con el del logo.
+
+   Acá se apagan todos: el contenedor solo define la medida y el logo
+   ocupa el 100%. Va al final de patches.css, la última hoja que carga
+   index.html, para ganarle a las reglas anteriores sin tocarlas.
+   ================================================================ */
+
+.app-brand-mark,
+.mobile-header-brand-mark,
+.login-brand-logo-wrap,
+.login-mobile-logo-mark {
+    background: none !important;
+    background-image: none !important;
+    padding: 0 !important;
+    border: none !important;
+    /* 20.5% es el radio real del tile de los PNG (105px de 512, medido
+       sobre el canal alfa). Con este valor la sombra sigue exactamente
+       la silueta del logo.
+
+       Antes había un 28% acá —heredado del SVG viejo, que sí tenía ese
+       radio— y como el contenedor recortaba con `overflow: hidden`, le
+       comía las esquinas al logo: se veía redondeado de más arriba.
+       Sin overflow no hace falta recortar nada: la transparencia del
+       propio PNG define la forma. */
+    border-radius: 20.5% !important;
+    overflow: visible !important;
+}
+
+/* Sombra suave y del color de cada contexto, sin el anillo de 1px que
+   antes delineaba el contenedor. */
+.app-brand-mark,
+.mobile-header-brand-mark {
+    box-shadow: 0 6px 16px rgba(76, 64, 230, 0.28) !important;
+}
+
+.app-brand-mark > img,
+.mobile-header-brand-mark > img,
+.login-brand-logo-wrap > img,
+.login-mobile-logo-mark > img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    border-radius: inherit;
+    display: block;
+}
+
+/* ================================================================
+   Color por profesional — banda por fila también en modo claro
+
+   En oscuro cada fila ya se lee como una tarjeta: rgb(36,51,71) sobre
+   un contenedor rgb(30,41,59), o sea un escalón MÁS CLARO que su fondo.
+   En claro la fila era transparente y las tres quedaban pegadas sin
+   separación visible.
+
+   Se replica el mismo gesto, no el mismo color: el escalón hacia arriba
+   en claro es el blanco puro contra el gris muy suave de .settings-subsection
+   (#f8fafc al 78%). Es además el tratamiento que ya tienen las filas de
+   .checkbox-group en este mismo panel, así que la sección queda coherente
+   en vez de tener dos estilos de fila distintos.
+   ================================================================ */
+.settings-list-static .prof-color-row,
+.settings-list .prof-color-row {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 0.95rem;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+/* En oscuro manda la regla que ya existía; solo se le suma el radio y el
+   borde para que las dos filas tengan la misma silueta en ambos temas. */
+body.theme-dark .settings-list-static .prof-color-row,
+body.theme-dark .settings-list .prof-color-row {
+    border: 1px solid rgba(132, 151, 202, 0.16);
+    border-radius: 0.95rem;
+    box-shadow: none;
+}
+
+/* Botón de WhatsApp en la lista de pacientes. Es un <a> y no un <button> como
+   los otros de la fila (abre una URL externa), así que necesita alinearse a
+   mano: sin esto queda con el baseline de texto y sube respecto del resto. */
+.btn-whatsapp-patient {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #25d366;
+    text-decoration: none;
+}
+.btn-whatsapp-patient:hover {
+    color: #1da851;
+}
+
+/* ================================================================
+   Editor del mensaje de confirmación
+   ================================================================ */
+
+.msg-token-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+/* Los marcadores se ven como piezas insertables, no como botones de acción:
+   monoespaciado y con las llaves visibles, para que se entienda que lo que se
+   agrega al texto es literalmente eso. */
+.msg-token {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(99, 102, 241, 0.08);
+    color: #4f46e5;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+.msg-token:hover  { background: rgba(99, 102, 241, 0.16); }
+.msg-token:active { transform: scale(0.97); }
+
+/* La vista previa imita una burbuja de mensaje: el objetivo es que se juzgue
+   como lo va a leer el paciente, no como un campo de formulario más.
+   white-space: pre-wrap conserva los saltos de línea que se escriban. */
+.msg-preview {
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding: 0.85rem 1rem;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    background: #ffffff;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--gray-800, #1f2937);
+    min-height: 3.5rem;
+}
+
+.msg-warn {
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #b45309;
+}
+
+#confirmation-message-text {
+    font-family: inherit;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 8rem;
+}
+
+body.theme-dark .msg-token {
+    border-color: rgba(129, 140, 248, 0.28);
+    background: rgba(129, 140, 248, 0.12);
+    color: #a5b4fc;
+}
+body.theme-dark .msg-token:hover { background: rgba(129, 140, 248, 0.2); }
+
+body.theme-dark .msg-preview {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(132, 151, 202, 0.16);
+    color: var(--gray-900);
+}
+
+body.theme-dark .msg-warn { color: #fbbf24; }
+
+
+/* ================================================================
+   MOVIMIENTOS DE CUENTA CORRIENTE — desplegable dentro de la ficha
+   Antes la tabla estaba siempre abierta y tapaba los presupuestos.
+   Mismo patron visual que "Turnos finalizados" del dashboard.
+   ================================================================ */
+.cc-movs-details {
+    border: 1px solid var(--border-soft, rgba(0,0,0,0.08));
+    border-radius: 0.75rem;
+    background: rgba(0,0,0,0.015);
+}
+
+.cc-movs-summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    padding: 0.6rem 0.9rem;
+    border-radius: 0.75rem;
+    transition: background 0.15s ease;
+}
+.cc-movs-summary::-webkit-details-marker { display: none; }
+.cc-movs-summary:hover { background: rgba(0,0,0,0.035); }
+.cc-movs-summary:focus-visible {
+    outline: 2px solid var(--primary-600, #4c40e6);
+    outline-offset: 2px;
+}
+
+.cc-movs-summary-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--gray-500, #71717a);
+}
+
+.cc-movs-chevron {
+    font-size: 0.7rem;
+    transition: transform 0.2s ease;
+    color: var(--gray-400, #a1a1aa);
+}
+.cc-movs-details[open] .cc-movs-chevron { transform: rotate(90deg); }
+
+.cc-movs-count {
+    font-size: 0.72rem !important;
+    padding: 0.1rem 0.5rem !important;
+    font-weight: 700;
+}
+
+/* La tabla ya trae su propio borde: adentro del desplegable se separa del
+   summary con un margen y se recorta a los bordes del contenedor. */
+.cc-movs-details > .table-container {
+    margin: 0 0.55rem 0.55rem;
+}
+
+body.theme-dark .cc-movs-details {
+    border-color: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.02);
+}
+body.theme-dark .cc-movs-summary:hover { background: rgba(255,255,255,0.05); }
+body.theme-dark .cc-movs-summary-inner { color: #a1a1aa; }
+body.theme-dark .cc-movs-chevron { color: #71717a; }
+
+/* ================================================================
+   BOTON FLOTANTE DE AYUDA
+   Abajo a la derecha. z-index por debajo del overlay de modales
+   (50) para que un modal abierto lo tape.
+   ================================================================ */
+.odentara-fab-dock {
+    position: fixed;
+    right: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    z-index: 44;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+/* Sin sesion (login) o con el menu lateral abierto en movil, estorban. */
+#app-view.hidden ~ .odentara-fab-dock { display: none; }
+#app-view.sidebar-open ~ .odentara-fab-dock {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.odentara-fab {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    background: #ffffff;
+    color: #334155;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.odentara-fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+}
+.odentara-fab:active { transform: translateY(0); }
+.odentara-fab.is-hidden { display: none; }
+
+.odentara-fab-help {
+    background: var(--primary-600, #4c40e6);
+    border-color: transparent;
+    color: #ffffff;
+}
+.odentara-fab-help:hover { background: var(--primary-700, #3f34c4); }
+
+/* ================================================================
+   BARRA "VOLVER" — arriba a la izquierda del contenido
+   Es un elemento del flujo, no flotante: cuando se oculta no deja
+   hueco y no tapa nada de la vista.
+   ================================================================ */
+.nav-back-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    /* El padding de abajo importa: sin el, el borde inferior del boton queda
+       pegado al inicio de #main-content y el boton se ve aplastado contra el
+       contenido. */
+    padding: 0.7rem 1.5rem 0.5rem;
+}
+.nav-back-bar.is-hidden { display: none; }
+
+/* Cuando la barra esta visible, el padding de arriba de #main-content se suma
+   al de la barra y el contenido termina demasiado abajo. La barra ya aporta la
+   separacion, asi que el contenido cede la suya. Lleva !important porque el
+   padding de #main-content esta declarado asi en las reglas responsive. */
+.nav-back-bar:not(.is-hidden) + #main-content {
+    padding-top: 0.5rem !important;
+}
+
+.nav-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem 0.5rem 0.85rem;
+    line-height: 1.2;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    background: #ffffff;
+    color: #475569;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    max-width: 100%;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.nav-back-btn:hover {
+    background: var(--primary-50, #eef2ff);
+    border-color: var(--primary-600, #4c40e6);
+    color: var(--primary-700, #3f34c4);
+}
+.nav-back-btn:focus-visible {
+    outline: 2px solid var(--primary-600, #4c40e6);
+    outline-offset: 2px;
+}
+.nav-back-btn i { font-size: 0.78rem; }
+
+/* El titulo de la pantalla anterior puede ser largo ("Pacientes & Historia
+   Clinica"): se recorta en vez de estirar el boton fuera de la pantalla. */
+.nav-back-btn span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.theme-dark .nav-back-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    box-shadow: none;
+}
+body.theme-dark .nav-back-btn:hover {
+    background: rgba(129, 140, 248, 0.16);
+    border-color: rgba(129, 140, 248, 0.45);
+    color: #c7d2fe;
+}
+
+@media screen and (max-width: 1024px) {
+    .nav-back-bar { padding: 0.6rem 1rem 0.45rem; }
+}
+
+@media screen and (max-width: 640px) {
+    .nav-back-bar { padding: 0.55rem 1rem 0.4rem; }
+    .nav-back-btn { font-size: 0.78rem; }
+}
+
+/* Al imprimir la ficha clinica no tiene sentido. */
+@media print {
+    .nav-back-bar { display: none !important; }
+}
+
+body.theme-dark .odentara-fab {
+    background: #1e293b;
+    border-color: rgba(255,255,255,0.12);
+    color: #e2e8f0;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.45);
+}
+body.theme-dark .odentara-fab-help {
+    background: var(--primary-600, #4c40e6);
+    border-color: transparent;
+    color: #ffffff;
+}
+
+@media screen and (max-width: 640px) {
+    .odentara-fab-dock {
+        right: 14px;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        gap: 8px;
+    }
+    .odentara-fab {
+        width: 42px;
+        height: 42px;
+        font-size: 0.92rem;
+    }
+}
+
+/* Con la ayuda abierta el dock estorba: la burbuja ya tiene sus controles. */
+body.help-guide-open .odentara-fab-dock {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ================================================================
+   AYUDA CONTEXTUAL — burbuja guiada
+   ================================================================ */
+.help-guide-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+}
+.help-guide-layer.is-hidden { display: none; }
+
+.help-guide-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+}
+
+/* El "foco": un recuadro transparente con una sombra gigante que oscurece
+   todo lo de afuera. Es la forma de recortar un agujero en el fondo sin
+   tener que dibujar cuatro rectangulos. */
+.help-guide-spot {
+    position: fixed;
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.55);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    pointer-events: none;
+    transition: top 0.18s ease, left 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+.help-guide-spot.is-hidden { display: none; }
+
+/* Si hay foco, el fondo plano sobra: la sombra del foco ya oscurece. */
+.help-guide-layer:has(.help-guide-spot:not(.is-hidden)) .help-guide-backdrop {
+    background: transparent;
+}
+
+.help-guide-bubble {
+    position: fixed;
+    width: min(340px, calc(100vw - 24px));
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 16px 18px 14px;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.28);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+}
+.help-guide-bubble.is-centered {
+    left: 50%;
+    top: auto;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+}
+
+.help-guide-arrow {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: inherit;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    transform: translateX(-50%) rotate(45deg);
+}
+.help-guide-arrow.is-up {
+    top: -7px;
+    border-right: none;
+    border-bottom: none;
+}
+.help-guide-arrow.is-down {
+    bottom: -7px;
+    border-left: none;
+    border-top: none;
+}
+
+.help-guide-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: none;
+    border-radius: 50%;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.help-guide-close:hover { background: rgba(15,23,42,0.06); color: #475569; }
+
+.help-guide-eyebrow {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--primary-600, #4c40e6);
+    padding-right: 28px;
+}
+
+.help-guide-title {
+    margin: 4px 0 6px;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f172a;
+    padding-right: 28px;
+}
+
+.help-guide-text {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.help-guide-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.help-guide-dots {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+.help-guide-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.18);
+}
+.help-guide-dot.is-active {
+    background: var(--primary-600, #4c40e6);
+    transform: scale(1.25);
+}
+
+.help-guide-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+/* El elemento senalado se levanta por encima del fondo oscurecido. */
+.help-guide-target {
+    position: relative;
+    z-index: 9501;
+}
+
+body.help-guide-open { overflow: hidden; }
+
+body.theme-dark .help-guide-bubble {
+    background: #1e293b;
+    border-color: rgba(255,255,255,0.10);
+}
+body.theme-dark .help-guide-arrow { border-color: rgba(255,255,255,0.10); }
+body.theme-dark .help-guide-title { color: #f1f5f9; }
+body.theme-dark .help-guide-text  { color: #cbd5e1; }
+body.theme-dark .help-guide-close:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+body.theme-dark .help-guide-dot { background: rgba(255,255,255,0.20); }
+body.theme-dark .help-guide-spot { border-color: rgba(255,255,255,0.75); }
+
+@media screen and (max-width: 640px) {
+    .help-guide-bubble {
+        width: calc(100vw - 20px);
+        left: 50% !important;
+        top: auto !important;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        transform: translateX(-50%);
+    }
+    .help-guide-actions { width: 100%; justify-content: flex-end; }
+}
+
+/* ================================================================
+   CAJA — una card por moneda, con sus tres numeros adentro
+   Reemplaza a las tres metric-card que apilaban pesos y dolares
+   dentro del mismo numero. Ver renderCajaCards() en billing.js.
+   ================================================================ */
+.caja-monedas-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.caja-moneda-card {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.1rem 1.35rem;
+}
+
+/* ── Cabecera: simbolo + nombre de la moneda + periodo ── */
+.caja-moneda-head {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    /* Ancho fijo para que las metricas de las dos cards queden alineadas
+       en columna aunque "Pesos" y "Dolares" midan distinto. */
+    flex: 0 0 auto;
+    min-width: 11.5rem;
+}
+
+.caja-moneda-simbolo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 0.85rem;
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: var(--primary-50, #eef2ff);
+    color: var(--primary-700, #3f34c4);
+    flex: 0 0 auto;
+}
+
+.caja-moneda-titulo h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--gray-900, #0f172a);
+    line-height: 1.2;
+}
+
+.caja-moneda-titulo small {
+    display: block;
+    margin-top: 1px;
+    font-size: 0.72rem;
+    color: var(--gray-400, #94a3b8);
+}
+
+/* ── Las tres metricas, en fila ── */
+.caja-moneda-metricas {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0.5rem;
+}
+
+.caja-metrica {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding-left: 1.1rem;
+    border-left: 1px solid var(--border-soft, rgba(15, 23, 42, 0.08));
+}
+.caja-metrica:first-child { border-left: none; padding-left: 0; }
+
+.caja-metrica-label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gray-500, #64748b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.caja-metrica-valor {
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.caja-ico-verde,   .caja-valor-verde   { color: var(--success, #16a34a); }
+.caja-ico-rojo,    .caja-valor-rojo    { color: var(--danger, #dc2626); }
+.caja-ico-violeta, .caja-valor-violeta { color: var(--primary-600, #4c40e6); }
+
+/* ── Dark mode ── */
+body.theme-dark .caja-moneda-simbolo {
+    background: rgba(129, 140, 248, 0.14);
+    color: #a5b4fc;
+}
+body.theme-dark .caja-moneda-titulo h3 { color: #f1f5f9; }
+body.theme-dark .caja-moneda-titulo small { color: #64748b; }
+body.theme-dark .caja-metrica { border-left-color: rgba(255, 255, 255, 0.08); }
+body.theme-dark .caja-metrica-label { color: #94a3b8; }
+body.theme-dark .caja-ico-verde,   body.theme-dark .caja-valor-verde   { color: #4ade80; }
+body.theme-dark .caja-ico-rojo,    body.theme-dark .caja-valor-rojo    { color: #f87171; }
+body.theme-dark .caja-ico-violeta, body.theme-dark .caja-valor-violeta { color: #a5b4fc; }
+
+/* ── Tablet: la cabecera pasa arriba para que las metricas respiren ── */
+@media screen and (max-width: 900px) {
+    .caja-moneda-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.9rem;
+    }
+    .caja-moneda-head {
+        min-width: 0;
+        padding-bottom: 0.85rem;
+        border-bottom: 1px solid var(--border-soft, rgba(15, 23, 42, 0.08));
+    }
+    body.theme-dark .caja-moneda-head { border-bottom-color: rgba(255, 255, 255, 0.08); }
+}
+
+/* ── Movil: las tres metricas pasan a filas etiqueta / valor.
+      En 375px no entran tres importes de siete cifras en una fila; forzarlo
+      terminaba en numeros recortados, que en una pantalla de plata es lo peor
+      que puede pasar. ── */
+@media screen and (max-width: 640px) {
+    .caja-moneda-card { padding: 1rem 1.1rem; }
+
+    .caja-moneda-metricas {
+        flex-direction: column;
+        gap: 0;
+    }
+    .caja-metrica {
+        flex-direction: row;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.6rem 0 0.55rem;
+        border-left: none;
+        border-top: 1px solid var(--border-soft, rgba(15, 23, 42, 0.07));
+    }
+    .caja-metrica:first-child { border-top: none; padding-top: 0; }
+    body.theme-dark .caja-metrica { border-top-color: rgba(255, 255, 255, 0.07); }
+
+    .caja-metrica-label { font-size: 0.68rem; }
+    .caja-metrica-valor { font-size: 1.15rem; }
+}
+
+/* ================================================================
+   DASHBOARD MOVIL — color de fila uniforme + WhatsApp compacto
+   ================================================================ */
+
+/* Todas las celdas de la fila toman el color de la MISMA fuente: la variable
+   --row-bg que pone renderDashboard() en el <tr>. Antes la fila se pintaba con
+   un background y la celda sticky de Hora con otro inline, y en los anchos
+   donde el sticky cambia de modo los dos no coincidian: la columna Hora se veia
+   de un color distinto al de Paciente y Estado. */
+.dashboard-main-card tbody td {
+    background: var(--row-bg, transparent);
+}
+
+/* En movil chico el sticky se apaga, pero el color se sigue tomando de la
+   variable en vez de forzarse transparente, para que no vuelva a haber dos
+   fuentes de verdad. */
+@media (max-width: 479px) {
+    .dashboard-main-card tbody td.col-sticky-left {
+        background: var(--row-bg, transparent) !important;
+    }
+}
+
+/* ── WhatsApp: solo el logo cuando no hay ancho ──────────────────────────
+   El boton "Enviar" con texto no entra: la tabla se pasaba del ancho de la
+   pantalla y el boton quedaba cortado fuera de la vista. El logo de WhatsApp
+   solo ya se entiende, y el texto queda en el title/aria-label. */
+@media screen and (max-width: 900px) {
+    .dashboard-wa-btn .wa-btn-texto,
+    .wa-sent-badge .wa-btn-texto {
+        display: none;
+    }
+
+    /* 40px y no menos: hay reglas de min-height:40px para .btn en movil y en
+       (pointer: coarse) que son el area tactil minima. Achicar el boton las
+       peleaba y lo dejaba ovalado -33 de ancho por 40 de alto-. Se respeta el
+       tactil y se lo hace cuadrado, que es lo que lo vuelve un circulo.
+       Doble clase porque .btn.btn-sm ya declara su propio padding. */
+    .btn.dashboard-wa-btn {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0;
+        line-height: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        gap: 0;
+        flex: 0 0 auto;
+    }
+    .btn.dashboard-wa-btn i {
+        font-size: 1.05rem;
+        margin: 0;
+    }
+
+    /* "Enviado" se distingue de "Enviar" por color y relleno, no por texto:
+       verde macizo el que ya se mando, contorno el que falta. */
+    .wa-sent-badge {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        line-height: 1;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        gap: 0;
+        background: rgba(22, 163, 74, 0.12);
+        color: #16a34a;
+    }
+    .wa-sent-badge i {
+        font-size: 1.05rem;
+        margin: 0;
+    }
+    body.theme-dark .wa-sent-badge {
+        background: rgba(74, 222, 128, 0.16);
+        color: #4ade80;
+    }
+}
+
+/* La columna Hora tiene un <col> de 120px fijos para que la primera columna
+   sticky no se comprima. En movil el sticky se apaga (max-width:479px) pero el
+   colgroup seguia reservando los 120px, y entre eso y las otras dos columnas la
+   tabla se pasaba del ancho de la pantalla. Sin el sticky, esos 120px no
+   cumplen ninguna funcion. */
+@media screen and (max-width: 479px) {
+    /* !important porque el ancho viene como style inline en el <col>. */
+    .dashboard-main-card colgroup col:first-child {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    /* .col-sticky-left trae nowrap para que la columna fija no se parta al
+       scrollear. Sin sticky ese nowrap solo obliga a "09:30 (30m)" a ocupar una
+       linea larga, y esos pixeles son los que terminaban de pasar la tabla del
+       ancho de la pantalla. */
+    .dashboard-main-card .col-sticky-left {
+        white-space: normal;
+    }
+
+    /* Con tres columnas en 375px cada pixel de padding cuenta. */
+    .dashboard-main-card th,
+    .dashboard-main-card tbody td {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    .dashboard-main-card th:first-child,
+    .dashboard-main-card tbody td:first-child {
+        padding-left: 0.65rem;
+    }
+}
+
+/* ================================================================
+   PACIENTES MOVIL — contacto y DNI en la misma fila
+   La tarjeta tenia cuatro renglones apilados (nombre / contacto /
+   DNI / acciones) y quedaba mas alta de lo necesario: contacto y
+   DNI son cortos y entran holgados uno al lado del otro.
+   ================================================================ */
+@media screen and (max-width: 640px) {
+    /* La fila pasa de bloque a grilla de dos columnas. Va con `tbody tr` para
+       ganarle en especificidad al `display:block` declarado mas arriba. */
+    #patients-table tbody tr {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 0.9rem;
+        align-items: start;
+    }
+
+    /* Las celdas traen width:100% del layout de bloque; en la grilla las
+       posiciona el grid y ese 100% solo estorba. */
+    #patients-table tbody td {
+        width: auto;
+    }
+
+    /* Nombre y botones siguen ocupando el ancho completo. */
+    #patients-table td[data-label="Paciente"],
+    #patients-table td[data-label="Acciones"] {
+        grid-column: 1 / -1;
+    }
+
+    /* Un telefono o documento largo corta adentro de su columna en vez de
+       estirarla y descuadrar la grilla. */
+    #patients-table td[data-label="Contacto"],
+    #patients-table td[data-label="DNI"] {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
 }

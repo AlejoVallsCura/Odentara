@@ -5,6 +5,8 @@
 
 "use strict";
 
+const { normalizarMoneda } = require("../../shared/money");
+
 // -----------------------------------------------------------------------------
 // Ítems y totales
 // -----------------------------------------------------------------------------
@@ -42,7 +44,7 @@ function getBudgetPayload(body = {}) {
     items,
     discount,
     total: calculateBudgetTotal(items, discount),
-    currency: body.currency ? String(body.currency).trim().toUpperCase().slice(0, 3) : "ARS",
+    currency: normalizarMoneda(body.currency),
     notes: body.notes ? String(body.notes).trim().slice(0, 5000) : null,
   };
 }

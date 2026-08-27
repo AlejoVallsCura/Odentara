@@ -646,6 +646,9 @@ async function loadClinicalHistory(patientId, options = {}) {
 
     attachClinicalHistoryEvents(patientId);
     syncClinicalHistorySaveState();
+    // loadClinicalHistory no pasa por loadView, asi que registra su propia
+    // entrada en el historial de navegacion.
+    if (typeof recordNavEntry === 'function') recordNavEntry('patient-history', 'Ficha Odontologica');
     renderSidebar();
 }
 
@@ -667,15 +670,15 @@ function enhanceClinicalPatientEditor(patientId) {
         <div class="clinical-edit-grid clinical-edit-grid-compact">
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Nombre</strong>
-                <input class="form-input clinical-readonly" type="text" value="${patient.name || ''}" disabled>
+                <input class="form-input clinical-readonly" type="text" value="${escapeHtml(patient.name || '')}" disabled>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">DNI</strong>
-                <input class="form-input clinical-readonly" type="text" value="${patient.dni || ''}" disabled>
+                <input class="form-input clinical-readonly" type="text" value="${escapeHtml(patient.dni || '')}" disabled>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Nacimiento</strong>
-                <input class="form-input" type="date" id="clinical-fecha-nacimiento" value="${patient.fechaNacimiento || ''}" ${canEditClinical ? '' : 'disabled'}>
+                <input class="form-input" type="date" id="clinical-fecha-nacimiento" value="${escapeHtml(patient.fechaNacimiento || '')}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Edad</strong>
@@ -683,27 +686,27 @@ function enhanceClinicalPatientEditor(patientId) {
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Teléfono</strong>
-                <input class="form-input" type="text" id="clinical-phone" value="${patient.phone || ''}" ${canEditClinical ? '' : 'disabled'}>
+                <input class="form-input" type="text" id="clinical-phone" value="${escapeHtml(patient.phone || '')}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Email</strong>
-                <input class="form-input" type="email" id="clinical-email" value="${patient.email || ''}" ${canEditClinical ? '' : 'disabled'}>
+                <input class="form-input" type="email" id="clinical-email" value="${escapeHtml(patient.email || '')}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Obra Social / Plan</strong>
-                <input class="form-input" type="text" id="clinical-obra-social" value="${patient.obraSocial || ''}" ${canEditClinical ? '' : 'disabled'}>
+                <input class="form-input" type="text" id="clinical-obra-social" value="${escapeHtml(patient.obraSocial || '')}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact">
                 <strong class="text-gray-600 uppercase text-xs">Credencial</strong>
-                <input class="form-input" type="text" id="clinical-credencial" value="${patient.credencial || ''}" ${canEditClinical ? '' : 'disabled'}>
+                <input class="form-input" type="text" id="clinical-credencial" value="${escapeHtml(patient.credencial || '')}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact clinical-info-item-wide">
                 <strong class="text-gray-600 uppercase text-xs">Ficha N°</strong>
-                <input class="form-input" type="text" id="clinical-ficha-numero" value="${patient.fichaNumero || ''}" ${canEditClinical ? '' : 'disabled'}>
+                <input class="form-input" type="text" id="clinical-ficha-numero" value="${escapeHtml(patient.fichaNumero || '')}" ${canEditClinical ? '' : 'disabled'}>
             </div>
             <div class="clinical-info-item clinical-info-item-compact clinical-info-item-wide">
                 <strong class="text-gray-600 uppercase text-xs">Domicilio</strong>
-                <input class="form-input" type="text" id="clinical-domicilio" value="${patient.domicilio || ''}" ${canEditClinical ? '' : 'disabled'}>
+                <input class="form-input" type="text" id="clinical-domicilio" value="${escapeHtml(patient.domicilio || '')}" ${canEditClinical ? '' : 'disabled'}>
             </div>
         </div>
     `;
@@ -943,6 +946,100 @@ function renderMedicalHistoryPanel(patient, canEdit) {
     </div>`;
 }
 
+/**
+ * Movimientos de cuenta corriente del paciente, dentro de la pestana de
+ * Presupuestos.
+ *
+ * La tabla va dentro de un <details> cerrado: el saldo y el acceso a la cuenta
+ * completa son lo que se consulta siempre, y el listado de movimientos —que en
+ * un paciente con historia son decenas de filas— empujaba los presupuestos
+ * fuera de la pantalla. El resumen queda a la vista y el detalle a un toque.
+ *
+ * Se muestra un saldo por moneda y nunca uno solo: pesos y dolares no se suman.
+ * Es el mismo criterio de la pantalla de Facturacion, con el mismo modulo de
+ * calculo, para que los dos lugares no puedan decir cosas distintas del mismo
+ * paciente.
+ */
+function renderClinicalMovements(patientId) {
+    const resumen = getPatientCurrentAccountSummary(patientId);
+    const movimientos = (resumen?.entries || [])
+        .slice()
+        .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || (b.id - a.id));
+
+    const saldos = (resumen?.totalesPorMoneda || []).map(t => {
+        const etiqueta = etiquetaDeSaldo(t.balance, t.moneda);
+        return `<span class="badge ${etiqueta.estado === 'debe' ? 'badge-warning' : 'badge-success'}">${etiqueta.texto}</span>`;
+    }).join(' ');
+
+    return `
+    <div class="mb-6 print-hidden">
+        <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-3">
+            <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Movimientos de cuenta corriente</h3>
+            <div class="flex gap-2 flex-wrap items-center">
+                ${saldos}
+                <button class="btn btn-secondary btn-sm whitespace-nowrap" onclick="verCuentaCorrienteDelPaciente(${patientId})">
+                    <i class="fa-solid fa-book-open"></i> Ver cuenta corriente
+                </button>
+            </div>
+        </div>
+        ${movimientos.length ? `
+        <details class="cc-movs-details">
+            <summary class="cc-movs-summary">
+                <span class="cc-movs-summary-inner">
+                    <i class="fa-solid fa-chevron-right cc-movs-chevron"></i>
+                    <span>Ver movimientos</span>
+                    <span class="badge badge-gray cc-movs-count">${movimientos.length}</span>
+                </span>
+            </summary>
+        <div class="table-container overflow-x-auto rounded-lg border border-gray-200 shadow-sm mt-2">
+            <table class="w-full text-left text-xs md:text-sm table-nowrap">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Fecha</th>
+                        <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] col-hide-sm">Profesional</th>
+                        <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px]">Tipo</th>
+                        <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] col-hide-sm">Concepto</th>
+                        <th class="py-2.5 px-3 font-semibold text-gray-600 uppercase tracking-wide text-[10px] text-right">Monto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${movimientos.map(m => {
+                        const esPago = ['income', 'payment'].includes(m.type);
+                        const prof = getAccessibleProfessionals().find(p => p.id === m.professionalId);
+                        return `
+                        <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td class="py-2.5 px-3 text-gray-800 font-medium">${m.date ? String(m.date).split('-').reverse().join('/') : '-'}</td>
+                            <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${escapeHtml(prof?.name || 'Sin profesional')}</td>
+                            <td class="py-2.5 px-3"><span class="badge ${esPago ? 'badge-success' : 'badge-warning'}">${esPago ? 'Pago' : 'Cargo'}</span></td>
+                            <td class="py-2.5 px-3 text-gray-700 col-hide-sm">${escapeHtml(m.description || 'Sin descripcion')}</td>
+                            <td class="py-2.5 px-3 text-right font-bold ${esPago ? 'text-success' : 'text-warning'}">${formatearMonto(m.amount, m.currency)}</td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+        </details>` : `
+        <div class="text-center py-6 text-gray-400 border border-dashed border-gray-200 rounded-lg">
+            <i class="fa-solid fa-cash-register text-2xl opacity-30"></i>
+            <p class="text-sm mt-1">Sin movimientos registrados</p>
+        </div>`}
+    </div>`;
+}
+
+/**
+ * Lleva a la cuenta corriente completa del paciente, en Facturacion.
+ *
+ * Pasa por confirmClinicalDraftExit() antes de irse. openPatientBilling() navega
+ * con skipUnsavedCheck porque los otros lugares que lo llaman no estan dentro de
+ * una ficha; desde aca si, y salir sin preguntar se llevaria puesto un
+ * odontograma a medio cargar sin decir nada. Si no hay borrador, la comprobacion
+ * devuelve true en el acto y no se nota.
+ */
+window.verCuentaCorrienteDelPaciente = async function(patientId) {
+    if (!(await confirmClinicalDraftExit())) return;
+    await window.openPatientBilling(patientId);
+};
+
 function renderClinicalHistory(patientId) {
     const patient = getClinicalWorkingPatient(patientId);
     if(!patient) return '<p>Paciente no encontrado</p>';
@@ -969,7 +1066,10 @@ function renderClinicalHistory(patientId) {
         <!-- Cabecera estilo Recetario -->
         <div class="flex flex-col md:flex-row justify-between items-center p-6 border-b-2 border-primary-800 bg-primary-50">
             <div class="flex items-center gap-4 mb-4 md:mb-0">
-                <img src="favicon.svg" alt="Odentara" class="clinical-brand-logo">
+                <!-- Variante mono y no la del tema: esta cabecera va sobre un
+                     fondo claro fijo (bg-primary-50) y además se imprime sobre
+                     papel blanco, donde la oscura sería un rectángulo negro. -->
+                <img src="/icons/logo-principal-128.png?v=20260813f" alt="Odentara" class="clinical-brand-logo">
                 <div>
                     <h2 class="text-xl md:text-2xl font-black text-gray-900 tracking-tight uppercase">${escapeHtml(getClinicDisplayName())}</h2>
                     <p class="text-sm font-semibold text-primary-700">Ficha Clínica Odontológica</p>
@@ -992,14 +1092,14 @@ function renderClinicalHistory(patientId) {
             <!-- Datos del Paciente -->
             <div class="clinical-info-grid mb-10 pb-6 border-b border-dashed border-gray-300">
                 <div class="clinical-info-summary">
-                    <div><strong class="text-gray-600 uppercase text-xs">Obra Social / Plan</strong><div class="text-base font-semibold text-gray-800">${patient.obraSocial || '-'}</div></div>
-                    <div><strong class="text-gray-600 uppercase text-xs">Credencial</strong><div class="text-base font-semibold text-gray-800">${patient.credencial || '-'}</div></div>
-                    <div><strong class="text-gray-600 uppercase text-xs">Ficha N°</strong><div class="text-base font-semibold text-primary-700">${patient.fichaNumero || '-'}</div></div>
+                    <div><strong class="text-gray-600 uppercase text-xs">Obra Social / Plan</strong><div class="text-base font-semibold text-gray-800">${escapeHtml(patient.obraSocial || '-')}</div></div>
+                    <div><strong class="text-gray-600 uppercase text-xs">Credencial</strong><div class="text-base font-semibold text-gray-800">${escapeHtml(patient.credencial || '-')}</div></div>
+                    <div><strong class="text-gray-600 uppercase text-xs">Ficha N°</strong><div class="text-base font-semibold text-primary-700">${escapeHtml(patient.fichaNumero || '-')}</div></div>
                 </div>
                 <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Nacimiento</strong><div>${patient.fechaNacimiento ? patient.fechaNacimiento.split('-').reverse().join('/') : '-'}</div></div>
                 <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Edad</strong><div>${age} años</div></div>
-                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Teléfono</strong><div>${patient.phone || '-'}</div></div>
-                <div class="clinical-info-item col-span-full"><strong class="text-gray-600 uppercase text-xs">Domicilio</strong><div>${patient.domicilio || '-'}</div></div>
+                <div class="clinical-info-item"><strong class="text-gray-600 uppercase text-xs">Teléfono</strong><div>${escapeHtml(patient.phone || '-')}</div></div>
+                <div class="clinical-info-item col-span-full"><strong class="text-gray-600 uppercase text-xs">Domicilio</strong><div>${escapeHtml(patient.domicilio || '-')}</div></div>
             </div>
 
             <!-- PESTAÑAS DE LA FICHA -->
@@ -1138,16 +1238,16 @@ function renderClinicalHistory(patientId) {
                         <tbody>
                             ${visibleTreatments.map((t, idx) => `
                                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                    <td class="py-2.5 px-3 font-bold text-primary-700">${t.diente}</td>
-                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${t.cara || '-'}</td>
-                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${t.sector || '-'}</td>
-                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${t.autorizacion || '-'}</td>
-                                    <td class="py-2.5 px-3 font-mono text-primary-600 font-semibold">${t.codigo || '-'}</td>
+                                    <td class="py-2.5 px-3 font-bold text-primary-700">${escapeHtml(t.diente)}</td>
+                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${escapeHtml(t.cara || '-')}</td>
+                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${escapeHtml(t.sector || '-')}</td>
+                                    <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${escapeHtml(t.autorizacion || '-')}</td>
+                                    <td class="py-2.5 px-3 font-mono text-primary-600 font-semibold">${escapeHtml(t.codigo || '-')}</td>
                                     <td class="py-2.5 px-3">
-                                        <div class="text-gray-800 font-medium">${t.fecha || '-'}</div>
-                                        ${t.firma ? `<div class="text-[10px] text-gray-400 mt-0.5">${t.firma}</div>` : ''}
+                                        <div class="text-gray-800 font-medium">${escapeHtml(t.fecha || '-')}</div>
+                                        ${t.firma ? `<div class="text-[10px] text-gray-400 mt-0.5">${escapeHtml(t.firma)}</div>` : ''}
                                     </td>
-                                    <td class="py-2.5 px-3 text-gray-500 max-w-xs col-hide-xs">${t.observaciones || '-'}</td>
+                                    <td class="py-2.5 px-3 text-gray-500 max-w-xs col-hide-xs">${escapeHtml(t.observaciones || '-')}</td>
                                     <td class="py-2 px-2 print-hidden">
                                         ${canEditClinical ? `
                                         <button class="btn btn-icon btn-icon-danger" onclick="deleteTreatment(${patientId}, ${t.id ?? idx})" title="Eliminar">
@@ -1176,7 +1276,7 @@ function renderClinicalHistory(patientId) {
                     <h3 class="font-bold text-yellow-800 uppercase text-xs"><i class="fa-solid fa-notes-medical"></i> Observaciones Generales y Alergias</h3>
                     ${canEditClinical ? `<button type="button" class="btn btn-ia print-hidden" onclick="startDictation('p-general-notes', ${patientId})"><i class="fa-solid fa-microphone"></i> Dictar</button>` : ''}
                 </div>
-                <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded" ${canEditClinical ? '' : 'disabled'}>${patient.notes || ''}</textarea>
+                <textarea id="p-general-notes" class="form-input w-full h-20 p-2 text-sm bg-transparent border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 rounded" ${canEditClinical ? '' : 'disabled'}>${escapeHtml(patient.notes || '')}</textarea>
             </div>
             </div><!-- /panel clinico -->
 
@@ -1238,7 +1338,10 @@ function renderClinicalHistory(patientId) {
             <div class="mb-6 print-hidden">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-3">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Presupuestos</h3>
-                    ${canEditClinical ? `<button class="btn btn-primary btn-sm whitespace-nowrap" onclick="openBudgetModal(${patientId})"><i class="fa-solid fa-file-invoice-dollar"></i> Nuevo Presupuesto</button>` : ''}
+                    <div class="flex gap-2 flex-wrap">
+                        ${canManagePatientBillingUi() ? `<button class="btn btn-secondary btn-sm whitespace-nowrap" onclick="openBillingModal(${patientId})"><i class="fa-solid fa-cash-register"></i> Agregar movimiento</button>` : ''}
+                        ${canEditClinical ? `<button class="btn btn-primary btn-sm whitespace-nowrap" onclick="openBudgetModal(${patientId})"><i class="fa-solid fa-file-invoice-dollar"></i> Nuevo Presupuesto</button>` : ''}
+                    </div>
                 </div>
                 ${(patient.budgets || []).length ? `
                 <div class="table-container overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
@@ -1259,7 +1362,7 @@ function renderClinicalHistory(patientId) {
                                     <td class="py-2.5 px-3 text-gray-800 font-medium">${b.issuedAt ? new Date(b.issuedAt).toLocaleDateString('es-AR') : '-'}</td>
                                     <td class="py-2.5 px-3 text-gray-700">${escapeHtml(b.title)}</td>
                                     <td class="py-2.5 px-3 text-gray-600 col-hide-sm">${escapeHtml(b.professional?.fullName || '-')}</td>
-                                    <td class="py-2.5 px-3 text-right font-bold text-primary-700">$${Number(b.total).toLocaleString('es-AR')}</td>
+                                    <td class="py-2.5 px-3 text-right font-bold text-primary-700">${formatearMonto(b.total, b.currency)}</td>
                                     <td class="py-2.5 px-3">${b.charged
                                         ? '<span class="badge badge-success">Cargado en cta. cte.</span>'
                                         : '<span class="badge badge-warning">Pendiente</span>'}</td>
@@ -1287,6 +1390,13 @@ function renderClinicalHistory(patientId) {
                 </div>`}
             </div>
 
+            <!-- MOVIMIENTOS DE CUENTA CORRIENTE -->
+            <!-- El boton "Agregar movimiento" vive en esta pestana, asi que lo
+                 registrado tiene que verse aca. Antes el movimiento se guardaba
+                 bien pero la pantalla no lo mostraba en ningun lado, y la unica
+                 lectura posible era que no se habia guardado. -->
+            ${canViewPatientBillingUi() ? renderClinicalMovements(patientId) : ''}
+
             </div><!-- /panel presupuestos -->
 
             <!-- PANEL: ARCHIVOS -->
@@ -1294,11 +1404,15 @@ function renderClinicalHistory(patientId) {
             <div class="mb-4 print-hidden">
                 <div class="treatments-header bg-gray-100 py-1 px-3 rounded border-l-4 border-primary-600 mb-4">
                     <h3 class="font-black text-gray-800 uppercase tracking-widest text-sm">Archivos Clínicos</h3>
-                    ${canEditClinical ? `
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        ${clinicalImages.length ? `
+                        <button class="btn btn-secondary btn-sm whitespace-nowrap" id="btn-download-clinical-images" onclick="downloadAllClinicalImages(${patientId})" title="Descargar todos los archivos en un ZIP">
+                            <i class="fa-solid fa-file-zipper"></i> Descargar todo
+                        </button>` : ''}
+                        ${canEditClinical ? `
                         <button class="btn btn-primary btn-sm whitespace-nowrap" id="btn-add-clinical-image"><i class="fa-solid fa-image"></i> Imagen</button>
-                        <button class="btn btn-secondary btn-sm whitespace-nowrap" id="btn-add-clinical-pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>
-                    </div>` : ''}
+                        <button class="btn btn-secondary btn-sm whitespace-nowrap" id="btn-add-clinical-pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>` : ''}
+                    </div>
                 </div>
                 <div class="clinical-images-shell">
                     <div class="clinical-images-summary">
@@ -2180,6 +2294,50 @@ window.deleteTreatment = async function(patientId, treatmentId) {
     }
 };
 
+/**
+ * Descarga todos los archivos clínicos del paciente en un ZIP.
+ *
+ * Se hace en dos pasos y NO con fetch + blob: bajar el ZIP con fetch obligaría
+ * a tenerlo entero en la memoria del navegador, y una ficha con muchas
+ * radiografías puede pesar cientos de megas. Pidiendo primero una autorización
+ * y navegando después a esa URL, el navegador streamea directo a disco y
+ * muestra su propia barra de progreso.
+ */
+window.downloadAllClinicalImages = async function(patientId) {
+    const boton = document.getElementById('btn-download-clinical-images');
+    const contenidoOriginal = boton ? boton.innerHTML : null;
+
+    if (boton) {
+        boton.disabled = true;
+        boton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparando...';
+    }
+
+    try {
+        const respuesta = await apiFetch('/clinical-images/export/token', {
+            method: 'POST',
+            body: JSON.stringify({ patientId }),
+        });
+
+        // La autorización dura pocos minutos: se navega enseguida.
+        const enlace = document.createElement('a');
+        enlace.href = `${API_BASE_URL}/clinical-images/export?t=${encodeURIComponent(respuesta.token)}`;
+        enlace.rel = 'noopener';
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+    } catch (error) {
+        showAlert(
+            error.message || 'No se pudo preparar la descarga de archivos clínicos.',
+            { title: 'Archivos clínicos', variant: 'error' }
+        );
+    } finally {
+        if (boton) {
+            boton.disabled = false;
+            if (contenidoOriginal !== null) boton.innerHTML = contenidoOriginal;
+        }
+    }
+};
+
 window.deleteClinicalImage = async function(patientId, imageId) {
     if (!canEditClinicalHistoryUi()) {
         showAlert('Solo el profesional y el superadmin pueden modificar la historia clínica.', { title: 'Historia clínica', variant: 'error' });
@@ -2362,33 +2520,49 @@ function openClinicalImageModal(patientId) {
         const selectedDate = document.getElementById('clinical-image-date').value;
         const selectedDescription = document.getElementById('clinical-image-description').value.trim();
 
-        Promise.all(files.map(file => new Promise((resolve, reject) => {
-            const img = new Image();
-            const objectUrl = URL.createObjectURL(file);
-            img.onload = () => {
-                const MAX_SIDE = 1600;
-                const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
-                const width  = Math.max(1, Math.round(img.width  * scale));
-                const height = Math.max(1, Math.round(img.height * scale));
-                const canvas = document.createElement('canvas');
-                canvas.width  = width;
-                canvas.height = height;
-                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                URL.revokeObjectURL(objectUrl);
-                let dataUrl = canvas.toDataURL('image/webp', 0.80);
-                if (!dataUrl.startsWith('data:image/webp')) {
-                    dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+        const submitBtn = e.target.querySelector('button[type=submit]');
+        if (submitBtn?.disabled) return;
+        if (submitBtn) submitBtn.disabled = true;
+
+        // Antes se procesaban todas las imágenes en paralelo con Promise.all.
+        // Eso tenía dos problemas: en un celular, decodificar varias fotos a la
+        // vez agota la memoria; y como img.onerror rechazaba la promesa entera,
+        // una sola imagen fallada descartaba TODAS las demás. Ahora van de a una,
+        // con el avance a la vista, y las que fallen se informan por nombre sin
+        // arrastrar a las que sí se pudieron leer.
+        const newImages = [];
+        const fallidas = [];
+
+        try {
+            await withAppLoading(`Procesando imágenes… (0 de ${files.length})`, async () => {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    updateAppLoadingMessage(`Procesando imágenes… (${i + 1} de ${files.length})`);
+                    // Cede el hilo para que el mensaje se pinte antes del trabajo pesado.
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    try {
+                        newImages.push({
+                            id: Date.now() + Math.floor(Math.random() * 1000) + i,
+                            date: selectedDate,
+                            description: selectedDescription,
+                            dataUrl: await clinicalImageToDataUrl(file),
+                        });
+                    } catch (err) {
+                        fallidas.push({ nombre: file.name || 'imagen', motivo: err.message });
+                    }
                 }
-                resolve({
-                    id: Date.now() + Math.floor(Math.random() * 1000),
-                    date: selectedDate,
-                    description: selectedDescription,
-                    dataUrl
-                });
-            };
-            img.onerror = reject;
-            img.src = objectUrl;
-        }))).then(async (newImages) => {
+            });
+
+            if (newImages.length === 0) {
+                showAlert(
+                    fallidas.length
+                        ? `No se pudo procesar ninguna imagen. ${fallidas[0].motivo}`
+                        : 'No se pudo procesar ninguna imagen.',
+                    { title: 'Imágenes clínicas', variant: 'error' }
+                );
+                return;
+            }
+
             const p = DB.get('patients').find(pt => pt.id === patientId);
 
             await withAppLoading('Guardando imágenes clínicas...', async () => {
@@ -2415,10 +2589,79 @@ function openClinicalImageModal(patientId) {
 
             closeModal();
             loadClinicalHistory(patientId);
-        }).catch(() => {
-            alert('No se pudieron cargar una o mas imagenes.');
-        });
+
+            // Éxito parcial: se guardó lo que se pudo y se avisa qué quedó afuera,
+            // en vez de perder todo por una imagen con problemas.
+            if (fallidas.length > 0) {
+                showToast(
+                    `Se guardaron ${newImages.length} ${newImages.length === 1 ? 'imagen' : 'imágenes'}. ` +
+                    `No se pudo procesar ${fallidas.length === 1 ? fallidas[0].nombre : `${fallidas.length} archivos`}: ${fallidas[0].motivo}`,
+                    'warning'
+                );
+            }
+        } catch (err) {
+            showAlert(err.message || 'No se pudieron guardar las imágenes.', { title: 'Imágenes clínicas', variant: 'error' });
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
     });
+}
+
+/**
+ * Reduce una imagen y la devuelve como data URL, preferentemente en WebP.
+ * Usa createImageBitmap para decodificar directo desde el archivo, sin la copia
+ * intermedia en base64 que hacía FileReader, y libera bitmap, objectURL y canvas
+ * al terminar — en celulares con poca memoria eso es la diferencia entre que la
+ * imagen entre o falle.
+ */
+async function clinicalImageToDataUrl(file) {
+    const MAX_SIDE = 1600;
+    let bitmap = null;
+    let objectUrl = null;
+    let canvas = null;
+
+    try {
+        let source;
+        if (typeof createImageBitmap === 'function') {
+            bitmap = await createImageBitmap(file);
+            source = bitmap;
+        } else {
+            objectUrl = URL.createObjectURL(file);
+            source = await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('El navegador no pudo abrir la imagen.'));
+                img.src = objectUrl;
+            });
+        }
+
+        if (!source.width || !source.height) throw new Error('La imagen no tiene dimensiones válidas.');
+        const scale = Math.min(1, MAX_SIDE / Math.max(source.width, source.height));
+        const width = Math.max(1, Math.round(source.width * scale));
+        const height = Math.max(1, Math.round(source.height * scale));
+
+        canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('El navegador no pudo preparar la imagen.');
+        ctx.drawImage(source, 0, 0, width, height);
+
+        let dataUrl = canvas.toDataURL('image/webp', 0.80);
+        if (!dataUrl.startsWith('data:image/webp')) {
+            dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+        }
+        // Sin memoria, algunos navegadores móviles devuelven un canvas en blanco
+        // en lugar de lanzar error: se detecta acá para no guardar una imagen vacía.
+        if (!dataUrl || dataUrl.length < 1000) {
+            throw new Error('El navegador se quedó sin memoria al procesar la imagen.');
+        }
+        return dataUrl;
+    } finally {
+        if (bitmap?.close) bitmap.close();
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        if (canvas) { canvas.width = 0; canvas.height = 0; }
+    }
 }
 
 function openClinicalPdfModal(patientId) {
@@ -2711,7 +2954,11 @@ function _recalcBudgetTotal() {
     const discount = Math.max(0, Number(document.getElementById('bg-discount')?.value) || 0);
     const total = Math.max(0, subtotal - discount);
     const totalEl = document.getElementById('bg-total');
-    if (totalEl) totalEl.textContent = '$' + total.toLocaleString('es-AR');
+    // El total lleva el símbolo de la moneda elegida: un número sin símbolo, en
+    // una pantalla donde conviven pesos y dólares, se lee como la moneda que uno
+    // tenga en la cabeza.
+    const moneda = document.getElementById('bg-currency')?.value || MONEDA_POR_DEFECTO;
+    if (totalEl) totalEl.textContent = formatearMonto(total, moneda);
 }
 
 function openBudgetModal(patientId) {
@@ -2751,7 +2998,13 @@ function openBudgetModal(patientId) {
                         </div>
                         <div style="display:flex;gap:12px;align-items:flex-end;">
                             <div class="input-group" style="flex:1">
-                                <label>Descuento ($)</label>
+                                <label>Moneda</label>
+                                <select id="bg-currency">
+                                    ${MONEDAS.map(m => `<option value="${m.codigo}">${m.simbolo} ${m.label}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="input-group" style="flex:1">
+                                <label>Descuento</label>
                                 <input type="number" id="bg-discount" value="0" min="0" step="0.01">
                             </div>
                             <div class="input-group" style="flex:1;text-align:right;">
@@ -2782,6 +3035,7 @@ function openBudgetModal(patientId) {
     });
     // Delegación: recalcular total ante cualquier cambio y manejar quitar fila
     document.getElementById('budget-form').addEventListener('input', _recalcBudgetTotal);
+    document.getElementById('budget-form').addEventListener('change', _recalcBudgetTotal);
     itemsWrap.addEventListener('click', (e) => {
         const btn = e.target.closest('.bg-item-remove');
         if (!btn) return;
@@ -2814,6 +3068,7 @@ function openBudgetModal(patientId) {
                         title: document.getElementById('bg-title').value,
                         items,
                         discount: Number(document.getElementById('bg-discount').value) || 0,
+                        currency: document.getElementById('bg-currency')?.value || MONEDA_POR_DEFECTO,
                         notes: document.getElementById('bg-notes').value
                     })
                 });
@@ -2842,7 +3097,7 @@ window.chargeBudget = async function(patientId, budgetId) {
         await withAppLoading('Cargando deuda en cuenta corriente...', async () => {
             await apiFetch(`/budgets/${budgetId}/charge`, { method: 'POST' });
             await syncPatientClinicalData(patientId);
-            await syncBackendSnapshotToLocalDb(); // refresca billing local
+            await syncBillingToLocalDb();
         });
         await loadClinicalHistory(patientId, { skipUnsavedCheck: true, skipSync: true });
         showToast('Deuda cargada en la cuenta corriente del paciente.');

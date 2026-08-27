@@ -57,7 +57,7 @@ function folderFromMime(mime) {
 /**
  * Sube un archivo (imagen o PDF) en base64 a R2.
  * @param {{ base64: string, clinicId: number, patientId: number, mimeType?: string }} opts
- * @returns {Promise<{ key: string, mimeType: string }>}
+ * @returns {Promise<{ key: string, mimeType: string, sizeBytes: number }>}
  */
 async function uploadFile({ base64, clinicId, patientId, mimeType = "image/jpeg" }) {
   if (!isStorageConfigured()) {
@@ -91,7 +91,9 @@ async function uploadFile({ base64, clinicId, patientId, mimeType = "image/jpeg"
     ContentType: detectedMime,
   }));
 
-  return { key, mimeType: detectedMime };
+  // El tamaño se devuelve porque acá ya está calculado: pedirlo después
+  // costaría un HeadObject por archivo.
+  return { key, mimeType: detectedMime, sizeBytes: buffer.length };
 }
 
 // Alias retrocompatible
@@ -101,7 +103,32 @@ async function uploadImage(opts) {
 }
 
 /**
+ * Abre un objeto de R2 y devuelve el stream tal cual, sin juntarlo en memoria.
+ *
+ * Es lo que hay que usar cuando el destino también es un stream (la respuesta
+ * HTTP, o una entrada de un ZIP): getFileStream() hace Buffer.concat y carga el
+ * archivo entero en RAM, lo que con una exportación de cientos de radiografías
+ * sería insostenible.
+ *
+ * @returns {Promise<{ body: import("stream").Readable, contentType: string, contentLength: number|null }>}
+ */
+async function getFileReadable(key) {
+  const res = await createClient().send(new GetObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key:    key,
+  }));
+
+  return {
+    body:          res.Body,
+    contentType:   res.ContentType || "application/octet-stream",
+    contentLength: typeof res.ContentLength === "number" ? res.ContentLength : null,
+  };
+}
+
+/**
  * Descarga un objeto de R2 y devuelve { body: Buffer, contentType: string }.
+ *
+ * Junta todo en memoria: para respuestas o ZIPs conviene getFileReadable.
  */
 async function getFileStream(key) {
   const res = await createClient().send(new GetObjectCommand({
@@ -139,7 +166,7 @@ function isR2Key(imageUrl) {
 
 module.exports = {
   uploadFile, uploadImage,
-  getFileStream, getImageStream,
+  getFileStream, getImageStream, getFileReadable,
   deleteFile, deleteImage,
   isR2Key, isStorageConfigured,
   ALLOWED_MIME_TYPES, IMAGE_MIME_TYPES, DOCUMENT_MIME_TYPES,

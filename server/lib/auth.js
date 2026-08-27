@@ -15,9 +15,15 @@ function getJwtSecret() {
   return secret;
 }
 
+// Vida del token de sesión. Estaba en 7 días, lo que significaba que un token
+// robado servía una semana entera. Se bajó a 24 horas y, para que nadie tenga
+// que volver a loguearse todos los días, el middleware lo renueva solo mientras
+// la persona sigue usando la app (ver SESSION_RENEW_AFTER_MS en middleware/auth).
+const SESSION_TTL = "24h";
+
 function signToken(payload, options = {}) {
   const jti = crypto.randomBytes(16).toString("hex");
-  return jwt.sign({ ...payload, jti }, getJwtSecret(), { expiresIn: "7d", ...options });
+  return jwt.sign({ ...payload, jti }, getJwtSecret(), { expiresIn: SESSION_TTL, ...options });
 }
 
 function verifyToken(token) {

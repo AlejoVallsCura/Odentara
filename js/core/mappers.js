@@ -124,6 +124,7 @@ function mapApiAppointmentToLegacy(appointment = {}) {
         time:                 coerceAppointmentTime(appointment.startTime),
         duration:             appointment.durationMinutes,
         status:               appointment.status,
+        presence:             appointment.presence || 'none',
         isOverbook:           !!appointment.isOverbook,
         notes:                appointment.notes || '',
         confirmationChannel:  appointment.confirmationChannel || null,
@@ -139,6 +140,9 @@ function mapApiBillingToLegacy(entry = {}) {
         appointmentId:  entry.appointmentId,
         type:           entry.type,
         amount:         Number(entry.amount || 0),
+        // Sin esto la moneda se perdía al entrar al DB local y todo se mostraba
+        // como pesos, aunque el backend ya la guardara.
+        currency:       normalizarMoneda(entry.currency),
         date:           coerceAppointmentDate(entry.date),
         description:    entry.description || '',
         patientName:    entry.patient?.fullName || '',

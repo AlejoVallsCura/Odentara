@@ -11,15 +11,51 @@ let _dashboardRefreshTimer = null;
 // Timers de auto-refresh
 // -----------------------------------------------------------------------------
 
+// Huella de lo que se está mostrando en el dashboard. Si después de sincronizar
+// sigue siendo la misma, no hace falta redibujar nada: alcanza con repintar los
+// botones de presencia que hayan cambiado.
+function dashboardSignature() {
+    return DB.get('appointments')
+        .map(a => `${a.id}:${a.status}:${a.time}:${a.professionalId}`)
+        .join('|');
+}
+
 function startDashboardAutoRefresh() {
     if (_dashboardRefreshTimer) clearInterval(_dashboardRefreshTimer);
+    // Primera pasada inmediata: si hay un aviso vigente al entrar, se ve al
+    // instante y no recién en el primer tick del temporizador.
+    refreshAnnouncements();
     _dashboardRefreshTimer = setInterval(async () => {
         if (!state.user || !state.authToken) return;
+        // Con la pestaña en segundo plano no hay nadie mirando: se evita el
+        // tráfico y se retoma solo al volver.
+        if (document.hidden) return;
         try {
+            // Los avisos de plataforma viajan en el mismo ciclo: publicar uno
+            // llega a todas las clínicas en menos de 20 segundos sin recargar.
+            refreshAnnouncements();
+
+            const before = state.currentView === 'dashboard' ? dashboardSignature() : null;
             await syncBackendSnapshotToLocalDb();
-            if (state.currentView === 'dashboard') refreshCurrentView();
+
+            // Va antes del corte por vista: el profesional tiene que escuchar que
+            // llegó su paciente esté donde esté, no solo si dejó abierto el
+            // dashboard. Adentro se filtra por rol y por turno propio.
+            checkPresenceArrivals();
+
+            if (state.currentView !== 'dashboard') return;
+
+            // Re-renderizar entero se nota como un parpadeo, así que solo se hace
+            // cuando cambió la lista de turnos (uno nuevo, cancelado, reprogramado).
+            // El caso frecuente —alguien marcó la llegada de un paciente— se
+            // resuelve repintando un botón, sin que la pantalla se mueva.
+            if (before !== dashboardSignature()) {
+                refreshCurrentView();
+            } else {
+                syncPresenceButtonsFromDb();
+            }
         } catch (_) { /* silencioso */ }
-    }, 30_000);
+    }, 20_000);
 }
 
 function stopDashboardAutoRefresh() {
@@ -31,6 +67,17 @@ function stopDashboardAutoRefresh() {
 // -----------------------------------------------------------------------------
 
 function saveAuthSession(token, apiUser) {
+    // Si entra alguien distinto del último que usó esta máquina, el cache de la
+    // sesión anterior no le corresponde. Sin esto, en la computadora de recepción
+    // —que la usan varias personas— la segunda persona arrancaba viendo el padrón
+    // y las fichas que había cargado la primera, incluso con menos permisos.
+    // El cambio de clínica al impersonar ya hacía esto por su cuenta en
+    // views/platform.js; acá se cubre el caso general.
+    const usuarioAnterior = state.user?.id ?? null;
+    if (usuarioAnterior !== null && usuarioAnterior !== apiUser?.id) {
+        DB.clear();
+    }
+
     state.authToken = token;
     state.user = mapApiUserToLegacyUser(apiUser);
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token, user: apiUser }));
@@ -40,7 +87,38 @@ function clearAuthSession() {
     state.authToken = null;
     state.user = null;
     localStorage.removeItem(AUTH_STORAGE_KEY);
+
+    // También se descarta la sesión de plataforma guardada al impersonar.
+    //
+    // Antes sobrevivía, y eso armaba un bucle sin salida: el backup se restaura
+    // al entrar a una vista de plataforma, el servidor rechaza ese token (por
+    // revocado o vencido) con 401, el 401 llama acá, esto limpiaba solo la
+    // sesión activa y dejaba el backup intacto — así que el siguiente paso por
+    // plataforma restauraba el mismo token muerto. La única salida era vaciar el
+    // localStorage a mano.
+    //
+    // Si la sesión murió, murieron las dos: conservar un token distinto para
+    // reactivarlo solo puede revivir uno que el servidor ya rechazó.
+    localStorage.removeItem(PLATFORM_AUTH_BACKUP_KEY);
+
+    // El cache local se va con la sesión.
+    //
+    // Hasta acá se borraban las dos claves de autenticación y quedaba intacto
+    // `odentara_db_v6`, que es donde vive todo: padrón de pacientes con DNI,
+    // teléfono, domicilio y obra social, más el odontograma, tratamientos,
+    // recetas, presupuestos y alergias de cada ficha que se hubiera abierto.
+    // Eso sobrevivía al logout sin ninguna credencial que lo protegiera, y se
+    // leía desde las herramientas de desarrollo sin siquiera iniciar sesión.
+    //
+    // Va también en el camino del 401: si el servidor rechazó la sesión, los
+    // datos que quedaron cacheados de esa sesión tampoco corresponden.
+    DB.clear();
+
     stopDashboardAutoRefresh();
+    // Los turnos de la próxima sesión no son los de esta: sin este reset, al
+    // entrar otro usuario se compararía su agenda contra la anterior y podría
+    // sonar un timbre por una llegada que no le corresponde.
+    if (typeof resetPresenceArrivalTracking === 'function') resetPresenceArrivalTracking();
 }
 
 // -----------------------------------------------------------------------------
@@ -158,7 +236,7 @@ async function login(email, password, turnstileToken = '') {
             })
         });
 
-        localStorage.removeItem('odentara_platform_auth_backup');
+        localStorage.removeItem(PLATFORM_AUTH_BACKUP_KEY);
 
         // Selector de clínica (email en múltiples clínicas)
         if (result.requiresClinicSelection) {
@@ -219,6 +297,8 @@ async function logout() {
     }
     clearAuthSession();
     state.dashboardDate = null;
+    if (typeof closeHelpGuide === 'function') closeHelpGuide();
+    if (typeof clearNavHistory === 'function') clearNavHistory();
 
     const loginUrl = getAppLoginUrl();
     if (_getCurrentClinicSlug() && loginUrl) {
@@ -252,7 +332,7 @@ async function selectClinic(userId, sessionToken, clinicSlug) {
             body: JSON.stringify({ sessionToken, userId })
         });
 
-        localStorage.removeItem('odentara_platform_auth_backup');
+        localStorage.removeItem(PLATFORM_AUTH_BACKUP_KEY);
 
         if (result.clinicSlug) {
             state.authToken = result.token;

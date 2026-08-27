@@ -28,7 +28,11 @@ function injectPlatformStyles() {
 
         /* ── Body split ── */
         .pa-body { display:flex; flex:1; min-height:0; }
-        .pa-sidebar { width:200px; flex-shrink:0; background:#0d1119; border-right:1px solid #1e2535; padding:20px 0; display:flex; flex-direction:column; gap:2px; }
+        /* min-height propio: el sidebar es hijo flex de .pa-body, que crece con
+           el contenido. En una pantalla corta —Backups, por ejemplo— la columna
+           terminaba a media altura y se veía cortada contra el fondo. Los 52px
+           son la barra superior. */
+        .pa-sidebar { width:200px; flex-shrink:0; background:#0d1119; border-right:1px solid #1e2535; padding:20px 0; display:flex; flex-direction:column; gap:2px; min-height:calc(100vh - 52px); }
         .pa-nav-item { display:flex; align-items:center; gap:10px; padding:9px 20px; font-size:12px; color:#475569; cursor:pointer; border-left:2px solid transparent; transition:all .12s; letter-spacing:.02em; }
         .pa-nav-item:hover { color:#94a3b8; background:#161b27; }
         .pa-nav-item.active { color:#a5b4fc; border-left-color:#6366f1; background:#1a1f2e; }
@@ -116,10 +120,86 @@ function injectPlatformStyles() {
         .pa-db-section { background:#0a0d14; border:1px solid #1a2030; border-radius:8px; padding:14px; margin-top:4px; }
         .pa-db-section-title { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#475569; margin-bottom:10px; }
 
+        /* ── Planes ── */
+        .pa-input-suffix { position:relative; }
+        .pa-input-suffix input { padding-right:30px; }
+        .pa-input-suffix span { position:absolute; right:11px; top:50%; transform:translateY(-50%); color:#64748b; font-size:12px; pointer-events:none; }
+        .pa-price-preview { background:#0d1119; border:1px solid #1e2535; border-radius:8px; padding:10px 12px; font-size:12.5px; color:#94a3b8; line-height:1.5; }
+        .pa-price-preview b { color:#e2e8f0; font-weight:700; }
+        .pa-price-preview .tachado { text-decoration:line-through; color:#475569; }
+        .pa-price-preview .rebaja { color:#4ade80; font-weight:600; }
+        .pa-badge-descuento { background:#0f2d1a; color:#4ade80; border:1px solid #14532d; }
+        .pa-badge-bonificada { background:#2d1b3d; color:#c084fc; border:1px solid #581c87; }
+        .pa-plan-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-bottom:22px; }
+        .pa-plan-card { background:#0d1119; border:1px solid #1e2535; border-radius:10px; padding:16px; }
+        .pa-plan-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+        .pa-plan-name { font-size:14px; font-weight:700; color:#e2e8f0; }
+        .pa-plan-code { font-family:'JetBrains Mono','Fira Mono',monospace; font-size:10px; color:#334155; }
+        .pa-plan-price { font-size:24px; font-weight:700; color:#a5b4fc; margin:10px 0 14px; }
+        .pa-plan-price span { font-size:12px; font-weight:500; color:#475569; }
+        .pa-plan-rows { display:flex; flex-direction:column; gap:7px; }
+        .pa-plan-rows > div { display:flex; justify-content:space-between; gap:10px; font-size:11.5px; }
+        .pa-plan-rows span { color:#475569; }
+        .pa-plan-rows b { color:#cbd5e1; font-weight:600; }
+        .pa-hint { font-size:10.5px; color:#334155; margin-top:5px; }
+        .pa-check { display:flex; align-items:center; gap:8px; font-size:12px; color:#94a3b8; cursor:pointer; }
+        .pa-check input { accent-color:#6366f1; }
+        .pa-increase-box { background:#0d1119; border:1px solid #1e2535; border-radius:10px; padding:16px; }
+        .pa-increase-title { font-size:13px; font-weight:700; color:#e2e8f0; display:flex; align-items:center; gap:8px; }
+        .pa-increase-title i { color:#6366f1; font-size:12px; }
+        .pa-increase-sub { font-size:11.5px; color:#475569; margin:6px 0 12px; line-height:1.5; }
+        .pa-increase-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .pa-increase-preview { margin-top:12px; display:flex; flex-direction:column; gap:5px; font-size:11.5px; color:#64748b; }
+        .pa-increase-preview span { color:#475569; display:inline-block; min-width:70px; }
+        .pa-increase-preview b { color:#a5b4fc; }
+
         /* ── Empty state ── */
         .pa-empty { text-align:center; padding:60px 20px; color:#334155; }
         .pa-empty i { font-size:36px; margin-bottom:12px; display:block; }
         .pa-empty p { font-size:13px; }
+
+        /* ── Backups ──────────────────────────────────────────────────────
+           Mismo lenguaje que el resto del panel: fondo #0d1119, bordes
+           #1e2535, textos apagados. Antes esta pantalla usaba las clases de
+           la app —que son para fondo claro— y los títulos quedaban oscuros
+           sobre oscuro. */
+        .backup-bloque { background:#0d1119; border:1px solid #1e2535; border-radius:10px; padding:18px 20px; margin-bottom:20px; }
+        .backup-bloque-titulo { font-size:12px; font-weight:700; color:#e2e8f0; letter-spacing:.02em; margin-bottom:14px; }
+
+        .backup-form { display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px; }
+        .backup-campo { min-width:150px; }
+        .backup-campo-chico { min-width:110px; max-width:130px; }
+        .backup-check { display:flex; align-items:center; gap:8px; font-size:12px; color:#94a3b8; padding-bottom:9px; white-space:nowrap; cursor:pointer; }
+        .backup-check input { width:15px; height:15px; accent-color:#6366f1; cursor:pointer; }
+
+        .backup-note { font-size:11px; line-height:1.55; color:#475569; margin-top:12px; }
+        .backup-note code { font-family:'JetBrains Mono','Fira Mono',monospace; font-size:10.5px; background:#111520; border:1px solid #1e2535; border-radius:4px; padding:1px 5px; color:#94a3b8; }
+
+        /* La advertencia sobre verificar no es una nota más: es la diferencia
+           entre tener un archivo y tener un backup. Se distingue del resto. */
+        .backup-note-strong { border-left:2px solid #a16207; padding-left:10px; color:#d97706; }
+        .backup-note-strong code { color:#d97706; border-color:#42320a; background:#1c1408; }
+
+        .backup-badge-error { background:#2e0a0a; color:#fca5a5; border:1px solid #5f1a1a; }
+        .gasto-balance-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+        .gasto-balance-card { background:#0d1119; border:1px solid #1e2535; border-radius:10px; padding:14px 16px; }
+        .gasto-balance-moneda { font-family:'JetBrains Mono','Fira Mono',monospace; font-size:11px; color:#64748b; letter-spacing:.08em; margin-bottom:10px; }
+        .gasto-balance-filas { display:flex; flex-direction:column; gap:6px; font-size:12.5px; }
+        .gasto-balance-filas > div { display:flex; justify-content:space-between; gap:10px; }
+        .gasto-balance-filas span { color:#64748b; }
+        .gasto-balance-filas b.positivo { color:#4ade80; }
+        .gasto-balance-filas b.negativo { color:#f87171; }
+        .gasto-balance-neto { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-top:12px; padding-top:10px; border-top:1px solid #1e2535; font-size:12.5px; }
+        .gasto-balance-neto span { color:#64748b; }
+        .gasto-balance-neto b { font-size:18px; font-weight:700; color:#e2e8f0; }
+        .gasto-balance-neto.en-rojo b { color:#f87171; }
+        .backup-alerta { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:10px; margin-bottom:18px; font-size:13px; line-height:1.5; }
+        .backup-alerta i { margin-top:2px; font-size:14px; flex-shrink:0; }
+        .backup-alerta-error { background:#2e0a0a; color:#fca5a5; border:1px solid #5f1a1a; }
+        .backup-alerta-aviso { background:#2a1e08; color:#fcd34d; border:1px solid #6b4a10; }
+        /* El detalle del error va pegado a su fila, sin borde que lo separe:
+           es la continuación de esa línea, no un registro aparte. */
+        .backup-fila-error td { padding-top:0 !important; color:#fca5a5; font-size:11px; border-bottom:1px solid #111520; }
 
         /* ── Users list ── */
         .pa-users-list { max-height:320px; overflow-y:auto; }
@@ -315,7 +395,7 @@ async function renderPlatformClinics(container) {
         clinics = res.clinics || [];
         state._platformClinics = clinics;
     } catch(e) {
-        container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${e.message}</p></div>`;
+        container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${escapeHtml(e.message)}</p></div>`;
         return;
     }
 
@@ -342,22 +422,27 @@ async function renderPlatformClinics(container) {
             const dbBadge = c.dbType === 'dedicated'
                 ? `<span class="pa-badge pa-badge-dedicated"><i class="fa-solid fa-database" style="font-size:8px"></i>Dedicada</span>`
                 : `<span class="pa-badge pa-badge-shared"><i class="fa-solid fa-share-nodes" style="font-size:8px"></i>Compartida</span>`;
+            const etiqueta = etiquetaDescuento(c.discountPercent);
+            const descuentoBadge = etiqueta
+                ? `<span class="pa-badge ${c.bonificada ? 'pa-badge-bonificada' : 'pa-badge-descuento'}" `
+                  + `title="Paga $${formatMoneyArs(c.planPriceFinal)} en vez de $${formatMoneyArs(c.planPrice)}">${etiqueta}</span>`
+                : '';
             const planBadge = c.plan
-                ? `<span class="pa-badge pa-badge-plan-${c.plan}">${c.plan.toUpperCase()}</span>`
-                : `<span style="color:#334155;font-size:11px">—</span>`;
-            const searchKey = `${c.name} ${url} ${c.notes || ''}`.toLowerCase().replace(/"/g,'&quot;');
+                ? `<span class="pa-badge pa-badge-plan-${c.plan}">${escapeHtml(c.plan.toUpperCase())}</span>${descuentoBadge ? ' ' + descuentoBadge : ''}`
+                : (descuentoBadge || `<span style="color:#334155;font-size:11px">—</span>`);
+            const searchKey = escapeHtml(`${c.name} ${url} ${c.notes || ''}`.toLowerCase());
             return `
             <tr data-clinic-row data-search="${searchKey}">
                 <td class="td-name">
                     <div style="display:flex;align-items:center;gap:9px">
                         <span class="pa-status-light ${c.active ? 'pa-status-light-on' : 'pa-status-light-off'}" title="${c.active ? 'Activa' : 'Inactiva'}"></span>
                         <div>
-                            <div style="font-size:13px;font-weight:600;color:#e2e8f0">${c.name}</div>
+                            <div style="font-size:13px;font-weight:600;color:#e2e8f0">${escapeHtml(c.name)}</div>
                             <div style="font-family:'JetBrains Mono','Fira Mono',monospace;font-size:11px;color:#6366f1">${url}</div>
                         </div>
                     </div>
                 </td>
-                <td style="font-size:12px;color:#94a3b8;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${c.notes ? c.notes.replace(/"/g,'&quot;') : ''}">${c.notes || '<span style="color:#334155">—</span>'}</td>
+                <td style="font-size:12px;color:#94a3b8;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(c.notes || '')}">${c.notes ? escapeHtml(c.notes) : '<span style="color:#334155">—</span>'}</td>
                 <td>${dbBadge}</td>
                 <td>${planBadge}</td>
                 <td style="font-size:11px;color:#475569" class="pa-num">
@@ -487,7 +572,7 @@ async function renderPlatformStats(container) {
         if (!res.ok) throw new Error(res.error);
         s = res.stats;
     } catch(e) {
-        container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${e.message}</p></div>`;
+        container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${escapeHtml(e.message)}</p></div>`;
         return;
     }
 
@@ -516,7 +601,28 @@ async function renderPlatformStats(container) {
                     { label:'Pacientes',           value: s.totalPatients,          sub:'registrados',           icon:'fa-person',         color:'#c084fc' },
                     { label:'Profesionales',       value: s.totalProfessionals,     sub:'activos',               icon:'fa-user-doctor',    color:'#fb923c' },
                     { label:'Turnos este mes',     value: s.appointmentsThisMonth,  sub:'en el mes actual',      icon:'fa-calendar-check', color:'#2dd4bf' },
-                    { label:'Ingresos aproximados', value: `$${(s.estimatedMonthlyRevenue||0).toLocaleString('es-AR')}`, sub:'por mes, según plan de c/clínica activa', icon:'fa-sack-dollar', color:'#facc15', raw:true },
+                    { label:'Ingresos aproximados', value: `$${(s.estimatedMonthlyRevenue||0).toLocaleString('es-AR')}`, sub:'por mes, con los descuentos ya aplicados', icon:'fa-sack-dollar', color:'#facc15', raw:true },
+                    // Lo que se deja de cobrar por los descuentos. Va al lado de los
+                    // ingresos a propósito: sin este número, regalar el 100% a una
+                    // clínica se ve solo como ingresos que bajan, sin decir por qué.
+                    // Plata que efectivamente entró y salió, acumulada y por moneda.
+                    // Es otra cosa que "Ingresos aproximados", que es la proyección
+                    // de los planes: esto es lo cobrado de verdad menos lo gastado.
+                    ...(s.balance || []).flatMap(b => [
+                        { label:`Cobrado acumulado (${b.moneda})`, value: formatearMonto(b.ingresos, b.moneda),
+                          sub: s.acumuladoDesde ? `desde ${new Date(s.acumuladoDesde).toLocaleDateString('es-AR')}` : 'histórico',
+                          icon:'fa-arrow-trend-up', color:'#4ade80', raw:true },
+                        { label:`Gastado acumulado (${b.moneda})`, value: formatearMonto(b.gastos, b.moneda),
+                          sub:'costos de la plataforma', icon:'fa-receipt', color:'#f87171', raw:true },
+                        { label:`Resultado (${b.moneda})`, value: `${b.neto < 0 ? '-' : ''}${formatearMonto(Math.abs(b.neto), b.moneda)}`,
+                          sub:'cobrado menos gastado', icon:'fa-scale-balanced', color: b.neto < 0 ? '#f87171' : '#a5b4fc', raw:true },
+                    ]),
+                    ...((s.monthlyDiscountGiven || 0) > 0 ? [{
+                        label: 'Bonificado',
+                        value: `$${(s.monthlyDiscountGiven||0).toLocaleString('es-AR')}`,
+                        sub: `por mes, en ${s.discountedClinics||0} clínica${(s.discountedClinics||0)!==1?'s':''} con descuento`,
+                        icon: 'fa-hand-holding-heart', color:'#c084fc', raw:true,
+                    }] : []),
                 ].map(m => `
                     <div class="pa-stat-card">
                         <div class="pa-stat-label"><i class="fa-solid ${m.icon}" style="color:${m.color};margin-right:6px"></i>${m.label}</div>
@@ -555,9 +661,10 @@ async function renderPlatformStats(container) {
                 ])}
 
                 ${paPieChart('Cobros del mes', [
-                    { label:'Pagado',   value: billingStatus.paid||0,    color:'#4ade80' },
-                    { label:'Pendiente',value: billingStatus.pending||0, color:'#fbbf24' },
-                    { label:'Vencido',  value: billingStatus.overdue||0, color:'#f87171' },
+                    { label:'Pagado',    value: billingStatus.paid||0,     color:'#4ade80' },
+                    { label:'Pendiente', value: billingStatus.pending||0,  color:'#fbbf24' },
+                    { label:'Vencido',   value: billingStatus.overdue||0,  color:'#f87171' },
+                    { label:'Sin cargo', value: billingStatus.sinCargo||0, color:'#c084fc' },
                 ])}
 
                 ${paBarChart('Pacientes nuevos — últimos 6 meses', patientsByMonth.map(m => ({ label: m.label, count: m.count })))}
@@ -576,16 +683,32 @@ async function renderPlatformSubscriptions(container) {
         if (res.ok) { data = res; window._platformSubClinics = data.clinics; }
     } catch(e) { console.error(e); }
 
-    const PLAN_AMOUNTS = { inicial: 45000, clinica: 75000, pro: 125000 };
+    const PLAN_AMOUNTS = await loadPlanAmounts();
     const PERIOD_LABELS = { '01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Septiembre','10':'Octubre','11':'Noviembre','12':'Diciembre' };
     function periodLabel(p) { const [y,m] = p.split('-'); return `${PERIOD_LABELS[m]} ${y}`; }
     function now() { return new Date(); }
     const currentPeriod = `${now().getFullYear()}-${String(now().getMonth()+1).padStart(2,'0')}`;
 
     const rows = data.clinics.filter(c => c.active).map(c => {
-        const suggested = PLAN_AMOUNTS[c.plan] || '—';
+        // El monto sugerido lo calcula el servidor (precio del plan menos el
+        // descuento de esta clínica). PLAN_AMOUNTS queda solo de reserva por si
+        // la respuesta viene de una versión anterior del backend.
+        const suggested = c.planPriceFinal ?? PLAN_AMOUNTS[c.plan] ?? '—';
+        const suggestedCell = suggested === '—'
+            ? '—'
+            : (c.discountPercent
+                ? `<span style="text-decoration:line-through;color:#475569">$${formatMoneyArs(c.planPrice)}</span> `
+                  + `<b style="color:#e2e8f0">$${formatMoneyArs(suggested)}</b>`
+                  + `<div style="font-size:10px;color:#4ade80;margin-top:2px">${escapeHtml(etiquetaDescuento(c.discountPercent))}</div>`
+                : `$${formatMoneyArs(suggested)}`);
         let statusBadge, statusSort;
-        if (c.currentPaid) {
+        if (c.sinCargo) {
+            // Ni pagado ni pendiente: no hay nada que cobrar. Decirlo es mejor
+            // que forzarla a una de las otras tres etiquetas, que en los tres
+            // casos daria una idea equivocada.
+            statusBadge = `<span class="pa-badge pa-badge-bonificada">Sin cargo</span>`;
+            statusSort = -1;
+        } else if (c.currentPaid) {
             statusBadge = `<span class="pa-badge pa-badge-active">✓ Pagado</span>`;
             statusSort = 0;
         } else if (c.isOverdue) {
@@ -596,17 +719,19 @@ async function renderPlatformSubscriptions(container) {
             statusSort = 1;
         }
         const owed = c.owedPeriods.length;
-        const owedBadge = owed > 0
-            ? `<span style="color:#f87171;font-size:11px;font-weight:600">${owed} mes${owed!==1?'es':''} adeudado${owed!==1?'s':''}</span>`
-            : `<span style="color:#34d399;font-size:11px">Al día</span>`;
+        const owedBadge = c.sinCargo
+            ? `<span style="color:#c084fc;font-size:11px">No paga</span>`
+            : owed > 0
+                ? `<span style="color:#f87171;font-size:11px;font-weight:600">${owed} mes${owed!==1?'es':''} adeudado${owed!==1?'s':''}</span>`
+                : `<span style="color:#34d399;font-size:11px">Al día</span>`;
         const lastPay = c.lastPayment
             ? `<span style="font-size:11px;color:#94a3b8">$${Number(c.lastPayment.amount).toLocaleString('es-AR')} · ${periodLabel(c.lastPayment.period)}</span>`
             : `<span style="font-size:11px;color:#475569">Sin pagos</span>`;
         return { statusSort, html: `
             <tr>
                 <td style="font-size:13px;font-weight:600;color:#e2e8f0">${c.name}</td>
-                <td>${c.plan ? `<span class="pa-badge pa-badge-plan-${c.plan}">${c.plan.toUpperCase()}</span>` : '<span style="color:#475569;font-size:11px">Sin plan</span>'}</td>
-                <td style="color:#94a3b8;font-size:12px">${suggested !== '—' ? `$${Number(suggested).toLocaleString('es-AR')}` : '—'}</td>
+                <td>${c.plan ? `<span class="pa-badge pa-badge-plan-${c.plan}">${escapeHtml(c.plan.toUpperCase())}</span>` : '<span style="color:#475569;font-size:11px">Sin plan</span>'}</td>
+                <td style="color:#94a3b8;font-size:12px">${suggestedCell}</td>
                 <td>${statusBadge}</td>
                 <td>${owedBadge}</td>
                 <td>${lastPay}</td>
@@ -765,12 +890,17 @@ window.platformOpenPaymentModal = async function(clinicId, clinicName, plan) {
         if (clinicId) sel.value = clinicId;
     }
 
-    const PLAN_AMOUNTS = { inicial: 45000, clinica: 75000, pro: 125000 };
+    // Se prellena con lo que esta clínica paga de verdad —precio del plan menos
+    // su descuento—, no con el de lista. Sugerir el de lista obliga a acordarse
+    // a mano de restarle el descuento cada mes, y el mes que alguien se olvide
+    // le cobra de más a un cliente que tiene un acuerdo.
+    const PLAN_AMOUNTS = await loadPlanAmounts();
     const amountInput = document.getElementById('ppf-amount');
-    if (amountInput && plan && PLAN_AMOUNTS[plan]) amountInput.value = PLAN_AMOUNTS[plan];
-    else if (amountInput && clinicId) {
-        const c = (window._platformSubClinics || []).find(x => x.id === Number(clinicId));
-        if (c?.plan && PLAN_AMOUNTS[c.plan]) amountInput.value = PLAN_AMOUNTS[c.plan];
+    const clinica = (window._platformSubClinics || []).find(x => x.id === Number(clinicId));
+    if (amountInput) {
+        if (clinica && clinica.planPriceFinal != null) amountInput.value = clinica.planPriceFinal;
+        else if (plan && PLAN_AMOUNTS[plan])           amountInput.value = PLAN_AMOUNTS[plan];
+        else if (clinica?.plan && PLAN_AMOUNTS[clinica.plan]) amountInput.value = PLAN_AMOUNTS[clinica.plan];
     }
 
     modal.classList.remove('hidden');
@@ -817,10 +947,541 @@ window.platformDeletePayment = async function(id) {
 };
 
 // Shell HTML compartido (topbar + sidebar + main) del ultra-admin
+// ── Avisos ────────────────────────────────────────────────────────────────────
+// Mensajes que aparecen dentro de la app de todas las clínicas: mantenimiento
+// programado, caídas, backups. La vigencia va por fechas para poder dejarlos
+// preparados de antemano.
+
+const ANNOUNCEMENT_LEVEL_META = {
+    info:    { label: 'Informativo', color: '#3b82f6', icon: 'fa-circle-info' },
+    warning: { label: 'Advertencia', color: '#f59e0b', icon: 'fa-triangle-exclamation' },
+    urgent:  { label: 'Urgente',     color: '#ef4444', icon: 'fa-circle-exclamation' },
+};
+
+// El input datetime-local trabaja en hora local y sin zona, así que se recorta
+// el ISO en vez de usar toISOString(), que pasaría a UTC y correría la hora.
+function toDatetimeLocalValue(date) {
+    const d = new Date(date);
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
+}
+
+function announcementStateLabel(a) {
+    const now = new Date();
+    const starts = new Date(a.startsAt);
+    const ends = new Date(a.endsAt);
+    if (!a.active) return { text: 'Desactivado', color: '#475569' };
+    if (now < starts) return { text: 'Programado', color: '#6366f1' };
+    if (now > ends) return { text: 'Vencido', color: '#475569' };
+    return { text: 'Visible ahora', color: '#22c55e' };
+}
+
+async function renderPlatformAnnouncements(container) {
+    injectPlatformStyles();
+    let announcements = [];
+    try {
+        const res = await apiFetch('/platform/announcements');
+        if (!res.ok) throw new Error(res.error);
+        announcements = res.announcements || [];
+    } catch (e) {
+        container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${escapeHtml(e.message)}</p></div>`;
+        return;
+    }
+
+    const rows = announcements.map(a => {
+        const meta = ANNOUNCEMENT_LEVEL_META[a.level] || ANNOUNCEMENT_LEVEL_META.info;
+        const estado = announcementStateLabel(a);
+        const fmt = (d) => new Date(d).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+        return `
+        <tr>
+            <td><i class="fa-solid ${meta.icon}" style="color:${meta.color}" title="${meta.label}"></i></td>
+            <td class="td-name" style="max-width:380px;white-space:normal;line-height:1.45">${escapeHtml(a.message)}</td>
+            <td class="td-meta">${fmt(a.startsAt)} → ${fmt(a.endsAt)}</td>
+            <td><span style="color:${estado.color};font-size:11px;font-weight:600">${estado.text}</span></td>
+            <td class="td-meta">${a.dismissible ? 'Sí' : 'No'}</td>
+            <td class="td-actions">
+                <button class="pa-btn pa-btn-ghost pa-btn-sm" onclick="openAnnouncementEditor(${a.id})"><i class="fa-solid fa-pen"></i></button>
+                <button class="pa-btn pa-btn-danger pa-btn-sm" onclick="deleteAnnouncement(${a.id})"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    window._announcementsCache = announcements;
+
+    container.innerHTML = `
+    <div class="pa-root">
+        ${renderPlatformShell('platform-announcements', `
+            <div class="pa-page-header">
+                <div>
+                    <div class="pa-page-title">Avisos</div>
+                    <div class="pa-page-sub">Mensajes que ven todas las clínicas dentro de la app. Aparecen en menos de 20 segundos, sin que nadie tenga que recargar.</div>
+                </div>
+                <button class="pa-btn pa-btn-primary" onclick="openAnnouncementEditor(null)">
+                    <i class="fa-solid fa-plus"></i> Nuevo aviso
+                </button>
+            </div>
+
+            ${announcements.length === 0
+                ? '<div class="pa-empty"><i class="fa-solid fa-bullhorn"></i><p>No hay avisos todavía.</p></div>'
+                : `<div class="pa-table-wrap"><table class="pa-table">
+                    <thead><tr>
+                        <th></th><th>Mensaje</th><th>Vigencia</th><th>Estado</th><th>Se puede cerrar</th><th></th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                   </table></div>`}
+        `)}
+    </div>
+    ${renderAnnouncementEditorModal()}
+    `;
+}
+
+function renderAnnouncementEditorModal() {
+    return `
+    <div id="announcement-modal" class="pa-modal-overlay hidden" onclick="if(event.target===this)closeAnnouncementEditor()">
+        <div class="pa-modal" style="max-width:520px">
+            <div class="pa-modal-header">
+                <span class="pa-modal-title" id="announcement-modal-title">Nuevo aviso</span>
+                <button class="pa-modal-close" onclick="closeAnnouncementEditor()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pa-modal-body">
+                <form id="announcement-form">
+                    <input type="hidden" id="an-id">
+                    <div class="pa-form-group">
+                        <label class="pa-label">Mensaje <span class="req">*</span></label>
+                        <textarea id="an-message" class="pa-input" rows="3" maxlength="500" required
+                            placeholder="Ej: Esta noche de 2 a 4 vamos a hacer mantenimiento. El sistema puede estar intermitente."></textarea>
+                    </div>
+                    <div class="pa-form-group">
+                        <label class="pa-label">Tipo <span class="req">*</span></label>
+                        <select id="an-level" class="pa-select">
+                            <option value="info">Informativo — azul</option>
+                            <option value="warning">Advertencia — amarillo</option>
+                            <option value="urgent">Urgente — rojo</option>
+                        </select>
+                    </div>
+                    <div class="pa-form-row">
+                        <div class="pa-form-group">
+                            <label class="pa-label">Desde <span class="req">*</span></label>
+                            <input id="an-starts" class="pa-input" type="datetime-local" required>
+                        </div>
+                        <div class="pa-form-group">
+                            <label class="pa-label">Hasta <span class="req">*</span></label>
+                            <input id="an-ends" class="pa-input" type="datetime-local" required>
+                        </div>
+                    </div>
+                    <div class="pa-form-group" style="display:flex;flex-direction:column;gap:9px">
+                        <label class="pa-check"><input type="checkbox" id="an-dismissible" checked> El usuario puede cerrarlo</label>
+                        <label class="pa-check"><input type="checkbox" id="an-active" checked> Activo</label>
+                    </div>
+                    <div class="pa-hint">Si lo dejás sin marcar como cerrable, la barra se mantiene visible siempre. Usalo solo para algo que nadie deba pasar por alto.</div>
+                </form>
+            </div>
+            <div class="pa-modal-footer">
+                <button class="pa-btn pa-btn-ghost" onclick="closeAnnouncementEditor()">Cancelar</button>
+                <button id="announcement-save" class="pa-btn pa-btn-primary" onclick="document.getElementById('announcement-form').requestSubmit()">
+                    <i class="fa-solid fa-check"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>`;
+}
+
+window.openAnnouncementEditor = function(id) {
+    const existente = id ? (window._announcementsCache || []).find(a => a.id === id) : null;
+
+    document.getElementById('an-id').value = existente ? existente.id : '';
+    document.getElementById('an-message').value = existente ? existente.message : '';
+    document.getElementById('an-level').value = existente ? existente.level : 'info';
+    document.getElementById('an-dismissible').checked = existente ? existente.dismissible : true;
+    document.getElementById('an-active').checked = existente ? existente.active : true;
+
+    if (existente) {
+        document.getElementById('an-starts').value = toDatetimeLocalValue(existente.startsAt);
+        document.getElementById('an-ends').value = toDatetimeLocalValue(existente.endsAt);
+    } else {
+        // Por defecto: desde ahora y por 24 horas, que cubre el caso más común
+        // de avisar algo del día sin tener que pensar las fechas.
+        const ahora = new Date();
+        document.getElementById('an-starts').value = toDatetimeLocalValue(ahora);
+        document.getElementById('an-ends').value = toDatetimeLocalValue(new Date(ahora.getTime() + 24 * 3600 * 1000));
+    }
+
+    document.getElementById('announcement-modal-title').textContent = existente ? 'Editar aviso' : 'Nuevo aviso';
+    document.getElementById('announcement-modal').classList.remove('hidden');
+
+    document.getElementById('announcement-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('announcement-save');
+        if (btn?.disabled) return;
+        if (btn) btn.disabled = true;
+        const payload = {
+            message: document.getElementById('an-message').value.trim(),
+            level: document.getElementById('an-level').value,
+            startsAt: new Date(document.getElementById('an-starts').value).toISOString(),
+            endsAt: new Date(document.getElementById('an-ends').value).toISOString(),
+            dismissible: document.getElementById('an-dismissible').checked,
+            active: document.getElementById('an-active').checked,
+        };
+        try {
+            await withAppLoading('Guardando aviso...', () => apiFetch(
+                existente ? `/platform/announcements/${existente.id}` : '/platform/announcements',
+                { method: existente ? 'PUT' : 'POST', body: JSON.stringify(payload) }
+            ));
+            closeAnnouncementEditor();
+            showToast(existente ? 'Aviso actualizado.' : 'Aviso publicado.', 'success');
+            await loadView('platform-announcements', 'Avisos', { skipSync: true });
+        } catch (err) {
+            showToast(err.message || 'No se pudo guardar el aviso.', 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+};
+
+window.closeAnnouncementEditor = function() {
+    const modal = document.getElementById('announcement-modal');
+    if (modal) modal.classList.add('hidden');
+    const btn = document.getElementById('announcement-save');
+    if (btn) btn.disabled = false;
+};
+
+window.deleteAnnouncement = async function(id) {
+    const ok = await showConfirm('¿Eliminar este aviso? Deja de verse en todas las clínicas.', {
+        title: 'Eliminar aviso', variant: 'danger', confirmText: 'Eliminar',
+    });
+    if (!ok) return;
+    try {
+        await withAppLoading('Eliminando...', () => apiFetch(`/platform/announcements/${id}`, { method: 'DELETE' }));
+        showToast('Aviso eliminado.', 'success');
+        await loadView('platform-announcements', 'Avisos', { skipSync: true });
+    } catch (err) {
+        showToast(err.message || 'No se pudo eliminar.', 'error');
+    }
+};
+
+// ── Planes ────────────────────────────────────────────────────────────────────
+// Precios, cupos y features de cada plan. Antes estaban escritos a mano acá, en
+// el backend y en la landing, y bastaba tocar uno para que quedaran distintos.
+
+let _plansCache = [];
+let _planAmounts = null;
+
+// Precios vigentes por código de plan, traídos del servidor. Reemplaza a las
+// copias que estaban escritas a mano en la pantalla de Cobros: al cambiar un
+// precio en Planes, aquellas seguían sugiriendo el importe viejo.
+async function loadPlanAmounts() {
+    if (_planAmounts) return _planAmounts;
+    try {
+        const res = await apiFetch('/platform/plans');
+        _planAmounts = Object.fromEntries((res.plans || []).map(p => [p.code, p.priceMonthly]));
+    } catch (_e) {
+        _planAmounts = {}; // sin precios sugeridos, pero la pantalla sigue usable
+    }
+    return _planAmounts;
+}
+
+function invalidatePlanAmounts() {
+    _planAmounts = null;
+}
+
+// Rellena el desplegable de planes del alta de clínica con los valores vigentes,
+// describiendo cada uno como lo ve el administrador (precio, profesionales, IA).
+async function fillPlanSelect(selectedCode = '') {
+    const sel = document.getElementById('pcf-plan');
+    if (!sel) return;
+    let plans = [];
+    try {
+        const res = await apiFetch('/platform/plans');
+        plans = res.plans || [];
+    } catch (_e) {
+        return; // queda solo "Sin plan"; el alta sigue siendo posible
+    }
+    _plansCache = plans;
+    const describe = (p) => {
+        const prof = p.professionals === null ? 'ilimitado' : `${p.professionals} prof`;
+        const ia = p.aiExtractions === 0
+            ? 'carga manual (sin IA)'
+            : `IA ${p.aiExtractions === null ? 'ilimitada' : `${p.aiExtractions} fichas/mes`}`;
+        return `${p.label} — $${formatMoneyArs(p.priceMonthly)}/mes · ${prof} · ${ia}`;
+    };
+    sel.innerHTML = '<option value="">Sin plan (ilimitado)</option>' +
+        plans.map(p => `<option value="${escapeHtml(p.code)}">${escapeHtml(describe(p))}</option>`).join('');
+    if (selectedCode) sel.value = selectedCode;
+
+    // La vista previa necesita los precios que se acaban de cargar. Se refresca
+    // acá y no en quien llama porque esta función es async y ninguno la espera:
+    // desde afuera, el precio todavía no existe cuando siguen.
+    if (typeof window.platformUpdatePricePreview === 'function') window.platformUpdatePricePreview();
+}
+
+/**
+ * Muestra, mientras se edita la clínica, cuánto va a pagar por mes.
+ *
+ * El precio sale de _plansCache (lo que ya trajo fillPlanSelect) y el cálculo
+ * del módulo compartido: es el mismo que usa el servidor para los ingresos
+ * estimados y para el monto sugerido de cobro. Si acá se hiciera la cuenta a
+ * mano, alcanzaría con un redondeo distinto para que la pantalla prometa un
+ * número y se termine cobrando otro.
+ */
+window.platformUpdatePricePreview = function() {
+    const caja = document.getElementById('pcf-price-preview');
+    if (!caja) return;
+
+    const codigo = document.getElementById('pcf-plan')?.value || '';
+    const plan = (_plansCache || []).find(p => p.code === codigo);
+    const descuento = normalizarDescuento(document.getElementById('pcf-discount')?.value);
+
+    if (!plan) {
+        caja.innerHTML = descuento
+            ? 'Sin plan asignado — el descuento queda guardado y se aplica cuando le asignes uno.'
+            : 'Sin plan asignado.';
+        return;
+    }
+
+    const { base, ahorro, final, bonificada } = calcularPrecio(plan.priceMonthly, descuento);
+
+    if (!descuento) {
+        caja.innerHTML = `${escapeHtml(plan.label)} · <b>$${formatMoneyArs(base)}</b> por mes.`;
+        return;
+    }
+    if (bonificada) {
+        caja.innerHTML = `${escapeHtml(plan.label)} · <span class="tachado">$${formatMoneyArs(base)}</span> `
+            + `<b class="rebaja">bonificada al 100%</b> — no paga nada.`;
+        return;
+    }
+    caja.innerHTML = `${escapeHtml(plan.label)} · <span class="tachado">$${formatMoneyArs(base)}</span> `
+        + `− ${formatearPorcentaje(descuento)} (<span class="rebaja">$${formatMoneyArs(ahorro)}</span>) `
+        + `= <b>$${formatMoneyArs(final)}</b> por mes.`;
+};
+
+function planLimitLabel(value) {
+    return value === null ? 'Ilimitado' : String(value);
+}
+
+function formatMoneyArs(value) {
+    return Number(value || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+}
+
+async function renderPlatformPlans(container) {
+    injectPlatformStyles();
+    let plans = [];
+    try {
+        const res = await apiFetch('/platform/plans');
+        if (!res.ok) throw new Error(res.error);
+        plans = res.plans || [];
+    } catch (e) {
+        container.innerHTML = `<div class="pa-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>${escapeHtml(e.message)}</p></div>`;
+        return;
+    }
+    _plansCache = plans;
+
+    const cardsHtml = plans.map(p => `
+        <div class="pa-plan-card">
+            <div class="pa-plan-head">
+                <div class="pa-plan-name">${escapeHtml(p.label)}</div>
+                <div class="pa-plan-code">${escapeHtml(p.code)}</div>
+            </div>
+            <div class="pa-plan-price">$${formatMoneyArs(p.priceMonthly)}<span>/mes</span></div>
+            <div class="pa-plan-rows">
+                <div><span>Profesionales</span><b>${planLimitLabel(p.professionals)}</b></div>
+                <div><span>Fichas con IA por mes</span><b>${p.aiExtractions === 0 ? 'No incluido' : planLimitLabel(p.aiExtractions)}</b></div>
+                <div><span>Usuarios administrativos</span><b>${p.adminUsers ? 'Sí' : 'No'}</b></div>
+                <div><span>Imágenes clínicas</span><b>${p.clinicalImages ? 'Sí' : 'No'}</b></div>
+                <div><span>Facturación y caja</span><b>${p.billing ? 'Sí' : 'No'}</b></div>
+            </div>
+            <button class="pa-btn pa-btn-ghost pa-btn-sm" style="width:100%;margin-top:14px;justify-content:center" onclick="openPlanEditor('${p.code}')">
+                <i class="fa-solid fa-pen"></i> Editar
+            </button>
+        </div>
+    `).join('');
+
+    container.innerHTML = `
+    <div class="pa-root">
+        ${renderPlatformShell('platform-plans', `
+            <div class="pa-page-header">
+                <div>
+                    <div class="pa-page-title">Planes</div>
+                    <div class="pa-page-sub">Precios y límites. Los cambios impactan en la app y en la landing sin necesidad de deploy.</div>
+                </div>
+            </div>
+
+            <div class="pa-plan-grid">${cardsHtml}</div>
+
+            <div class="pa-increase-box">
+                <div class="pa-increase-title"><i class="fa-solid fa-arrow-trend-up"></i> Ajuste de precios</div>
+                <div class="pa-increase-sub">Aplica un porcentaje sobre el precio de los tres planes a la vez. Se redondea a pesos enteros. Usá un valor negativo para bajar.</div>
+                <div class="pa-increase-row">
+                    <input id="plan-increase-pct" class="pa-input" type="number" step="0.1" min="-100" max="100" placeholder="5" style="max-width:120px">
+                    <span style="color:#475569;font-size:12px">%</span>
+                    <button class="pa-btn pa-btn-primary pa-btn-sm" onclick="applyPlanIncrease()">Aplicar a todos</button>
+                </div>
+                <div id="plan-increase-preview" class="pa-increase-preview"></div>
+            </div>
+        `)}
+    </div>
+    ${renderPlanEditorModal()}
+    `;
+
+    // Vista previa en vivo: ver el resultado antes de confirmar evita el clásico
+    // "puse 50 en vez de 5" sobre los precios de todas las clínicas.
+    const pctInput = document.getElementById('plan-increase-pct');
+    pctInput?.addEventListener('input', () => {
+        const pct = Number(pctInput.value);
+        const preview = document.getElementById('plan-increase-preview');
+        if (!Number.isFinite(pct) || pct === 0) { preview.innerHTML = ''; return; }
+        preview.innerHTML = _plansCache.map(p => {
+            const nuevo = Math.max(0, Math.round(Number(p.priceMonthly) * (1 + pct / 100)));
+            return `<div><span>${escapeHtml(p.label)}</span> $${formatMoneyArs(p.priceMonthly)} → <b>$${formatMoneyArs(nuevo)}</b></div>`;
+        }).join('');
+    });
+}
+
+function renderPlanEditorModal() {
+    return `
+    <div id="plan-editor-modal" class="pa-modal-overlay hidden" onclick="if(event.target===this)closePlanEditor()">
+        <div class="pa-modal" style="max-width:460px">
+            <div class="pa-modal-header">
+                <span class="pa-modal-title" id="plan-editor-title">Editar plan</span>
+                <button class="pa-modal-close" onclick="closePlanEditor()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="pa-modal-body">
+                <form id="plan-editor-form">
+                    <input type="hidden" id="pe-code">
+                    <div class="pa-form-group">
+                        <label class="pa-label">Nombre visible <span class="req">*</span></label>
+                        <input id="pe-label" class="pa-input" type="text" maxlength="60" required>
+                    </div>
+                    <div class="pa-form-group">
+                        <label class="pa-label">Precio mensual (ARS) <span class="req">*</span></label>
+                        <input id="pe-price" class="pa-input" type="number" min="0" step="0.01" required>
+                    </div>
+                    <div class="pa-form-row">
+                        <div class="pa-form-group">
+                            <label class="pa-label">Profesionales</label>
+                            <input id="pe-professionals" class="pa-input" type="number" min="0" step="1" placeholder="Vacío = ilimitado">
+                        </div>
+                        <div class="pa-form-group">
+                            <label class="pa-label">Fichas con IA por mes</label>
+                            <input id="pe-ai" class="pa-input" type="number" min="0" step="1" placeholder="Vacío = ilimitado">
+                        </div>
+                    </div>
+                    <div class="pa-hint" style="margin:-4px 0 12px">En fichas con IA, 0 significa que el plan no la incluye. Vacío es ilimitado.</div>
+                    <div class="pa-form-group" style="display:flex;flex-direction:column;gap:9px">
+                        <label class="pa-check"><input type="checkbox" id="pe-adminUsers"> Usuarios administrativos</label>
+                        <label class="pa-check"><input type="checkbox" id="pe-clinicalImages"> Imágenes clínicas</label>
+                        <label class="pa-check"><input type="checkbox" id="pe-billing"> Facturación y caja</label>
+                    </div>
+                </form>
+            </div>
+            <div class="pa-modal-footer">
+                <button class="pa-btn pa-btn-ghost" onclick="closePlanEditor()">Cancelar</button>
+                <button id="plan-editor-save" class="pa-btn pa-btn-primary" onclick="document.getElementById('plan-editor-form').requestSubmit()">
+                    <i class="fa-solid fa-check"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>`;
+}
+
+window.openPlanEditor = function(code) {
+    const plan = _plansCache.find(p => p.code === code);
+    if (!plan) return;
+    document.getElementById('pe-code').value = plan.code;
+    document.getElementById('pe-label').value = plan.label;
+    document.getElementById('pe-price').value = plan.priceMonthly;
+    document.getElementById('pe-professionals').value = plan.professionals === null ? '' : plan.professionals;
+    document.getElementById('pe-ai').value = plan.aiExtractions === null ? '' : plan.aiExtractions;
+    document.getElementById('pe-adminUsers').checked = plan.adminUsers;
+    document.getElementById('pe-clinicalImages').checked = plan.clinicalImages;
+    document.getElementById('pe-billing').checked = plan.billing;
+    document.getElementById('plan-editor-title').textContent = `Editar plan ${plan.label}`;
+    // El panel muestra y oculta sus modales con la clase `hidden`, no tocando
+    // display: con style.display el overlay quedaba sin los estilos del panel y
+    // el modal no llegaba a verse.
+    document.getElementById('plan-editor-modal').classList.remove('hidden');
+
+    const form = document.getElementById('plan-editor-form');
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        // El botón de guardar vive en el pie del modal, fuera del form (así lo
+        // hacen los demás modales del panel), por eso se busca por id y no
+        // dentro del formulario.
+        const btn = document.getElementById('plan-editor-save');
+        if (btn?.disabled) return;
+        if (btn) btn.disabled = true;
+        // Campo vacío = ilimitado, que el backend guarda como -1.
+        const parseOptional = (id) => {
+            const raw = document.getElementById(id).value.trim();
+            return raw === '' ? null : Number(raw);
+        };
+        try {
+            await withAppLoading('Guardando plan...', () => apiFetch(`/platform/plans/${plan.code}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    label: document.getElementById('pe-label').value.trim(),
+                    priceMonthly: Number(document.getElementById('pe-price').value),
+                    professionals: parseOptional('pe-professionals'),
+                    aiExtractions: parseOptional('pe-ai'),
+                    adminUsers: document.getElementById('pe-adminUsers').checked,
+                    clinicalImages: document.getElementById('pe-clinicalImages').checked,
+                    billing: document.getElementById('pe-billing').checked,
+                }),
+            }));
+            invalidatePlanAmounts();
+            closePlanEditor();
+            showToast('Plan actualizado.', 'success');
+            await loadView('platform-plans', 'Planes', { skipSync: true });
+        } catch (err) {
+            showToast(err.message || 'No se pudo guardar el plan.', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    };
+};
+
+window.closePlanEditor = function() {
+    const modal = document.getElementById('plan-editor-modal');
+    if (modal) modal.classList.add('hidden');
+    const btn = document.getElementById('plan-editor-save');
+    if (btn) btn.disabled = false;
+};
+
+window.applyPlanIncrease = async function() {
+    const input = document.getElementById('plan-increase-pct');
+    const pct = Number(input.value);
+    if (!Number.isFinite(pct) || pct === 0) {
+        showToast('Ingresá un porcentaje distinto de cero.', 'warning');
+        return;
+    }
+    const detalle = _plansCache
+        .map(p => `${p.label}: $${formatMoneyArs(p.priceMonthly)} → $${formatMoneyArs(Math.round(Number(p.priceMonthly) * (1 + pct / 100)))}`)
+        .join('\n');
+    const ok = await showConfirm(
+        `Se va a aplicar ${pct > 0 ? 'un aumento' : 'una baja'} del ${Math.abs(pct)}% a los tres planes:\n\n${detalle}\n\nEsto cambia el precio que se muestra en la landing y el que se sugiere al cobrar. ¿Confirmás?`
+    );
+    if (!ok) return;
+
+    try {
+        await withAppLoading('Aplicando ajuste...', () => apiFetch('/platform/plans/apply-increase', {
+            method: 'POST',
+            body: JSON.stringify({ percent: pct }),
+        }));
+        invalidatePlanAmounts();
+        showToast('Precios actualizados.', 'success');
+        await loadView('platform-plans', 'Planes', { skipSync: true });
+    } catch (err) {
+        showToast(err.message || 'No se pudo aplicar el ajuste.', 'error');
+    }
+};
+
 function renderPlatformShell(activeView, mainHtml) {
     const NAV = [
         { id:'platform-clinics',       icon:'fa-hospital',        label:'Clínicas'      },
+        { id:'platform-plans',         icon:'fa-layer-group',     label:'Planes'        },
+        { id:'platform-announcements', icon:'fa-bullhorn',        label:'Avisos'        },
+        { id:'platform-backups',       icon:'fa-database',        label:'Backups'       },
         { id:'platform-subscriptions', icon:'fa-dollar-sign',     label:'Cobros'        },
+        { id:'platform-expenses',      icon:'fa-receipt',         label:'Gastos'        },
         { id:'platform-stats',         icon:'fa-chart-bar',       label:'Estadísticas'  },
         { id:'platform-audit',         icon:'fa-clipboard-list',  label:'Auditoría'     },
     ];
@@ -894,14 +1555,31 @@ function renderPlatformClinicModal() {
                             <label class="pa-label">Dirección</label>
                             <input id="pcf-address" class="pa-input" placeholder="Av. San Martín 1234, Mendoza">
                         </div>
-                        <div class="pa-form-group" style="grid-column:1/-1">
+                        <div class="pa-form-group">
                             <label class="pa-label">Plan</label>
-                            <select id="pcf-plan" class="pa-select">
+                            <!-- Las opciones las completa fillPlanSelect() con los datos
+                                 vigentes: escritas acá a mano quedaban desactualizadas
+                                 apenas se tocaba un precio o un cupo en Planes. -->
+                            <select id="pcf-plan" class="pa-select" onchange="window.platformUpdatePricePreview()">
                                 <option value="">Sin plan (ilimitado)</option>
-                                <option value="inicial">Inicial — $45.000/mes · 1 prof · carga manual (sin IA)</option>
-                                <option value="clinica">Clínica — $75.000/mes · 3 prof · IA 100 fichas/mes</option>
-                                <option value="pro">Pro — $125.000/mes · ilimitado · IA 500 fichas/mes</option>
                             </select>
+                        </div>
+                        <div class="pa-form-group">
+                            <label class="pa-label">Descuento</label>
+                            <div class="pa-input-suffix">
+                                <!-- type=text y no type=number: con number, escribir "12,5"
+                                     -que es como se escribe un decimal aca- deja el campo
+                                     invalido y su value devuelve cadena vacia, asi que el
+                                     descuento se perdia sin decir nada. La coma la resuelve
+                                     normalizarDescuento(), que ya la contempla. -->
+                                <input id="pcf-discount" class="pa-input" type="text" inputmode="decimal"
+                                       placeholder="0" oninput="window.platformUpdatePricePreview()">
+                                <span>%</span>
+                            </div>
+                            <div class="pa-hint">De 0,1% a 100%. Vacío = sin descuento.</div>
+                        </div>
+                        <div class="pa-form-group" style="grid-column:1/-1">
+                            <div id="pcf-price-preview" class="pa-price-preview">Sin plan asignado.</div>
                         </div>
                     </div>
 
@@ -1022,6 +1700,8 @@ window.platformOpenNewClinicModal = function() {
     document.getElementById('pcf-email').value   = '';
     document.getElementById('pcf-address').value = '';
     document.getElementById('pcf-plan').value    = '';
+    document.getElementById('pcf-discount').value = '';
+    fillPlanSelect('');
     document.getElementById('pcf-notes').value   = '';
     document.getElementById('pcf-dbtype').value  = 'shared';
     const dburlEl = document.getElementById('pcf-dburl');
@@ -1052,6 +1732,8 @@ window.platformEditClinic = function(id) {
     document.getElementById('pcf-email').value   = c.email   || '';
     document.getElementById('pcf-address').value = c.address || '';
     document.getElementById('pcf-plan').value    = c.plan    || '';
+    document.getElementById('pcf-discount').value = c.discountPercent ?? '';
+    fillPlanSelect(c.plan || '');
     document.getElementById('pcf-notes').value   = c.notes   || '';
     document.getElementById('pcf-dbtype').value  = c.dbType  || 'shared';
     const dburlEl = document.getElementById('pcf-dburl');
@@ -1088,6 +1770,10 @@ window.platformSaveClinic = async function(e) {
         email:       document.getElementById('pcf-email').value.trim()   || null,
         address:     document.getElementById('pcf-address').value.trim() || null,
         plan:        document.getElementById('pcf-plan').value           || null,
+        // Vacío va como null y no como 0: son lo mismo, pero el servidor guarda
+        // NULL y así no quedan clínicas con un "0.00" que la lista muestra como
+        // si tuvieran un descuento de nada.
+        discountPercent: document.getElementById('pcf-discount').value.trim() || null,
         notes:       document.getElementById('pcf-notes').value.trim()   || null,
         dbType,
         databaseUrl: dbType === 'dedicated' ? dbUrl : null,
@@ -1150,7 +1836,7 @@ window.platformLoginAsClinic = async function(clinicId, clinicName) {
         const me = await apiFetch('/auth/me');
         if (!me?.permissions?.isPlatformAdmin) {
             // El token actual no es de platform admin — intentar restaurar desde backup
-            const backup = localStorage.getItem('odentara_platform_auth_backup');
+            const backup = localStorage.getItem(PLATFORM_AUTH_BACKUP_KEY);
             if (backup) {
                 const backupAuth = JSON.parse(backup);
                 if (backupAuth?.token) {
@@ -1158,7 +1844,7 @@ window.platformLoginAsClinic = async function(clinicId, clinicName) {
                     const me2 = await apiFetch('/auth/me');
                     if (me2?.permissions?.isPlatformAdmin) {
                         saveAuthSession(backupAuth.token, me2.user);
-                        localStorage.removeItem('odentara_platform_auth_backup');
+                        localStorage.removeItem(PLATFORM_AUTH_BACKUP_KEY);
                     } else {
                         showPlatformAlert('No tenés permisos de administrador de plataforma. Iniciá sesión con tu cuenta de plataforma.', 'error');
                         return;
@@ -1197,7 +1883,7 @@ window.platformLoginAsClinic = async function(clinicId, clinicName) {
         if (!res.ok) throw new Error(res.error || 'No se pudo ingresar a la clínica.');
         // Guardar token de plataforma para poder volver
         const platformAuth = JSON.parse(localStorage.getItem('odentara_auth_v1') || '{}');
-        localStorage.setItem('odentara_platform_auth_backup', JSON.stringify(platformAuth));
+        localStorage.setItem(PLATFORM_AUTH_BACKUP_KEY, JSON.stringify(platformAuth));
         // Aplicar el token de la clínica
         const auth = { token: res.token, user: res.user };
         localStorage.setItem('odentara_auth_v1', JSON.stringify(auth));
@@ -1215,7 +1901,7 @@ window.platformLoginAsClinic = async function(clinicId, clinicName) {
 };
 
 window.returnToPlatform = async function() {
-    const backup = localStorage.getItem('odentara_platform_auth_backup');
+    const backup = localStorage.getItem(PLATFORM_AUTH_BACKUP_KEY);
     if (!backup) return;
 
     // Revocar el token de clínica actual
@@ -1224,7 +1910,7 @@ window.returnToPlatform = async function() {
     }
 
     const auth = JSON.parse(backup);
-    localStorage.removeItem('odentara_platform_auth_backup');
+    localStorage.removeItem(PLATFORM_AUTH_BACKUP_KEY);
     localStorage.removeItem('odentara_db_v6');
 
     // Si estamos en subdominio de clínica → redirigir a app.odentara.com con exchange code
@@ -1441,7 +2127,7 @@ async function renderPlatformAudit(container) {
         const color = ACTION_COLORS[log.action] || '#94a3b8';
         const label = ACTION_LABELS[log.action] || log.action;
         return `<tr>
-            <td style="font-size:11px;color:#475569;white-space:nowrap">${new Date(log.createdAt).toLocaleString('es-AR')}</td>
+            <td style="font-size:11px;color:#475569;white-space:nowrap">${new Date(log.createdAt).toLocaleString('es-AR', { hour12: false })}</td>
             <td style="font-size:12px;color:#e2e8f0">${escapeHtml(log.clinicName || '—')}</td>
             <td>
                 <div style="font-size:12px;font-weight:600;color:#e2e8f0">${escapeHtml(log.user?.fullName || '—')}</div>
@@ -1551,7 +2237,7 @@ window.platformShowAuditDetail = function(id) {
             </div>
             <div class="pa-modal-body">
                 <div style="font-size:11px;color:#475569;margin-bottom:10px">
-                    ${new Date(log.createdAt).toLocaleString('es-AR')} · ${escapeHtml(log.entityType)} #${escapeHtml(String(log.entityId))} · ${escapeHtml(log.clinicName || 'Sin clínica')}
+                    ${new Date(log.createdAt).toLocaleString('es-AR', { hour12: false })} · ${escapeHtml(log.entityType)} #${escapeHtml(String(log.entityId))} · ${escapeHtml(log.clinicName || 'Sin clínica')}
                 </div>
                 ${log.beforeData ? `<div class="pa-label" style="margin-top:10px">Antes</div><pre style="background:#0a0d14;border:1px solid #1e2535;border-radius:8px;padding:12px;font-size:11px;color:#94a3b8;overflow:auto;max-height:220px">${escapeHtml(JSON.stringify(log.beforeData, null, 2))}</pre>` : ''}
                 ${log.afterData ? `<div class="pa-label" style="margin-top:10px">Después</div><pre style="background:#0a0d14;border:1px solid #1e2535;border-radius:8px;padding:12px;font-size:11px;color:#94a3b8;overflow:auto;max-height:220px">${escapeHtml(JSON.stringify(log.afterData, null, 2))}</pre>` : ''}

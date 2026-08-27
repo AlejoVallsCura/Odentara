@@ -1,14 +1,13 @@
 const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
-const { buildPatientAccessWhere } = require("../lib/access");
+const { requirePermission, requireAnyPermission } = require("../middleware/require-permission");
+const { buildPatientAccessWhere, buildOwnedRecordWhere } = require("../lib/access");
 const { parseId } = require("../lib/parse-id");
 const {
   canViewClinicalData,
   canEditClinicalData,
   canManageBilling,
-  canAccessWholeClinic,
-  getAccessibleProfessionalIds,
 } = require("../lib/permissions");
 const { checkBillingFeature } = require("../lib/plan-limits");
 const {
@@ -20,14 +19,32 @@ const {
 
 const router = express.Router();
 
+const puedeCargarMovimientosEnCuentaCorriente = requirePermission(
+  canManageBilling,
+  "No tenes permisos para cargar movimientos en cuenta corriente.",
+);
+
+const puedeCrearPresupuestos = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para crear presupuestos.",
+);
+
+const puedeEliminarPresupuestos = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para eliminar presupuestos.",
+);
+
+// Un presupuesto lo mira tanto quien maneja la parte clínica (lo armó) como
+// quien maneja la facturación (lo cobra): alcanza con cualquiera de los dos.
+const puedeVerPresupuestos = requireAnyPermission(
+  [canViewClinicalData, canManageBilling],
+  "No tenes permisos para ver presupuestos.",
+);
+
 // ── GET /?patientId= ──────────────────────────────────────────────────────────
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, puedeVerPresupuestos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canViewClinicalData(req.permissions) && !canManageBilling(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver presupuestos." });
-    }
-
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
     if (!patientId) {
       return res.status(400).json({ ok: false, error: "Falta el parámetro patientId." });
@@ -38,9 +55,9 @@ router.get("/", requireAuth, async (req, res) => {
     // profesional asignado queda igual de restringido que cualquier otro rol
     // scopeado (canAccessWholeClinic ya contempla esto); solo ve todo si no
     // tiene ningún profesional asignado.
-    const professionalScope = canAccessWholeClinic(req.permissions)
-      ? (req.query.professionalId ? { professionalId: Number(req.query.professionalId) } : {})
-      : { professionalId: { in: getAccessibleProfessionalIds(req.permissions) } };
+    const professionalScope = buildOwnedRecordWhere(req.permissions, {
+      filterProfessionalId: req.query.professionalId,
+    });
 
     const budgets = await prisma.budget.findMany({
       where: {
@@ -60,13 +77,9 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // ── POST / ────────────────────────────────────────────────────────────────────
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, puedeCrearPresupuestos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para crear presupuestos." });
-    }
-
     const payload = getBudgetPayload(req.body);
     const errors = validateBudgetPayload(payload);
     if (errors.length > 0) {
@@ -115,13 +128,9 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // ── POST /:id/charge — cargar el presupuesto como deuda en cuenta corriente ──
-router.post("/:id/charge", requireAuth, async (req, res) => {
+router.post("/:id/charge", requireAuth, puedeCargarMovimientosEnCuentaCorriente, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManageBilling(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para cargar movimientos en cuenta corriente." });
-    }
-
     const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
     const planCheck = checkBillingFeature(clinic?.plan);
     if (!planCheck.allowed) {
@@ -175,13 +184,9 @@ router.post("/:id/charge", requireAuth, async (req, res) => {
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────────────────
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, puedeEliminarPresupuestos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar presupuestos." });
-    }
-
     const budgetId = parseId(req.params.id);
     if (!budgetId) return res.status(400).json({ ok: false, error: "ID de presupuesto inválido." });
 
@@ -191,9 +196,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
         deletedAt: null,
         // Un profesional no puede eliminar el presupuesto de otro colega para
         // el mismo paciente — es de un solo profesional, no de la clínica.
-        ...(canAccessWholeClinic(req.permissions)
-          ? {}
-          : { professionalId: { in: getAccessibleProfessionalIds(req.permissions) } }),
+        ...buildOwnedRecordWhere(req.permissions),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       include: BUDGET_INCLUDE,

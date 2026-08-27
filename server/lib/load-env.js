@@ -51,7 +51,20 @@ function loadEnv() {
   }
 
   if (externalSecretsPath) {
-    dotenv.config({ path: externalSecretsPath, override: false });
+    // override: true — el archivo GANA sobre lo que ya esté en el proceso.
+    //
+    // Es al revés que los dos de arriba, y a propósito. `.env-secrets` existe
+    // precisamente porque las Environment variables del panel de Hostinger solo
+    // se inyectan en el worker inicial: los que se levantan después arrancan sin
+    // ellas. El archivo es la fuente confiable; el panel, no.
+    //
+    // Con `override: false` el archivo solo rellenaba huecos, así que un worker
+    // que SÍ había recibido la variable del panel seguía usando la del panel.
+    // Mientras el valor del panel era correcto no se notaba. El día que la
+    // ANTHROPIC_API_KEY del panel quedó revocada, la del archivo se actualizó y
+    // la app siguió fallando en unos workers y andando en otros — el mismo
+    // síntoma intermitente que este archivo vino a resolver.
+    dotenv.config({ path: externalSecretsPath, override: true });
   }
 
   // Una línea al arrancar diciendo de dónde salieron los secretos. Va solo a

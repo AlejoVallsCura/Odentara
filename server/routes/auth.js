@@ -32,6 +32,18 @@ function hashResetToken(rawToken) {
   return crypto.createHash("sha256").update(String(rawToken)).digest("hex");
 }
 
+// Acá vivía el bloqueo de cuenta por intentos fallidos. Se eliminó por completo:
+// lo disparaban peticiones NO autenticadas y escribía `lockedUntil` en la base,
+// de modo que cualquiera que supiera un email podía dejar a esa persona fuera
+// del sistema —en todas sus clínicas— con ocho intentos. Una defensa que un
+// atacante puede accionar contra la víctima es un ataque, no una defensa.
+//
+// La protección contra fuerza bruta queda en `authLimiter` (por IP) y Turnstile.
+// Un límite por cuenta solo puede volver si no lo puede provocar un tercero:
+// desafío creciente en vez de bloqueo, y contadores que no vivan en `User`.
+// Las columnas `failedLoginAttempts` y `lockedUntil` quedan en el esquema sin
+// uso; limpiarlas o quitarlas es una migración aparte.
+
 /**
  * Verifica el token de Cloudflare Turnstile.
  * Si TURNSTILE_SECRET_KEY no está configurada, se omite la verificación
@@ -153,21 +165,45 @@ router.post("/login", authLimiter, async (req, res) => {
       return res.status(401).json({ ok: false, error: "Credenciales invalidas." });
     }
 
-    // Verificar password contra el primero que tenga hash (contraseña compartida entre clínicas)
-    const reference = users.find((u) => u.passwordHash);
-    if (!reference) {
+    // Nota histórica: acá había un bloqueo de cuenta por intentos fallidos. Se
+    // quitó porque se activaba con peticiones NO autenticadas y escribía
+    // lockedUntil en la base: cualquiera que supiera el mail de un odontólogo
+    // podía dejarlo afuera quince minutos, y en todas sus clínicas a la vez.
+    // La protección contra fuerza bruta queda en manos del rate limit por IP
+    // (authLimiter) y de Turnstile, que no se pueden dirigir contra una persona.
+    // ── Verificación de contraseña, una por cuenta ───────────────────────────
+    //
+    // Antes se comparaba contra el hash del PRIMER usuario que tuviera uno, y
+    // después el selector de clínica ofrecía todas las cuentas del email. Como
+    // /select-clinic emite la sesión sin volver a pedir la contraseña, alcanzaba
+    // con saber la clave de una cuenta para entrar a cualquier otra que
+    // compartiera el email — incluida una de plataforma.
+    //
+    // Ahora cada cuenta se valida contra su propio hash y solo las que coinciden
+    // llegan al selector. El costo es un bcrypt.compare por cuenta, y son una o
+    // dos en la práctica.
+    const conHash = users.filter((u) => u.passwordHash);
+    if (conHash.length === 0) {
       logSecurityEvent("AUTH_FAILED", req, { reason: "no-password-hash", email });
       return res.status(401).json({ ok: false, error: "Credenciales invalidas." });
     }
 
-    const passwordOk = await bcrypt.compare(password, reference.passwordHash);
-    if (!passwordOk) {
+    const autenticados = [];
+    for (const candidato of conHash) {
+      // Secuencial y no en paralelo: bcrypt es deliberadamente costoso en CPU y
+      // lanzar N comparaciones a la vez bloquea el event loop del worker.
+      if (await bcrypt.compare(password, candidato.passwordHash)) {
+        autenticados.push(candidato);
+      }
+    }
+
+    if (autenticados.length === 0) {
       logSecurityEvent("AUTH_FAILED", req, { reason: "wrong-password", email });
       return res.status(401).json({ ok: false, error: "Credenciales invalidas." });
     }
 
     // Filtrar clínicas activas
-    const clinicIds = [...new Set(users.map((u) => u.clinicId).filter(Boolean))];
+    const clinicIds = [...new Set(autenticados.map((u) => u.clinicId).filter(Boolean))];
     let activeClinics = new Set();
     if (clinicIds.length > 0) {
       const clinics = await prisma.clinic.findMany({
@@ -177,16 +213,18 @@ router.post("/login", authLimiter, async (req, res) => {
       activeClinics = new Map(clinics.map((c) => [c.id, c]));
     }
 
-    // Platform admin: siempre pasa directamente
-    const platformAdminUser = users.find((u) => u.isPlatformAdmin);
+    // Platform admin: pasa directamente, pero solo si su PROPIO hash coincidió.
+    // Antes bastaba con que compartiera el email con una cuenta de clínica cuya
+    // contraseña se conociera: eso convertía el bypass en acceso de plataforma.
+    const platformAdminUser = autenticados.find((u) => u.isPlatformAdmin);
     if (platformAdminUser) {
       const { token, clinicSlug } = await issueTokenForUser(platformAdminUser);
       logSecurityEvent("AUTH_SUCCESS", req, { email, userId: platformAdminUser.id });
       return res.json({ ok: true, token, user: serializeUser(platformAdminUser), permissions: buildPermissionSummary(platformAdminUser), clinicSlug });
     }
 
-    // Usuarios de clínicas activas
-    const eligibleUsers = users.filter((u) => u.clinicId && activeClinics.has(u.clinicId));
+    // Usuarios de clínicas activas, entre los que se autenticaron
+    const eligibleUsers = autenticados.filter((u) => u.clinicId && activeClinics.has(u.clinicId));
 
     if (eligibleUsers.length === 0) {
       logSecurityEvent("AUTH_FAILED", req, { reason: "clinic-inactive", email });
@@ -308,11 +346,11 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
       });
 
       if (user) {
-        // Invalidar tokens anteriores de todos los usuarios con ese email
-        const allUserIds = await prisma.user
-          .findMany({ where: { email, deletedAt: null }, select: { id: true } })
-          .then((rows) => rows.map((r) => r.id));
-        await prisma.passwordResetToken.deleteMany({ where: { userId: { in: allUserIds } } });
+        // Se invalidan solo los tokens de ESTA cuenta, no los de todas las que
+        // comparten el email. Borrar los ajenos permitía que un tercero pidiera
+        // recuperación en loop e inutilizara enlaces recién enviados a personas
+        // de otras clínicas: no da acceso, pero impide recuperar la cuenta.
+        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
 
         // El token viaja al usuario por mail; en la base solo queda su hash.
         // Así, si la base se filtra, los tokens vigentes no alcanzan para tomar
@@ -360,8 +398,18 @@ router.post("/reset-password", forgotPasswordLimiter, async (req, res) => {
     if (!token || !password) {
       return res.status(400).json({ ok: false, error: "Datos incompletos." });
     }
-    if (password.length < 8) {
+    // Normalizar ANTES de medir. Con `password.length` sobre un número,
+    // `.length` es undefined y `undefined < 8` da false: una contraseña como
+    // `1234` enviada como número pasaba el control y después se guardaba con
+    // String(password).
+    const passwordPlano = String(password);
+    if (typeof password !== "string" || passwordPlano.length < 8) {
       return res.status(400).json({ ok: false, error: "La contraseña debe tener al menos 8 caracteres." });
+    }
+    // bcrypt trunca en 72 bytes: aceptar más es prometer una seguridad que no se
+    // cumple, y hace que dos contraseñas distintas puedan abrir la misma cuenta.
+    if (Buffer.byteLength(passwordPlano, "utf8") > 72) {
+      return res.status(400).json({ ok: false, error: "La contraseña es demasiado larga (máximo 72 bytes)." });
     }
 
     const tokenHash = hashResetToken(token);
@@ -378,21 +426,34 @@ router.post("/reset-password", forgotPasswordLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: "El usuario no está disponible." });
     }
 
-    const passwordHash = await bcrypt.hash(String(password), 10);
+    const passwordHash = await bcrypt.hash(passwordPlano, 10);
 
-    // Actualizar contraseña en TODAS las instancias del email (contraseña compartida entre clínicas)
-    await prisma.$transaction(async (tx) => {
-      await tx.user.updateMany({
-        where: { email: resetToken.user.email, deletedAt: null },
+    const consumido = await prisma.$transaction(async (tx) => {
+      // El token se reclama con un UPDATE condicional y se decide por el
+      // resultado. Antes se leía `usedAt` y se actualizaba después: dos
+      // peticiones simultáneas con el mismo enlace pasaban las dos la lectura.
+      const reclamo = await tx.passwordResetToken.updateMany({
+        where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
+        data: { usedAt: new Date() },
+      });
+      if (reclamo.count === 0) return false;
+
+      // Solo la cuenta a la que se emitió el enlace. Antes se pisaba la
+      // contraseña de todas las cuentas con ese email, incluidas las de otras
+      // clínicas que nunca pidieron nada — administrativamente independientes y
+      // sin forma de enterarse.
+      await tx.user.update({
+        where: { id: resetToken.userId },
         // sessionsValidFrom invalida todos los tokens emitidos hasta ahora: si
         // alguien había entrado con la contraseña vieja, cambiarla lo saca.
         data: { passwordHash, sessionsValidFrom: new Date() },
       });
-      await tx.passwordResetToken.update({
-        where: { tokenHash },
-        data: { usedAt: new Date() },
-      });
+      return true;
     });
+
+    if (!consumido) {
+      return res.status(400).json({ ok: false, error: "El enlace es inválido o ya expiró. Solicitá uno nuevo." });
+    }
 
     logSecurityEvent("PASSWORD_RESET_SUCCESS", req, { userId: resetToken.userId });
 

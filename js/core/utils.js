@@ -274,6 +274,55 @@ function normalizeDni(dni = '') {
     return String(dni).replace(/\D/g, '');
 }
 
+/**
+ * Pasa un teléfono como lo cargó la clínica al formato que espera wa.me.
+ *
+ * Los teléfonos vienen escritos de cualquier forma: "2616754184",
+ * "02616754184", "261 15 675-4184", "+54 9 261 6754184". wa.me necesita solo
+ * dígitos, con código de país y sin el 0 ni el 15.
+ *
+ * Las dos particularidades argentinas que hay que resolver:
+ *   - el 0 de larga distancia va afuera;
+ *   - el 15 del celular va afuera, y en su lugar va un 9 después del 54.
+ *     Sin ese 9 WhatsApp no encuentra el contacto.
+ *
+ * Devuelve null si no queda algo con largo plausible, para no abrir un chat con
+ * un número inventado: es preferible no mostrar el botón.
+ */
+function toWhatsappNumber(phone = '') {
+    let digitos = String(phone || '').replace(/\D/g, '');
+    if (!digitos) return null;
+
+    if (digitos.startsWith('00')) digitos = digitos.slice(2);
+
+    // Con código de país ya puesto: se le saca para normalizar el resto igual
+    // que a los locales, y se vuelve a agregar al final.
+    if (digitos.startsWith('54')) {
+        digitos = digitos.slice(2);
+        if (digitos.startsWith('9')) digitos = digitos.slice(1);
+    } else if (digitos.startsWith('0')) {
+        digitos = digitos.slice(1);
+    }
+
+    // Un móvil local con el 15 tiene 12 dígitos (área + 15 + abonado). El código
+    // de área argentino es de 2, 3 o 4 dígitos, así que se prueba dónde cae el
+    // 15 y se saca el que deje un número de 10.
+    if (digitos.length === 12) {
+        for (const largoArea of [2, 3, 4]) {
+            if (digitos.slice(largoArea, largoArea + 2) === '15') {
+                digitos = digitos.slice(0, largoArea) + digitos.slice(largoArea + 2);
+                break;
+            }
+        }
+    }
+
+    // Un número argentino sin código de país son 10 dígitos. Fuera de ese largo
+    // no se adivina: puede ser un fijo mal cargado o un extranjero.
+    if (digitos.length !== 10) return null;
+
+    return `549${digitos}`;
+}
+
 function normalizePatientName(name = '') {
     return String(name)
         .trim()

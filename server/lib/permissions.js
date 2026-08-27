@@ -47,6 +47,22 @@ function canManageAppointments(permissions) {
   );
 }
 
+/**
+ * Editar el mensaje de confirmación de turnos.
+ *
+ * Lo mandan la secretaría y el superadmin —los mismos que gestionan turnos— así
+ * que son los que tienen que poder redactarlo. Se suma admin porque es
+ * configuración de la clínica. Un profesional no: el texto es de la clínica, no
+ * de cada uno.
+ */
+function canManageClinicMessages(permissions) {
+  return (
+    hasRole(permissions, "superadmin") ||
+    hasRole(permissions, "secretary") ||
+    hasRole(permissions, "admin")
+  );
+}
+
 function canEditAppointments(permissions) {
   return canManageAppointments(permissions) || hasRole(permissions, "professional");
 }
@@ -86,6 +102,7 @@ function canDeletePatient(permissions) {
 }
 
 module.exports = {
+  canManageClinicMessages,
   hasRole,
   canAccessWholeClinic,
   getAccessibleProfessionalIds,

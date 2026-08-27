@@ -89,3 +89,41 @@ test("serializePatient mapea _count a stats", () => {
   });
   assert.deepEqual(out.stats, { appointments: 5, treatments: 2, images: 3 });
 });
+
+// -----------------------------------------------------------------------------
+// toDisplayCasePatientName — formato uniforme del nombre
+// -----------------------------------------------------------------------------
+//
+// El caso real: en una clínica cargaban en MAYÚSCULA, en minúscula y mezclado,
+// y el listado quedaba con tres estilos distintos. Estos tests fijan que entre
+// como entre, salga siempre igual.
+
+const { toDisplayCasePatientName } = require("../services/patient.service");
+
+test("unifica mayúsculas, minúsculas y mezclas al mismo resultado", () => {
+  for (const entrada of ["MARÍA GARCÍA", "maría garcía", "María garcía", "mArÍa GaRcÍa"]) {
+    assert.equal(toDisplayCasePatientName(entrada), "María García");
+  }
+});
+
+test("conserva los acentos (eso lo saca normalizePatientName, no esta)", () => {
+  assert.equal(toDisplayCasePatientName("josé peña"), "José Peña");
+  assert.equal(toDisplayCasePatientName("ÑANDÚ ÁÉÍÓÚ"), "Ñandú Áéíóú");
+});
+
+test("deja las partículas en minúscula salvo que abran el nombre", () => {
+  assert.equal(toDisplayCasePatientName("JUAN DE LA CRUZ"), "Juan de la Cruz");
+  assert.equal(toDisplayCasePatientName("maría del carmen lópez"), "María del Carmen López");
+  assert.equal(toDisplayCasePatientName("de la cruz juan"), "De la Cruz Juan");
+});
+
+test("capitaliza después de guiones y apóstrofos", () => {
+  assert.equal(toDisplayCasePatientName("ana-maría d'angelo"), "Ana-María D'Angelo");
+});
+
+test("colapsa espacios de más y tolera entradas vacías", () => {
+  assert.equal(toDisplayCasePatientName("  juan   pérez  "), "Juan Pérez");
+  assert.equal(toDisplayCasePatientName(""), "");
+  assert.equal(toDisplayCasePatientName(null), "");
+  assert.equal(toDisplayCasePatientName(undefined), "");
+});

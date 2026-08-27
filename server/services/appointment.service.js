@@ -16,7 +16,10 @@ const {
 
 const VALID_STATUSES = new Set(["not_sent", "sent", "confirmed", "rescheduled", "cancelled"]);
 const VALID_CHANNELS = new Set(["whatsapp", "phone", "email", "manual"]);
-const BUSINESS_TIME_ZONE = "America/Buenos_Aires";
+// Presencia del paciente el día del turno. Nada que ver con VALID_STATUSES, que
+// describe la confirmación previa del turno.
+const VALID_PRESENCE = new Set(["none", "waiting", "consulting", "done"]);
+const { BUSINESS_TIME_ZONE } = require("../lib/business-time");
 
 // -----------------------------------------------------------------------------
 // Utilidades de fecha/hora (zona horaria de negocio)
@@ -96,6 +99,8 @@ function serializeAppointment(appointment) {
     startTime: formatLocalTime(appointment.startTime),
     durationMinutes: appointment.durationMinutes,
     status: appointment.status,
+    presence: appointment.presence || "none",
+    presenceUpdatedAt: appointment.presenceUpdatedAt,
     isOverbook: appointment.isOverbook,
     confirmationChannel: appointment.confirmationChannel,
     confirmationSentAt: appointment.confirmationSentAt,
@@ -320,6 +325,7 @@ const APPOINTMENT_INCLUDE = {
 module.exports = {
   VALID_STATUSES,
   VALID_CHANNELS,
+  VALID_PRESENCE,
   APPOINTMENT_INCLUDE,
   getTodayIsoLocal,
   parseDateOnly,

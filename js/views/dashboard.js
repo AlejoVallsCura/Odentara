@@ -167,10 +167,15 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                             const _br = _isDark ? 30 : 255, _bg2 = _isDark ? 41 : 255, _bb = _isDark ? 59 : 255;
                             const _a = _isDark ? 0.14 : 0.08;
                             const _rowBg = `rgb(${Math.round(_br*(1-_a)+_r*_a)},${Math.round(_bg2*(1-_a)+_g*_a)},${Math.round(_bb*(1-_a)+_b*_a)})`;
-                            const rowStyle = `border-left: 3px solid ${profColor.bg}; background: ${_rowBg};`;
+                            // El color va como variable y no como background suelto: las celdas
+                            // lo toman todas de la misma fuente (ver .dashboard-main-card tbody td).
+                            // Antes la fila y la celda sticky de Hora se pintaban por separado, y en
+                            // los anchos donde el sticky cambia de modo las dos no coincidian: la
+                            // hora quedaba de un color distinto al del resto de la fila.
+                            const rowStyle = `--row-bg: ${_rowBg}; border-left: 3px solid ${profColor.bg}; background: ${_rowBg};`;
                             return `
                                 <tr class="${apt.isOverbook ? 'tr-sobreturno' : ''}" style="${rowStyle}">
-                                    <td class="col-sticky-left" style="background:${_rowBg}"><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
+                                    <td class="col-sticky-left"><span class="font-semibold">${apt.time}</span> <span class="text-xs text-gray-500">(${apt.duration}m)</span></td>
                                     <td>${escapeHtml(apt.patient)} ${apt.isOverbook ? '<span class="badge badge-purple text-xs ml-2">Sobreturno</span>' : ''}</td>
                                     <td class="col-hide-xs"><span class="dash-prof-chip" style="background:${profColor.bg}; color:${profColor.text};">${escapeHtml(getProfName(apt.professionalId))}</span></td>
                                     <td class="col-hide-sm">${renderPresenceBtnHtml(apt.id)}</td>
@@ -181,16 +186,16 @@ function renderDashboardContent(apts, patients, todaysApts, selectedDate, select
                                             ${canUseWhatsapp ? (whatsappLink ? (() => {
                                                 const alreadySent = ['sent', 'confirmed', 'rescheduled', 'cancelled'].includes(statusMeta.key);
                                                 return alreadySent
-                                                    ? `<span class="wa-sent-badge"><i class="fa-brands fa-whatsapp"></i> Enviado</span>`
-                                                    : `<button type="button" class="btn btn-secondary btn-sm dashboard-wa-btn" onclick="sendWhatsAppMessage(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</button>`;
+                                                    ? `<span class="wa-sent-badge" title="Mensaje ya enviado"><i class="fa-brands fa-whatsapp"></i><span class="wa-btn-texto">Enviado</span></span>`
+                                                    : `<button type="button" class="btn btn-secondary btn-sm dashboard-wa-btn" title="Enviar confirmacion por WhatsApp" aria-label="Enviar confirmacion por WhatsApp" onclick="sendWhatsAppMessage(${apt.id})"><i class="fa-brands fa-whatsapp"></i><span class="wa-btn-texto">Enviar</span></button>`;
                                             })() : '') : ''}
                                         </div>
                                     </td>
                                     ${canUseWhatsapp ? `<td class="col-hide-lg">${whatsappLink ? (() => {
                                             const alreadySent = ['sent', 'confirmed', 'rescheduled', 'cancelled'].includes(statusMeta.key);
                                             return alreadySent
-                                                ? `<span class="wa-sent-badge"><i class="fa-brands fa-whatsapp"></i> Enviado</span>`
-                                                : `<button type="button" class="btn btn-secondary btn-sm dashboard-wa-btn" onclick="sendWhatsAppMessage(${apt.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</button>`;
+                                                ? `<span class="wa-sent-badge" title="Mensaje ya enviado"><i class="fa-brands fa-whatsapp"></i><span class="wa-btn-texto">Enviado</span></span>`
+                                                : `<button type="button" class="btn btn-secondary btn-sm dashboard-wa-btn" title="Enviar confirmacion por WhatsApp" aria-label="Enviar confirmacion por WhatsApp" onclick="sendWhatsAppMessage(${apt.id})"><i class="fa-brands fa-whatsapp"></i><span class="wa-btn-texto">Enviar</span></button>`;
                                         })() : '<span class="text-xs text-gray-400">Sin teléfono</span>'}</td>` : ''}
                                 </tr>
                             `;

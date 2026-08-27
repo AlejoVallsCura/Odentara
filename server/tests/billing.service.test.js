@@ -8,7 +8,6 @@ const {
   VALID_TYPES,
   formatDateOnly,
   parseDateOnlyInput,
-  canUseProfessional,
 } = require("../services/billing.service");
 
 // ── Fechas UTC (contabilidad no depende de timezone) ──────────────────────────
@@ -49,21 +48,3 @@ test("VALID_TYPES contiene los 4 tipos contables", () => {
 
 // ── Acceso a profesionales ────────────────────────────────────────────────────
 
-test("canUseProfessional permite si tiene acceso a toda la clínica", () => {
-  assert.equal(canUseProfessional({ canAccessWholeClinic: true }, 99), true);
-});
-
-test("canUseProfessional permite solo profesionales asignados", () => {
-  const perms = { canAccessWholeClinic: false, allowedProfessionalIds: [1, 2] };
-  assert.equal(canUseProfessional(perms, 1), true);
-  assert.equal(canUseProfessional(perms, 3), false);
-});
-
-test("canUseProfessional castea el id a número (viene de req.body)", () => {
-  const perms = { canAccessWholeClinic: false, allowedProfessionalIds: [5] };
-  assert.equal(canUseProfessional(perms, "5"), true);
-});
-
-test("canUseProfessional sin professionalId siempre permite", () => {
-  assert.equal(canUseProfessional({ canAccessWholeClinic: false }, null), true);
-});

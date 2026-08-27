@@ -1,6 +1,7 @@
 const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
+const { requirePermission } = require("../middleware/require-permission");
 const {
   hasRole,
   canManageProfessionals,
@@ -20,14 +21,25 @@ const {
 
 const router = express.Router();
 
+const puedeCrearProfesionales = requirePermission(
+  canManageProfessionals,
+  "No tenes permisos para crear profesionales.",
+);
+
+const puedeEliminarProfesionales = requirePermission(
+  canManageProfessionals,
+  "No tenes permisos para eliminar profesionales.",
+);
+
+const puedeVerProfesionales = requirePermission(
+  canViewProfessionals,
+  "No tenes permisos para ver profesionales.",
+);
+
 // ── GET / ─────────────────────────────────────────────────────────────────────
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, puedeVerProfesionales, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canViewProfessionals(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver profesionales." });
-    }
-
     const search = String(req.query.q || "").trim();
     const professionals = await prisma.professional.findMany({
       where: {
@@ -55,13 +67,9 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // ── GET /:id ──────────────────────────────────────────────────────────────────
-router.get("/:id", requireAuth, async (req, res) => {
+router.get("/:id", requireAuth, puedeVerProfesionales, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canViewProfessionals(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver profesionales." });
-    }
-
     const professionalId = parseId(req.params.id);
     if (!professionalId) return res.status(400).json({ ok: false, error: "ID de profesional inválido." });
 
@@ -84,13 +92,9 @@ router.get("/:id", requireAuth, async (req, res) => {
 });
 
 // ── POST / ────────────────────────────────────────────────────────────────────
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, puedeCrearProfesionales, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManageProfessionals(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para crear profesionales." });
-    }
-
     const fullName  = String(req.body.fullName || "").trim();
     const specialty = req.body.specialty ? String(req.body.specialty).trim() : null;
     const email     = req.body.email ? String(req.body.email).trim().toLowerCase() : null;
@@ -223,13 +227,9 @@ router.put("/:id", requireAuth, async (req, res) => {
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────────────────
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, puedeEliminarProfesionales, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManageProfessionals(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar profesionales." });
-    }
-
     const professionalId = parseId(req.params.id);
     if (!professionalId) return res.status(400).json({ ok: false, error: "ID de profesional inválido." });
 

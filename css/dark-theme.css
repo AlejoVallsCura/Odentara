@@ -1093,6 +1093,7 @@ body.theme-dark #apt-patient:focus {
     body.printing-clinical-history #app-sidebar,
     body.printing-clinical-history .app-topbar,
     body.printing-clinical-history .sidebar-backdrop,
+    body.printing-clinical-history .nav-back-bar,
     body.printing-clinical-history .mobile-header-left,
     body.printing-clinical-history .mobile-header-right,
     body.printing-clinical-history #page-title,

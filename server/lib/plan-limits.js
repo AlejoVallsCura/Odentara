@@ -1,15 +1,31 @@
 /**
- * Límites y features por plan de Odentara.
+ * Límites, features y precios por plan de Odentara.
  *
- * Plans:
- *   inicial  — USD 29/mes  — 1 profesional, sin usuarios admin, sin imágenes ni facturación
- *   clinica  — USD 49/mes  — 3 profesionales, usuarios admin, todo incluido
- *   pro      — USD 89/mes  — ilimitados, todo incluido
- *   null/""  — sin plan    — sin límites (clínicas de prueba / desarrollo)
+ * La configuración vive en la tabla `Plan` y se administra desde el panel de
+ * plataforma. Acá se mantiene un snapshot en memoria porque estas funciones se
+ * consultan en medio de handlers ya escritos de forma sincrónica: volverlas
+ * asíncronas obligaría a agregar `await` en 16 llamadas repartidas en 6
+ * archivos, y una sola omisión sería peligrosa —`getAiExtractionLimit(plan) === 0`
+ * comparado contra una Promise da falso y habilitaría la IA en un plan que no
+ * la incluye—. Con el snapshot, ninguna llamada cambia.
+ *
+ * El snapshot se refresca con un TTL corto en vez de cachearse para siempre
+ * porque la app corre en varios procesos worker: si un worker se guardara el
+ * precio viejo indefinidamente, dos clínicas verían importes distintos según
+ * qué worker las atienda.
+ *
+ * `null`/`""` como plan = clínica sin plan asignado (prueba/desarrollo), sin
+ * límites.
  */
 
-const PLAN_CONFIG = {
+const prisma = require("./prisma");
+
+// Valores de respaldo, iguales a los que se insertan en la migración. Se usan
+// si todavía no se cargó nada de la base o si la consulta falla: es preferible
+// seguir operando con los límites conocidos antes que romper la app entera.
+const FALLBACK_PLANS = {
   inicial: {
+    label: "Inicial", priceMonthly: 45000, currency: "ARS",
     professionals: 1,
     adminUsers: false,        // no puede crear usuarios admin/secretary
     clinicalImages: false,    // sin imágenes clínicas
@@ -17,20 +33,88 @@ const PLAN_CONFIG = {
     aiExtractions: 0,         // sin importación con IA — solo carga manual
   },
   clinica: {
+    label: "Clínica", priceMonthly: 75000, currency: "ARS",
     professionals: 3,
     adminUsers: true,
     clinicalImages: true,
     billing: true,
-    aiExtractions: 100,       // hasta 100 pacientes/mes por foto con IA
+    aiExtractions: 100,
   },
   pro: {
+    label: "Pro", priceMonthly: 125000, currency: "ARS",
     professionals: Infinity,
     adminUsers: true,
     clinicalImages: true,
     billing: true,
-    aiExtractions: 500,       // hasta 500 pacientes/mes por foto con IA
+    aiExtractions: 500,
   },
 };
+
+const PLAN_CACHE_TTL_MS = 30_000;
+let PLAN_CONFIG = { ...FALLBACK_PLANS };
+let _loadedAt = 0;
+let _loading = null;
+
+// -1 en la base significa "ilimitado"; en memoria se representa como Infinity
+// para que las comparaciones (`currentCount >= limit`) sigan funcionando igual.
+function fromDbNumber(value) {
+  return value === -1 ? Infinity : value;
+}
+
+function rowToConfig(row) {
+  return {
+    label: row.label,
+    priceMonthly: Number(row.priceMonthly),
+    currency: row.currency,
+    professionals: fromDbNumber(row.professionals),
+    aiExtractions: fromDbNumber(row.aiExtractions),
+    adminUsers: row.adminUsers,
+    clinicalImages: row.clinicalImages,
+    billing: row.billing,
+    sortOrder: row.sortOrder,
+  };
+}
+
+/** Recarga el snapshot desde la base. Devuelve el snapshot vigente. */
+async function refreshPlans() {
+  try {
+    const rows = await prisma.plan.findMany({ orderBy: { sortOrder: "asc" } });
+    if (rows.length > 0) {
+      const next = {};
+      for (const row of rows) next[row.code] = rowToConfig(row);
+      PLAN_CONFIG = next;
+    }
+    _loadedAt = Date.now();
+  } catch (error) {
+    // Se conserva el snapshot anterior (o el de respaldo) y se reintenta en la
+    // próxima consulta: quedarse sin límites sería peor que usar datos de hace
+    // unos segundos.
+    console.error("[plan-limits] No se pudieron cargar los planes:", error.message);
+    _loadedAt = Date.now();
+  }
+  return PLAN_CONFIG;
+}
+
+/**
+ * Dispara una recarga en segundo plano si el snapshot venció. No bloquea: quien
+ * llama sigue con los valores actuales y el próximo request ya usa los nuevos.
+ */
+function ensureFreshPlans() {
+  if (Date.now() - _loadedAt < PLAN_CACHE_TTL_MS) return;
+  if (_loading) return;
+  _loading = refreshPlans().finally(() => { _loading = null; });
+}
+
+/** Snapshot actual, ya cargado. Para las pantallas que muestran los planes. */
+function getAllPlans() {
+  ensureFreshPlans();
+  return PLAN_CONFIG;
+}
+
+/** Precio mensual vigente del plan (0 si no existe). */
+function getPlanPrice(plan) {
+  return getPlanConfig(plan).priceMonthly || 0;
+}
 
 // Clínicas sin plan (prueba/desarrollo) — sin límites.
 const UNLIMITED_CONFIG = {
@@ -43,6 +127,10 @@ const UNLIMITED_CONFIG = {
 
 /** Devuelve la config del plan, o defaults sin límites si no tiene plan asignado. */
 function getPlanConfig(plan) {
+  // Punto de entrada de todas las comprobaciones de plan: acá se dispara la
+  // recarga si el snapshot venció. No bloquea — devuelve los valores actuales y
+  // el próximo request ya usa los recién leídos.
+  ensureFreshPlans();
   return PLAN_CONFIG[plan] || UNLIMITED_CONFIG;
 }
 
@@ -162,6 +250,10 @@ function formatPlan(plan) {
 
 module.exports = {
   getPlanConfig,
+  getAllPlans,
+  getPlanPrice,
+  refreshPlans,
+  formatPlan,
   checkProfessionalLimit,
   checkAdminUserLimit,
   checkClinicalImagesFeature,

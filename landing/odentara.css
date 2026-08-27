@@ -754,6 +754,15 @@ h1 { color: var(--hero-text); }
 .module-card:hover i { background: var(--teal); color: #fff; transform: scale(1.08); }
 .module-card p { color: var(--muted); line-height: 1.62; font-size: 0.93rem; margin-bottom: 0; }
 
+/* Aclaracion bajo el titulo de Secretar-IA: mas chica y atenuada, porque es una
+   nota al pie del titulo y no otro subtitulo compitiendo con el. */
+.ais-tagline--nota {
+  margin-top: 10px;
+  font-size: 0.92rem;
+  opacity: .78;
+  max-width: 56ch;
+}
+
 /* Module cards inside dark section */
 .section--dark .module-card {
   background: rgba(255,255,255,.04);
@@ -769,6 +778,7 @@ h1 { color: var(--hero-text); }
   background: rgba(20,184,166,.14);
   color: var(--teal-vivid);
 }
+
 .section--dark .module-card:hover i {
   background: rgba(20,184,166,.25);
   color: var(--teal-vivid);
@@ -1450,8 +1460,13 @@ h1 { color: var(--hero-text); }
 }
 
 @media (max-width: 1200px) {
-  /* Ocultar "Iniciar sesion" para dar espacio al nav */
-  .header-link { display: none; }
+  /* "Iniciar sesion" se comprime, NO se oculta. Antes se escondía acá para
+     darle lugar al nav, pero por debajo de 960px el menú hamburguesa nunca
+     volvía a mostrarlo: entre las dos reglas, ningún visitante con pantalla
+     menor a 1200px tenía forma de entrar a la app desde la web. */
+  .header-link { padding: 0 10px; font-size: 0.86rem; }
+  .header-actions { gap: 6px; }
+  .header-actions .button--small { padding: 0 12px; }
 }
 
 @media (max-width: 1140px) {
@@ -1491,6 +1506,9 @@ h1 { color: var(--hero-text); }
   }
   .site-header.is-open .site-nav a,
   .site-header.is-open .header-actions a { width: 100%; justify-content: center; }
+  /* Dentro del menú desplegado, "Iniciar sesion" vuelve a la fila: es el único
+     camino a la app para quien entra desde el celular. */
+  .site-header.is-open .header-link { display: inline-flex; }
   .site-header.is-open {
     background: rgba(6,13,11,.97);
     backdrop-filter: blur(20px);
@@ -1765,4 +1783,85 @@ h1 { color: var(--hero-text); }
 @media (max-width: 560px) {
   .testimonios-card { flex: 0 0 100%; }
   .testimonios-carousel-wrap { padding: 0 40px; }
+}
+
+/* ── Precios: esqueleto mientras llega /api/public/plans ──────────────────
+   El importe ya no viene escrito en el HTML. Hasta que responde la API se
+   muestra una barra gris del ancho aproximado del número, para que la tarjeta
+   no cambie de alto cuando el dato llega. Si la API falla, el JS pone
+   "A consultar" y esconde el signo y el período con la clase de abajo. */
+.price-amount-loading {
+  display: inline-block;
+  min-width: 4.5ch;
+  border-radius: 6px;
+  background: currentColor;
+  opacity: 0.12;
+  animation: price-skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes price-skeleton {
+  0%, 100% { opacity: 0.10; }
+  50%      { opacity: 0.20; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-amount-loading { animation: none; }
+}
+
+/* Sin dato: "A consultar" se lee solo, sin "$" adelante ni "/mes" atrás. */
+.price-amount--sin-dato .price-currency,
+.price-amount--sin-dato .price-period {
+  display: none;
+}
+
+.price-amount--sin-dato [data-plan-amount] {
+  font-size: 0.6em;
+  letter-spacing: 0.01em;
+}
+
+/* ── Pago anual bajo cada plan ─────────────────────────────────────────────
+   Deliberadamente más discreto que el precio mensual: el mensual es la
+   referencia con la que la gente compara, y dos numeros del mismo peso
+   obligan a decidir antes de haber entendido la oferta. Esto es una
+   alternativa, no una segunda cabecera. */
+.price-annual {
+  margin-top: 0.45rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--hero-muted, #64748b);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.price-annual strong {
+  font-weight: 700;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.price-annual .price-currency {
+  font-size: 0.8em;
+  margin-right: 1px;
+}
+
+/* El ahorro es el motivo de la oferta, así que se destaca — pero como etiqueta,
+   sin competir en tamaño con el importe mensual. */
+.price-annual-hint {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(13, 148, 136, 0.12);
+  color: #0f766e;
+  white-space: nowrap;
+}
+
+/* `hidden` tiene que ganarle al display:flex de arriba, o el bloque se ve
+   igual cuando la API no devolvió precio. */
+.price-annual[hidden] {
+  display: none;
 }

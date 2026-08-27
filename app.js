@@ -37,18 +37,39 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('password')?.addEventListener('input', clearLoginError);
 
     // ── Turnstile (solo en app.odentara.com) ─────────────────────────────────────
+    // widgetId va FUERA del if: el `finally` del submit, más abajo, también lo
+    // lee, y ahí ya no estamos dentro de este bloque. Declararlo adentro pasaba
+    // el chequeo de sintaxis pero tiraba ReferenceError al enviar el formulario
+    // —y como el error ocurría dentro del handler, el login no llegaba a
+    // completarse nunca.
+    let widgetId = null;
+
     if (isTurnstileHost) {
         if (submitBtn) submitBtn.disabled = true;
 
         // _renderTurnstile limpia e inicia el widget. Se llama en tres momentos:
         //   • Al cargar la página (desde _turnstileOnLoad o el flag de arranque)
         //   • Al hacer logout (desde logout())
+        //
+        // Se guarda el id que devuelve render(). Turnstile lleva un registro
+        // interno de sus widgets, y vaciar el contenedor con innerHTML los saca
+        // del DOM pero no de ese registro: el render siguiente encuentra un
+        // widget que Turnstile cree vivo y falla. Por eso hay que avisarle con
+        // remove() antes de volver a montar. Ese era el motivo de que el
+        // captcha fallara al recargar o al volver del logout, mientras que en
+        // una pestaña recién abierta andaba bien.
         window._renderTurnstile = function() {
             const container = document.getElementById('turnstile-container');
             if (!container || !window.turnstile) return;
+
+            if (widgetId !== null) {
+                try { window.turnstile.remove(widgetId); } catch (_) { /* ya no existía */ }
+                widgetId = null;
+            }
+
             container.innerHTML = '';
             if (submitBtn) submitBtn.disabled = true;
-            window.turnstile.render(container, {
+            widgetId = window.turnstile.render(container, {
                 sitekey: '0x4AAAAAADXSH3_I07gUFeOy',
                 theme: 'dark',
                 callback: function() {
@@ -96,7 +117,10 @@ document.addEventListener('DOMContentLoaded', () => {
             await withAppLoading('Iniciando sesión...', () => login(email, password, turnstileToken));
         } finally {
             if (isTurnstileHost && window.turnstile) {
-                window.turnstile.reset();
+                // Con id explícito: sin él, reset() actúa sobre el widget que
+                // Turnstile considere actual, que no siempre es el que está en
+                // pantalla si hubo montajes anteriores.
+                if (widgetId !== null) window.turnstile.reset(widgetId);
                 if (submitBtn) submitBtn.disabled = true;
             } else {
                 if (submitBtn) submitBtn.disabled = false;
@@ -226,12 +250,118 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resetToken) window.__resetToken__ = resetToken;
 
     document.getElementById('logout-btn').addEventListener('click', logout);
+
+    // Fila permanente "Instalar aplicación" en el pie del sidebar. Existe además
+    // del banner automático porque quien descarta el banner lo silencia por 14
+    // días, y en ese lapso no tendría ninguna otra forma de instalar la app.
+    //
+    // Va como fila con etiqueta —el mismo patrón que "Modo oscuro"— y no como
+    // ícono suelto: un ícono de descarga al lado de "Cerrar sesión" se puede
+    // leer como "exportar datos", que en una app clínica es una confusión cara.
+    //
+    // Se construye desde JS y no en el HTML porque la mayoría de las sesiones no
+    // son instalables (ya instalada, o navegador sin soporte): así el marcado no
+    // arrastra un control que casi nunca se usa.
+    function sincronizarBotonInstalar() {
+        const wrap = document.querySelector('.sidebar-user-wrap');
+        if (!wrap) return;
+
+        const modo = window.modoInstalacionOdentara?.() || null;
+        let fila = document.getElementById('install-app-row');
+
+        if (!modo) {
+            fila?.remove();
+            return;
+        }
+
+        if (!fila) {
+            fila = document.createElement('div');
+            fila.id = 'install-app-row';
+            fila.className = 'sidebar-install-control';
+            fila.innerHTML =
+                '<span class="sidebar-install-label">Instalar aplicación</span>' +
+                '<button type="button" id="install-app-btn" class="sidebar-install-btn"></button>';
+            fila.querySelector('#install-app-btn')
+                .addEventListener('click', () => window.instalarOdentara?.());
+            // Arriba del control de tema: instalar es una acción puntual y el
+            // tema es una preferencia permanente.
+            wrap.insertBefore(fila, wrap.querySelector('.sidebar-theme-control'));
+        }
+
+        // En iOS el botón no instala: abre un instructivo para agregarla a mano
+        // desde el menú Compartir. Por eso ahí va el ícono de compartir, que es
+        // el que la persona va a tener que tocar después.
+        const esInstructivo = modo === 'ios';
+        const btn = fila.querySelector('#install-app-btn');
+        const titulo = esInstructivo ? 'Cómo instalar Odentara' : 'Instalar Odentara en este dispositivo';
+        btn.innerHTML = `<i class="fa-solid ${esInstructivo ? 'fa-arrow-up-from-bracket' : 'fa-download'}"></i>`;
+        btn.title = titulo;
+        // El ícono no dice nada por sí solo a un lector de pantalla: la etiqueta
+        // de al lado es visual. aria-label lo hace explícito.
+        btn.setAttribute('aria-label', titulo);
+    }
+
+    // La instalabilidad cambia después del load: 'beforeinstallprompt' llega
+    // cuando el navegador lo decide, no al arrancar. Por eso se escucha el
+    // evento en vez de consultar una sola vez.
+    window.addEventListener('odentara:instalabilidad', sincronizarBotonInstalar);
+    // Pasada inicial para iOS, que se resuelve sincrónicamente al cargar
+    // pwa-install.js y por lo tanto no llega a emitir el evento.
+    sincronizarBotonInstalar();
     sidebarToggle?.addEventListener('click', () => setSidebarOpen(!state.sidebarOpen));
     sidebarBackdrop?.addEventListener('click', () => setSidebarOpen(false));
     document.getElementById('sidebar-close-btn')?.addEventListener('click', () => setSidebarOpen(false));
     window.addEventListener('resize', syncSidebarLayout);
     setSidebarOpen(!isMobileLayout());
     
+    // ── Editor del mensaje de confirmación ───────────────────────────────────
+    // Delegado en document porque la sección se re-renderiza entera cada vez que
+    // se entra a Configuración: un listener puesto sobre el textarea moriría con
+    // el nodo en el primer re-render.
+    document.addEventListener('input', (e) => {
+        if (e.target?.id === 'confirmation-message-text') actualizarVistaPreviaMensaje();
+    });
+
+    document.addEventListener('change', (e) => {
+        if (e.target?.id === 'bk-frequency') ajustarVisibilidadDiaBackup();
+    });
+
+    document.addEventListener('click', (e) => {
+        const token = e.target?.closest?.('[data-insert-token]');
+        if (token) {
+            e.preventDefault();
+            insertarMarcadorEnMensaje(token.dataset.insertToken);
+            return;
+        }
+        if (e.target?.closest?.('#btn-backup-ahora')) {
+            e.preventDefault();
+            crearBackupAhora();
+            return;
+        }
+        const borrarGastoBtn = e.target?.closest?.('[data-borrar-gasto]');
+        if (borrarGastoBtn) {
+            e.preventDefault();
+            borrarGasto(Number(borrarGastoBtn.dataset.borrarGasto));
+            return;
+        }
+        const descargar = e.target?.closest?.('[data-descargar-backup]');
+        if (descargar) {
+            e.preventDefault();
+            descargarBackup(descargar.dataset.descargarBackup);
+            return;
+        }
+        if (e.target?.closest?.('#confirmation-message-reset')) {
+            const textarea = document.getElementById('confirmation-message-text');
+            if (textarea) {
+                // Vaciar es exactamente "usar el de por defecto": no hace falta
+                // pegar el texto original ni recordarlo.
+                textarea.value = '';
+                actualizarVistaPreviaMensaje();
+                textarea.focus();
+            }
+        }
+    });
+
     document.addEventListener('click', async (e) => {
         if (e.target.matches('.modal-overlay') || e.target.closest('[data-modal-close]')) closeModal();
         if (e.target.closest('[data-theme-toggle]')) {
@@ -526,6 +656,24 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Configuración de clínica guardada.', { type: 'success' });
             refreshCurrentView();
             renderSidebar();
+            return;
+        }
+
+        if (e.target.id === 'gasto-form') {
+            e.preventDefault();
+            await guardarGasto();
+            return;
+        }
+
+        if (e.target.id === 'backup-schedule-form') {
+            e.preventDefault();
+            await guardarProgramacionBackup();
+            return;
+        }
+
+        if (e.target.id === 'confirmation-message-form') {
+            e.preventDefault();
+            await guardarMensajeConfirmacion();
             return;
         }
 

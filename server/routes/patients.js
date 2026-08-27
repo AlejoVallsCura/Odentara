@@ -1,6 +1,7 @@
 const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
+const { requirePermission } = require("../middleware/require-permission");
 const { buildPatientAccessWhere } = require("../lib/access");
 const { parseId } = require("../lib/parse-id");
 const {
@@ -35,6 +36,31 @@ const {
 } = require("../lib/plan-limits");
 
 const router = express.Router();
+
+const puedeCrearPacientes = requirePermission(
+  canManagePatients,
+  "No tenes permisos para crear pacientes.",
+);
+
+const puedeEditarLaHistoriaClinica = requirePermission(
+  canManagePatients,
+  "No tenés permisos para editar la historia clínica.",
+);
+
+const puedeEditarPacientes = requirePermission(
+  canEditPatient,
+  "No tenes permisos para editar pacientes.",
+);
+
+const puedeEliminarPacientes = requirePermission(
+  canDeletePatient,
+  "Solo el superadmin puede eliminar pacientes.",
+);
+
+const puedeImportarPacientes = requirePermission(
+  canManagePatients,
+  "No tenes permisos para importar pacientes.",
+);
 
 // Etiquetas legibles del cuestionario médico (para armar el dossier del resumen).
 const MH_LABELS = {
@@ -98,6 +124,45 @@ function buildPatientDossier(patient) {
   return lines.join("\n");
 }
 
+/**
+ * Traduce un fallo de las funciones de IA a algo que se le pueda mostrar a un
+ * odontólogo, y deja el detalle en el log del servidor.
+ *
+ * Antes se devolvía `error.message` tal cual. Cuando el SDK de Anthropic falla,
+ * ese mensaje ES el cuerpo crudo de la API, así que al profesional le aparecía
+ * en pantalla `401 {"type":"authentication_error"...}`. No le sirve para nada,
+ * y expone qué proveedor se usa y cómo está configurado.
+ *
+ * Los errores que construye el propio servicio (NOT_CONFIGURED, REFUSAL,
+ * INVALID_INPUT) sí llevan un texto pensado para leerse, y se pasan tal cual.
+ */
+function responderErrorIa(res, error, contexto) {
+  const CONOCIDOS = {
+    NOT_CONFIGURED: 503,
+    INVALID_INPUT: 400,
+    REFUSAL: 422,
+  };
+
+  const status = CONOCIDOS[error.code];
+  if (status) {
+    return res.status(status).json({ ok: false, error: error.message, code: error.code });
+  }
+
+  // Un 401 del proveedor es un problema de configuración, no del usuario ni un
+  // fallo pasajero: conviene que se distinga de un 500 genérico para que quien
+  // administra sepa dónde mirar.
+  const esAuth = /401|authentication_error|API key/i.test(String(error.message || ""));
+  console.error(`[${contexto}]`, error);
+
+  return res.status(esAuth ? 503 : 500).json({
+    ok: false,
+    code: esAuth ? "AI_AUTH" : "AI_ERROR",
+    error: esAuth
+      ? "Las funciones de IA no están disponibles: hay un problema con la configuración del servicio. Avisale a quien administra el sistema."
+      : "No se pudo completar la operación con IA. Probá de nuevo en un momento.",
+  });
+}
+
 // ── GET /ai/status — ¿están disponibles las funciones de IA (resumen/dictado)? ──
 router.get("/ai/status", requireAuth, async (req, res) => {
   try {
@@ -144,30 +209,20 @@ router.post("/:id/ai-summary", sensitiveLimiter, requireAuth, async (req, res) =
     const summary = await generatePatientSummary(buildPatientDossier(patient));
     return res.json({ ok: true, summary });
   } catch (error) {
-    const status = error.code === "NOT_CONFIGURED" ? 503 : error.code === "REFUSAL" ? 422 : 500;
-    if (status === 500) console.error("[patients/ai-summary]", error);
-    return res.status(status).json({ ok: false, error: error.message, code: error.code });
+    return responderErrorIa(res, error, "patients/ai-summary");
   }
 });
 
 // ── POST /:id/ai-structure-note — limpia una nota dictada por voz ──────────────
-router.post("/:id/ai-structure-note", sensitiveLimiter, requireAuth, async (req, res) => {
+router.post("/:id/ai-structure-note", sensitiveLimiter, requireAuth, puedeEditarLaHistoriaClinica, async (req, res) => {
   try {
-    if (!canManagePatients(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenés permisos para editar la historia clínica." });
-    }
     const gate = await requireAiPlan(req.prisma, req.user.clinicId);
     if (!gate.ok) return res.status(403).json({ ok: false, error: gate.error, code: "plan-not-included" });
 
     const { note, odontogramActions } = await structureClinicalNote(req.body.transcript);
     return res.json({ ok: true, note, odontogramActions });
   } catch (error) {
-    const status =
-      error.code === "NOT_CONFIGURED" ? 503 :
-      error.code === "INVALID_INPUT"  ? 400 :
-      error.code === "REFUSAL"        ? 422 : 500;
-    if (status === 500) console.error("[patients/ai-structure-note]", error);
-    return res.status(status).json({ ok: false, error: error.message, code: error.code });
+    return responderErrorIa(res, error, "patients/ai-structure-note");
   }
 });
 
@@ -200,12 +255,8 @@ router.get("/extract-photo/status", requireAuth, async (req, res) => {
 });
 
 // ── POST /extract-photo — extrae pacientes de fotos con IA (no crea nada) ─────
-router.post("/extract-photo", sensitiveLimiter, requireAuth, async (req, res) => {
+router.post("/extract-photo", sensitiveLimiter, requireAuth, puedeImportarPacientes, async (req, res) => {
   try {
-    if (!canManagePatients(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para importar pacientes." });
-    }
-
     // Chequeo de plan y cuota mensual antes de gastar el llamado a la IA
     const clinic = await req.prisma.clinic.findUnique({
       where: { id: req.user.clinicId },
@@ -233,13 +284,7 @@ router.post("/extract-photo", sensitiveLimiter, requireAuth, async (req, res) =>
 
     return res.json({ ok: true, patients, quotaRemaining: quota.remaining === Infinity ? null : Math.max(0, quota.remaining - patients.length) });
   } catch (error) {
-    const status =
-      error.code === "NOT_CONFIGURED" ? 503 :
-      error.code === "INVALID_INPUT"  ? 400 :
-      error.code === "TOO_LARGE"      ? 413 :
-      error.code === "REFUSAL"        ? 422 : 500;
-    if (status === 500) console.error("[patients/extract-photo]", error);
-    return res.status(status).json({ ok: false, error: error.message, code: error.code });
+    return responderErrorIa(res, error, "patients/extract-photo");
   }
 });
 
@@ -303,13 +348,9 @@ router.get("/:id", requireAuth, async (req, res) => {
 });
 
 // ── POST / ────────────────────────────────────────────────────────────────────
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, puedeCrearPacientes, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManagePatients(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para crear pacientes." });
-    }
-
     const payload = getPatientPayload(req.body);
 
     if (!payload.fullName || !payload.dni) {
@@ -380,13 +421,9 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // ── POST /import ──────────────────────────────────────────────────────────────
-router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
+router.post("/import", sensitiveLimiter, requireAuth, puedeCrearPacientes, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManagePatients(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para crear pacientes." });
-    }
-
     const rows = Array.isArray(req.body.patients) ? req.body.patients : [];
     if (rows.length === 0) {
       return res.status(400).json({ ok: false, error: "No se recibieron filas para importar." });
@@ -530,13 +567,9 @@ router.post("/import", sensitiveLimiter, requireAuth, async (req, res) => {
 });
 
 // ── PUT /:id ──────────────────────────────────────────────────────────────────
-router.put("/:id", requireAuth, async (req, res) => {
+router.put("/:id", requireAuth, puedeEditarPacientes, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditPatient(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para editar pacientes." });
-    }
-
     const patientId = parseId(req.params.id);
     if (!patientId) return res.status(400).json({ ok: false, error: "ID de paciente inválido." });
 
@@ -592,13 +625,9 @@ router.put("/:id", requireAuth, async (req, res) => {
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────────────────
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, puedeEliminarPacientes, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canDeletePatient(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "Solo el superadmin puede eliminar pacientes." });
-    }
-
     const patientId = parseId(req.params.id);
     if (!patientId) return res.status(400).json({ ok: false, error: "ID de paciente inválido." });
 

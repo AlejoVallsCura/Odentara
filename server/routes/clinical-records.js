@@ -1,10 +1,21 @@
 const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
+const { requirePermission } = require("../middleware/require-permission");
 const { buildPatientAccessWhere } = require("../lib/access");
 const { canEditClinicalData, canViewClinicalData } = require("../lib/permissions");
 
 const router = express.Router();
+
+const puedeEditarHistoriaClinica = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para editar historia clínica.",
+);
+
+const puedeVerHistoriaClinica = requirePermission(
+  canViewClinicalData,
+  "No tenes permisos para ver historia clínica.",
+);
 
 // La ficha clínica (odontograma, notas, alergias) es UNA sola por paciente,
 // compartida por toda la clínica — no hay un registro distinto por
@@ -36,13 +47,9 @@ function serializeRecord(record) {
   };
 }
 
-router.get("/:patientId", requireAuth, async (req, res) => {
+router.get("/:patientId", requireAuth, puedeVerHistoriaClinica, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canViewClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver historia clínica." });
-    }
-
     const patientId = Number(req.params.patientId);
 
     const patient = await prisma.patient.findFirst({
@@ -70,13 +77,9 @@ router.get("/:patientId", requireAuth, async (req, res) => {
   }
 });
 
-router.put("/:patientId", requireAuth, async (req, res) => {
+router.put("/:patientId", requireAuth, puedeEditarHistoriaClinica, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para editar historia clínica." });
-    }
-
     const patientId = Number(req.params.patientId);
     const editorProfessionalId = resolveEditorProfessionalId(req.permissions, req.body.professionalId);
 

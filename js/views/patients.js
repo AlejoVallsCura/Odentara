@@ -164,30 +164,70 @@ function openPatientImportModal(initialMode = 'file') {
     // superaba fácil el límite del servidor, y el error llegaba como
     // "Error interno del servidor" sin explicar qué pasó. 1600px @ 0.78 sigue
     // siendo perfectamente legible para que la IA lea texto manuscrito.
-    function resizeImage(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                const img = new Image();
-                img.onload = () => {
-                    const MAX = 1600;
-                    let { width, height } = img;
-                    if (width > MAX || height > MAX) {
-                        const r = Math.min(MAX / width, MAX / height);
-                        width = Math.round(width * r); height = Math.round(height * r);
-                    }
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width; canvas.height = height;
-                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
-                    resolve({ mediaType: 'image/jpeg', data: dataUrl.split(',')[1], dataUrl });
-                };
-                img.onerror = reject;
-                img.src = e.target.result;
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
+    // Reduce la foto antes de mandarla. La versión anterior usaba
+    // FileReader.readAsDataURL, que materializa la foto ORIGINAL entera como
+    // texto base64 (una de 4 MB pasa a ~5,5 MB de string) solo para poder
+    // decodificarla. En un celular, con varias fotos seguidas, eso agotaba la
+    // memoria y el canvas empezaba a fallar — de ahí que entraran 8 de 10.
+    // createImageBitmap decodifica desde el File directamente, sin copia
+    // intermedia; el objectURL es el plan B para navegadores que no lo tengan.
+    async function resizeImage(file) {
+        const MAX = 1600;
+        let bitmap = null;
+        let objectUrl = null;
+        let canvas = null;
+
+        try {
+            let source;
+            if (typeof createImageBitmap === 'function') {
+                bitmap = await createImageBitmap(file);
+                source = bitmap;
+            } else {
+                objectUrl = URL.createObjectURL(file);
+                source = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error('El navegador no pudo abrir la imagen.'));
+                    img.src = objectUrl;
+                });
+            }
+
+            let width = source.width;
+            let height = source.height;
+            if (!width || !height) throw new Error('La imagen no tiene dimensiones válidas.');
+            if (width > MAX || height > MAX) {
+                const r = Math.min(MAX / width, MAX / height);
+                width = Math.round(width * r);
+                height = Math.round(height * r);
+            }
+
+            canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('El navegador no pudo preparar la imagen.');
+            ctx.drawImage(source, 0, 0, width, height);
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+            // Sin memoria suficiente, algunos navegadores móviles no lanzan
+            // error: devuelven un canvas en blanco o una cadena mínima. Se
+            // detecta acá para que no entre una foto vacía como si fuera válida.
+            if (!dataUrl || dataUrl.length < 1000) {
+                throw new Error('El navegador se quedó sin memoria al procesar la imagen.');
+            }
+            // Se guarda solo el base64: el dataUrl se arma cuando hace falta.
+            // Antes se guardaban los dos y cada foto ocupaba el doble en memoria.
+            return { mediaType: 'image/jpeg', data: dataUrl.split(',')[1] };
+        } finally {
+            if (bitmap?.close) bitmap.close();
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            // Liberar el canvas explícitamente ayuda en móviles con poca memoria.
+            if (canvas) { canvas.width = 0; canvas.height = 0; }
+        }
+    }
+
+    function photoDataUrl(img) {
+        return `data:${img.mediaType};base64,${img.data}`;
     }
 
     // ── Estado ────────────────────────────────────────────────────────────────
@@ -197,6 +237,8 @@ function openPatientImportModal(initialMode = 'file') {
     let _colMapping = {};         // { campo: encabezado }
     let _photoImages = [];        // [{mediaType, data, dataUrl}]
     let _reviewRows = [];         // pacientes extraídos por foto (editables)
+    let _photoBusy = false;       // procesando imágenes (redimensionado)
+    let _extractBusy = false;     // extracción con IA en curso
 
     // Tope de imágenes que acepta la UI. La lectura se hace por tandas (ver
     // extractPhotoBatch), así que el total no influye en cuánto tarda cada
@@ -367,7 +409,7 @@ function openPatientImportModal(initialMode = 'file') {
             renderMapping(file.name);
             renderFilePreview();
         } catch (err) {
-            $('#import-preview').innerHTML = `<div style="color:#ef4444;padding:12px">Error al leer el archivo: ${err.message}</div>`;
+            $('#import-preview').innerHTML = `<div style="color:#ef4444;padding:12px">Error al leer el archivo: ${escapeHtml(err.message)}</div>`;
         }
     }
 
@@ -463,19 +505,93 @@ function openPatientImportModal(initialMode = 'file') {
     photoDrop.addEventListener('drop', e => { e.preventDefault(); photoDrop.style.borderColor = ''; addPhotos(e.dataTransfer.files); });
     photoInput.addEventListener('change', () => addPhotos(photoInput.files));
 
+    // Redimensionar una foto de celular con canvas bloquea el hilo principal
+    // varios cientos de milisegundos. Con 10 fotos seguidas la pantalla quedaba
+    // congelada 10-20 segundos sin mostrar nada —ni miniaturas ni el botón de
+    // extraer, que está oculto hasta que hay imágenes— y desde el mostrador
+    // parecía que la app no respondía. Ahora se informa el avance, las
+    // miniaturas aparecen de a una, y se cede el hilo entre imagen e imagen para
+    // que el navegador pueda repintar y atender clics.
     async function addPhotos(fileList) {
-        const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
-        for (const f of files) {
-            if (_photoImages.length >= PHOTO_MAX_IMAGES) { showToast(`Máximo ${PHOTO_MAX_IMAGES} imágenes.`, 'warning'); break; }
-            try { _photoImages.push(await resizeImage(f)); } catch (_e) { /* imagen inválida, se ignora */ }
+        if (_photoBusy) {
+            showToast('Esperá a que terminen de procesarse las imágenes anteriores.', 'warning');
+            return;
         }
-        renderThumbs();
+        const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
+        if (files.length === 0) return;
+
+        _photoBusy = true;
+        setPhotoPickerEnabled(false);
+
+        const fallidas = [];
+        try {
+            let procesadas = 0;
+            for (const f of files) {
+                if (_photoImages.length >= PHOTO_MAX_IMAGES) {
+                    showToast(`Máximo ${PHOTO_MAX_IMAGES} imágenes.`, 'warning');
+                    break;
+                }
+                showPhotoProgress(`Procesando imagen ${procesadas + 1} de ${files.length}…`);
+                // Cede el hilo para que el mensaje de arriba llegue a pintarse
+                // antes de arrancar el trabajo pesado de la imagen siguiente.
+                await new Promise(resolve => setTimeout(resolve, 0));
+                try {
+                    _photoImages.push(await resizeImage(f));
+                } catch (err) {
+                    // Antes esto se descartaba en silencio: si fallaban 2 de 10,
+                    // la pantalla mostraba 8 y nadie sabía por qué faltaban.
+                    fallidas.push({ nombre: f.name || 'imagen', motivo: err.message });
+                }
+                procesadas += 1;
+                renderThumbs(); // aparecen de a una, no todas al final
+            }
+        } finally {
+            showPhotoProgress('');
+            _photoBusy = false;
+            setPhotoPickerEnabled(true);
+            // Permite volver a elegir el mismo archivo (si no, 'change' no dispara).
+            if (photoInput) photoInput.value = '';
+            renderThumbs();
+
+            if (fallidas.length > 0) {
+                const cuantas = fallidas.length === 1
+                    ? 'No se pudo procesar 1 imagen'
+                    : `No se pudieron procesar ${fallidas.length} imágenes`;
+                showToast(
+                    `${cuantas}: ${fallidas.map(f => f.nombre).join(', ')}. ` +
+                    `${fallidas[0].motivo} Probá sacarlas de a menos, o con menor resolución.`,
+                    'warning'
+                );
+            }
+        }
+    }
+
+    // Cartel de avance propio, fuera del dropzone: el input de archivos y el
+    // botón "Elegir imágenes" viven dentro del dropzone, así que reescribir su
+    // contenido los destruiría y dejaría los handlers apuntando a nodos sueltos.
+    function showPhotoProgress(text) {
+        let node = $('#photo-progress');
+        if (!node) {
+            const panel = $('#panel-photo');
+            const thumbs = $('#photo-thumbs');
+            if (!panel) return;
+            node = document.createElement('div');
+            node.id = 'photo-progress';
+            node.style.cssText = 'margin-top:10px;font-size:13px;color:#6b7280;text-align:center';
+            panel.insertBefore(node, thumbs || null);
+        }
+        node.innerHTML = text ? `<i class="fa-solid fa-spinner fa-spin"></i> ${escapeHtml(text)}` : '';
+    }
+
+    function setPhotoPickerEnabled(enabled) {
+        const pick = $('#photo-pick-file');
+        if (pick) pick.disabled = !enabled;
     }
 
     function renderThumbs() {
         $('#photo-thumbs').innerHTML = _photoImages.map((img, i) => `
             <div style="position:relative;width:74px;height:74px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
-                <img src="${img.dataUrl}" style="width:100%;height:100%;object-fit:cover">
+                <img src="${photoDataUrl(img)}" style="width:100%;height:100%;object-fit:cover">
                 <button data-rm="${i}" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:11px;line-height:1">×</button>
             </div>`).join('');
         $('#photo-thumbs').querySelectorAll('button[data-rm]').forEach(b => {
@@ -511,6 +627,17 @@ function openPatientImportModal(initialMode = 'file') {
     }
 
     $('#photo-extract-btn').onclick = async () => {
+        // Cerrojo además del `disabled` del botón: si por lo que sea entran dos
+        // clics, no se pueden disparar dos secuencias de tandas en paralelo. Una
+        // ráfaga de POST pesados hace que el WAF del hosting corte la IP y
+        // devuelva un 403 en toda la página, no solo en la petición.
+        if (_extractBusy) return;
+        if (_photoBusy) {
+            showToast('Esperá a que terminen de procesarse las imágenes.', 'warning');
+            return;
+        }
+        _extractBusy = true;
+
         const btn = $('#photo-extract-btn');
         const total = _photoImages.length;
         const batches = [];
@@ -528,7 +655,12 @@ function openPatientImportModal(initialMode = 'file') {
 
         try {
             await withAppLoading(`Leyendo imágenes con IA… (0 de ${total})`, async () => {
+                let primera = true;
                 for (const batch of batches) {
+                    // Respiro entre tandas: encadenar POST pesados sin pausa es
+                    // lo que el WAF del hosting interpreta como abuso.
+                    if (!primera) await new Promise(resolve => setTimeout(resolve, 400));
+                    primera = false;
                     try {
                         patients.push(...await extractPhotoBatch(batch));
                     } catch (err) {
@@ -559,6 +691,7 @@ function openPatientImportModal(initialMode = 'file') {
         } catch (err) {
             $('#photo-review').innerHTML = `<div style="color:#ef4444;padding:12px;font-size:13px">${escapeHtml(err.message)}</div>`;
         } finally {
+            _extractBusy = false;
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Extraer datos con IA';
         }
@@ -753,10 +886,16 @@ function openPatientModal(editId = null) {
 
     patientForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const validation = await validatePatientForm(patientForm, editId);
+        // Cerrojo además del overlay: aunque hoy la validación es sincrónica y no
+        // deja hueco, un envío en curso nunca debe poder dispararse dos veces.
+        const submitBtn = patientForm.querySelector('button[type=submit]');
+        if (submitBtn?.disabled) return;
+
+        const validation = validatePatientForm(patientForm, editId);
         if (!validation.ok) {
             return;
         }
+        if (submitBtn) submitBtn.disabled = true;
 
         const data = {
             name: document.getElementById('p-name').value,
@@ -828,6 +967,10 @@ function openPatientModal(editId = null) {
             if (!mapped) {
                 showFormFeedback(patientForm, error.message || 'No se pudo guardar el paciente.');
             }
+        } finally {
+            // Se rehabilita siempre: si falló (por ejemplo, DNI duplicado), el
+            // formulario sigue abierto y hay que poder corregir y reintentar.
+            if (submitBtn) submitBtn.disabled = false;
         }
     });
 }
@@ -943,8 +1086,7 @@ function renderPatients() {
                                     ${escapeHtml(p.name)}
                                 </td>
                                 <td data-label="Contacto">
-                                    <span class="block text-sm text-gray-600" style="margin-bottom:4px;"><i class="fa-solid fa-phone mr-1"></i> ${escapeHtml(p.phone)}</span>
-                                    <span class="block text-xs text-gray-400"><i class="fa-solid fa-envelope mr-1"></i> ${escapeHtml(p.email || 'Sin email')}</span>
+                                    <span class="block text-sm text-gray-600"><i class="fa-solid fa-phone mr-1"></i> ${escapeHtml(p.phone)}</span>
                                 </td>
                                 <td class="text-sm font-semibold" data-label="DNI">${p.dni}</td>
                                 <td data-label="Acciones" class="table-actions-cell">
@@ -953,6 +1095,15 @@ function renderPatients() {
                                         ${canEditPatientUi() ? `<button class="btn btn-ghost p-1 btn-edit-patient" data-id="${p.id}" title="Editar"><i class="fa-solid fa-pen text-primary-600"></i></button>` : ''}
                                         ${isSuperadmin() ? `<button class="btn btn-ghost p-1 btn-delete-patient" data-id="${p.id}" title="Eliminar"><i class="fa-solid fa-trash text-danger"></i></button>` : ''}
                                         ${canViewPatientBillingUi() ? `<button class="btn btn-ghost p-1 btn-view-patient-billing" data-id="${p.id}" title="Cuenta Corriente"><i class="fa-solid fa-wallet text-emerald-600"></i></button>` : ''}
+                                        ${(() => {
+                                            // Solo si el teléfono se puede convertir a un número que WhatsApp
+                                            // entienda: un botón que abre un chat con un número inventado es
+                                            // peor que no tener botón.
+                                            const wa = toWhatsappNumber(p.phone);
+                                            return wa
+                                                ? `<a class="btn btn-ghost p-1 btn-whatsapp-patient" href="https://wa.me/${wa}" target="_blank" rel="noopener noreferrer" title="Escribir por WhatsApp a ${escapeHtml(p.phone)}"><i class="fa-brands fa-whatsapp"></i></a>`
+                                                : '';
+                                        })()}
                                     </div>
                                 </td>
                             </tr>

@@ -1,9 +1,10 @@
 const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
-const { buildPatientAccessWhere } = require("../lib/access");
+const { requirePermission } = require("../middleware/require-permission");
+const { buildPatientAccessWhere, buildOwnedRecordWhere, canUseProfessional } = require("../lib/access");
 const { parseId } = require("../lib/parse-id");
-const { canViewClinicalData, canEditClinicalData, canAccessWholeClinic, getAccessibleProfessionalIds } = require("../lib/permissions");
+const { canViewClinicalData, canEditClinicalData } = require("../lib/permissions");
 const {
   serializePrescription,
   getPrescriptionPayload,
@@ -13,14 +14,25 @@ const {
 
 const router = express.Router();
 
+const puedeAnularRecetas = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para anular recetas.",
+);
+
+const puedeEmitirRecetas = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para emitir recetas.",
+);
+
+const puedeVerRecetas = requirePermission(
+  canViewClinicalData,
+  "No tenes permisos para ver recetas.",
+);
+
 // ── GET /?patientId= ──────────────────────────────────────────────────────────
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, puedeVerRecetas, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canViewClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver recetas." });
-    }
-
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
     if (!patientId) {
       return res.status(400).json({ ok: false, error: "Falta el parámetro patientId." });
@@ -29,9 +41,9 @@ router.get("/", requireAuth, async (req, res) => {
     // Las recetas son de UN profesional (professionalId no admite null en el
     // modelo) — no debe verlas cualquier profesional de la clínica que
     // atienda al mismo paciente, solo el/los que tiene permitidos quien pide.
-    const professionalScope = canAccessWholeClinic(req.permissions)
-      ? (req.query.professionalId ? { professionalId: Number(req.query.professionalId) } : {})
-      : { professionalId: { in: getAccessibleProfessionalIds(req.permissions) } };
+    const professionalScope = buildOwnedRecordWhere(req.permissions, {
+      filterProfessionalId: req.query.professionalId,
+    });
 
     const prescriptions = await prisma.prescription.findMany({
       where: {
@@ -51,13 +63,9 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // ── POST / ────────────────────────────────────────────────────────────────────
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, puedeEmitirRecetas, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para emitir recetas." });
-    }
-
     const payload = getPrescriptionPayload(req.body);
     const errors = validatePrescriptionPayload(payload);
     if (errors.length > 0) {
@@ -73,6 +81,15 @@ router.post("/", requireAuth, async (req, res) => {
     });
     if (!patient) {
       return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
+    }
+
+    // La consulta de abajo comprueba que el profesional sea de esta clínica,
+    // pero no que este usuario pueda actuar en su nombre. Sin esto, un
+    // odontólogo con alcance restringido podía emitir una receta a nombre de un
+    // colega de la misma clínica —y como la matrícula se toma del profesional
+    // elegido, el documento salía firmado con la matrícula del otro.
+    if (!canUseProfessional(req.permissions, payload.professionalId)) {
+      return res.status(403).json({ ok: false, error: "No tenes acceso al profesional indicado." });
     }
 
     const professional = await prisma.professional.findFirst({
@@ -110,13 +127,9 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────────────────
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, puedeAnularRecetas, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para anular recetas." });
-    }
-
     const prescriptionId = parseId(req.params.id);
     if (!prescriptionId) return res.status(400).json({ ok: false, error: "ID de receta inválido." });
 
@@ -126,9 +139,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
         deletedAt: null,
         // Un profesional no puede anular la receta de otro colega para el
         // mismo paciente — es de un solo profesional, no de la clínica.
-        ...(canAccessWholeClinic(req.permissions)
-          ? {}
-          : { professionalId: { in: getAccessibleProfessionalIds(req.permissions) } }),
+        ...buildOwnedRecordWhere(req.permissions),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
       include: PRESCRIPTION_INCLUDE,

@@ -12,7 +12,6 @@ function renderSettingsSubpages() {
     const isSecretary = state.user.roles.includes('secretary');
     const canManageSettings = isAdmin || isSecretary;
     const canManageUsers = isAdmin;       // crear/ver usuarios y profesionales
-    const canManageClinic = isSecretary || isAdmin; // configuración de clínica
 
     if (!canManageSettings) {
         return `
@@ -98,20 +97,63 @@ function renderSettingsSubpages() {
         }).join('')
         : '<p class="subtext">No hay profesionales cargados todavía.</p>';
 
-    const settingsSections = [
-        ...(canManageClinic ? [{ id: 'clinic-settings', label: 'Configuración clínica', icon: 'fa-hospital', description: 'Nombre comercial e identidad visual de profesionales.' }] : []),
-        ...(canManageUsers ? [{ id: 'create-user', label: 'Crear usuario', icon: 'fa-user-plus', description: 'Alta de nuevos usuarios y permisos.' }] : []),
-        ...(canManageUsers ? [{ id: 'create-professional', label: 'Crear profesional', icon: 'fa-user-doctor', description: 'Registro de profesionales y datos base.' }] : []),
-        ...(canManageUsers ? [{ id: 'users-list', label: 'Usuarios existentes', icon: 'fa-users-gear', description: 'Listado de usuarios y accesos asignados.' }] : []),
-        ...(canManageUsers ? [{ id: 'professionals-list', label: 'Profesionales existentes', icon: 'fa-address-card', description: 'Vista de profesionales y acceso al calendario.' }] : []),
-    ];
+    // La lista es la misma que arma el submenu del sidebar (permissions.js), ya
+    // filtrada por permisos. Acá se usa el nombre largo, que es el que entra.
+    const settingsSections = getSettingsSections()
+        .map(seccion => ({ ...seccion, label: seccion.labelLargo || seccion.label }));
 
     const activeSection = settingsSections.some(section => section.id === state.settingsSubView)
         ? state.settingsSubView
         : (settingsSections[0]?.id || 'create-professional');
     state.settingsSubView = activeSection;
 
+    // Marcadores admitidos. La lista canónica está en shared/appointment-message.js
+    // y viaja en la respuesta de la API; acá se usa la del módulo compartido, que
+    // es el mismo archivo que valida el servidor.
+    const marcadoresHtml = MARCADORES.map((m) => `
+        <button type="button" class="msg-token" data-insert-token="{${m.clave}}" title="${escapeHtml(m.descripcion)}">
+            {${m.clave}}
+        </button>
+    `).join('');
+
+    const plantillaActual = getAppointmentMessageTemplate();
+
     const settingsContent = {
+        'confirmation-message': `
+            <section class="settings-card settings-panel-card">
+                <header>
+                    <div>
+                        <h3>Mensaje de confirmación</h3>
+                        <p class="subtext">Es el texto que se abre en WhatsApp cuando confirmás un turno desde el panel. Lo comparten todas las personas de la clínica.</p>
+                    </div>
+                </header>
+                <form id="confirmation-message-form" class="settings-form-row columns-1">
+                    <div class="settings-subsection">
+                        <h4>Datos que podés insertar</h4>
+                        <p class="subtext">Tocá uno para agregarlo donde tengas el cursor. Se reemplazan por los datos reales de cada turno.</p>
+                        <div class="msg-token-row">${marcadoresHtml}</div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="confirmation-message-text">Mensaje</label>
+                        <textarea id="confirmation-message-text" rows="6" maxlength="${LARGO_MAXIMO}"
+                            placeholder="Dejalo vacío para usar el mensaje por defecto">${escapeHtml(plantillaActual)}</textarea>
+                        <p class="subtext"><span id="confirmation-message-count">0</span> / ${LARGO_MAXIMO} caracteres</p>
+                    </div>
+
+                    <div class="settings-subsection">
+                        <h4>Así lo va a recibir el paciente</h4>
+                        <p class="subtext">Vista previa con datos de ejemplo.</p>
+                        <div class="msg-preview" id="confirmation-message-preview"></div>
+                    </div>
+
+                    <div class="form-action-row">
+                        <button type="submit" class="btn btn-primary">Guardar mensaje</button>
+                        <button type="button" class="btn btn-ghost" id="confirmation-message-reset">Volver al texto por defecto</button>
+                    </div>
+                </form>
+            </section>
+        `,
         'clinic-settings': `
             <section class="settings-card settings-panel-card">
                 <header>
@@ -415,3 +457,100 @@ function renderSettings() {
     `;
 }
 
+
+// -----------------------------------------------------------------------------
+// Mensaje de confirmación — comportamiento del editor
+// -----------------------------------------------------------------------------
+//
+// La vista previa no es adorno: sin ella, la única forma de saber cómo queda el
+// mensaje es mandárselo a un paciente real. Se recalcula en cada tecla usando el
+// MISMO renderizador que arma el mensaje de verdad (shared/appointment-message),
+// así que lo que se ve acá es exactamente lo que va a recibir la persona.
+
+// Nombres inventados a propósito. Antes figuraba una profesional real de la
+// clínica, y en una vista previa eso se lee como si el mensaje fuera para ella.
+// El nombre de la clínica sí es el de verdad: ahí conviene ver cómo queda.
+const EJEMPLO_MENSAJE = {
+    paciente:    'Ana Ejemplo',
+    fecha:       '24/8/2026',
+    hora:        '15:30',
+    profesional: 'Dr. Ejemplo',
+    clinica:     '',   // se completa al vuelo con el nombre real de la clínica
+};
+
+function actualizarVistaPreviaMensaje() {
+    const textarea = document.getElementById('confirmation-message-text');
+    const preview  = document.getElementById('confirmation-message-preview');
+    const contador = document.getElementById('confirmation-message-count');
+    if (!textarea || !preview) return;
+
+    const texto = textarea.value;
+    if (contador) contador.textContent = String(texto.length);
+
+    const mensaje = renderAppointmentMessage(texto, {
+        ...EJEMPLO_MENSAJE,
+        clinica: getClinicDisplayName()
+    });
+
+    // textContent y no innerHTML: el contenido lo escribe una persona y termina
+    // en una pantalla de la clínica. No hay ninguna razón para interpretarlo
+    // como marcado, y sí para no hacerlo.
+    preview.textContent = mensaje;
+
+    // Un marcador mal escrito sobrevive al renderizado y queda visible. Se avisa
+    // acá para que se corrija antes de guardar, no después de mandarlo.
+    const avisos = validateAppointmentTemplate(texto).filter(a => a.includes('marcadores'));
+    let nota = document.getElementById('confirmation-message-warn');
+    if (avisos.length > 0) {
+        if (!nota) {
+            nota = document.createElement('p');
+            nota.id = 'confirmation-message-warn';
+            nota.className = 'msg-warn';
+            preview.insertAdjacentElement('afterend', nota);
+        }
+        nota.textContent = avisos[0];
+    } else if (nota) {
+        nota.remove();
+    }
+}
+
+function insertarMarcadorEnMensaje(token) {
+    const textarea = document.getElementById('confirmation-message-text');
+    if (!textarea) return;
+
+    // Se inserta en la posición del cursor y no al final: quien está escribiendo
+    // espera que aparezca donde está mirando.
+    const inicio = textarea.selectionStart ?? textarea.value.length;
+    const fin    = textarea.selectionEnd ?? textarea.value.length;
+    textarea.value = textarea.value.slice(0, inicio) + token + textarea.value.slice(fin);
+
+    const cursor = inicio + token.length;
+    textarea.setSelectionRange(cursor, cursor);
+    textarea.focus();
+    actualizarVistaPreviaMensaje();
+}
+
+async function guardarMensajeConfirmacion() {
+    const textarea = document.getElementById('confirmation-message-text');
+    if (!textarea) return;
+
+    try {
+        const res = await withAppLoading('Guardando mensaje...', () =>
+            apiFetch('/clinic/settings', {
+                method: 'PUT',
+                body: JSON.stringify({ appointmentMessageTemplate: textarea.value })
+            })
+        );
+
+        // Se guarda también en el DB local para que el enlace de WhatsApp use el
+        // texto nuevo sin esperar al próximo ciclo de sincronización.
+        saveClinicSettings({ appointmentMessageTemplate: res.appointmentMessageTemplate || '' });
+
+        showToast(res.message || 'Mensaje guardado.', { type: 'success' });
+        if (Array.isArray(res.avisos) && res.avisos.length > 0) {
+            showAlert(res.avisos.join(' '), { title: 'Guardado, con una advertencia', variant: 'warning' });
+        }
+    } catch (error) {
+        showAlert(error.message || 'No se pudo guardar el mensaje.', { title: 'Mensaje de confirmación', variant: 'error' });
+    }
+}

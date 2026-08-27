@@ -1,44 +1,58 @@
 const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
-const { buildPatientAccessWhere } = require("../lib/access");
+const { requirePermission } = require("../middleware/require-permission");
+const { buildPatientAccessWhere, buildOwnedRecordWhere, canUseProfessional } = require("../lib/access");
+const { normalizarMoneda } = require("../../shared/money");
 const { parseId } = require("../lib/parse-id");
 const {
   canViewBilling,
   canManageBilling,
-  canAccessWholeClinic,
-  getAccessibleProfessionalIds,
 } = require("../lib/permissions");
 const { checkBillingFeature } = require("../lib/plan-limits");
 const {
   VALID_TYPES,
   parseDateOnlyInput,
   serializeEntry,
-  canUseProfessional,
   ensureAccessibleAppointment,
 } = require("../services/billing.service");
 
 const router = express.Router();
 
+const puedeCrearMovimientos = requirePermission(
+  canManageBilling,
+  "No tenes permisos para crear movimientos.",
+);
+
+const puedeEditarMovimientos = requirePermission(
+  canManageBilling,
+  "No tenes permisos para editar movimientos.",
+);
+
+const puedeEliminarMovimientos = requirePermission(
+  canManageBilling,
+  "No tenes permisos para eliminar movimientos.",
+);
+
+const puedeVerFacturacion = requirePermission(
+  canViewBilling,
+  "No tenes permisos para ver facturacion.",
+);
+
 // ── GET / ─────────────────────────────────────────────────────────────────────
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, puedeVerFacturacion, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canViewBilling(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver facturacion." });
-    }
-
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
-    const accessibleProfessionalIds = getAccessibleProfessionalIds(req.permissions);
 
     const entries = await prisma.billingEntry.findMany({
       where: {
         deletedAt: null,
         ...(patientId ? { patientId } : {}),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
-        ...(canAccessWholeClinic(req.permissions)
-          ? {}
-          : { professionalId: { in: accessibleProfessionalIds.length ? accessibleProfessionalIds : [-1] } }),
+        // Cada asiento pertenece al profesional que lo generó: un profesional
+        // no ve la facturación de un colega.
+        ...buildOwnedRecordWhere(req.permissions),
       },
       orderBy: [{ date: "desc" }, { id: "desc" }],
       include: {
@@ -54,13 +68,9 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // ── POST / ────────────────────────────────────────────────────────────────────
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, puedeCrearMovimientos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManageBilling(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para crear movimientos." });
-    }
-
     const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
     const planCheck = checkBillingFeature(clinic?.plan);
     if (!planCheck.allowed) {
@@ -105,7 +115,10 @@ router.post("/", requireAuth, async (req, res) => {
         createdByUserId: req.user.id,
         type,
         amount: parsedAmount,
-        currency: req.body.currency ? String(req.body.currency).trim().toUpperCase() : "ARS",
+        // normalizarMoneda y no toUpperCase a secas: antes se guardaba cualquier
+        // cosa que llegara —"EUR", "pesos", un typo— y después ese movimiento
+        // formaba su propio saldo suelto en la cuenta corriente.
+        currency: normalizarMoneda(req.body.currency),
         description: req.body.description ? String(req.body.description).trim() : null,
         date: parseDateOnlyInput(req.body.date),
         deletedAt: null,
@@ -123,13 +136,9 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // ── PUT /:id ──────────────────────────────────────────────────────────────────
-router.put("/:id", requireAuth, async (req, res) => {
+router.put("/:id", requireAuth, puedeEditarMovimientos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManageBilling(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para editar movimientos." });
-    }
-
     const entryId = parseId(req.params.id);
     if (!entryId) return res.status(400).json({ ok: false, error: "ID de movimiento inválido." });
 
@@ -179,7 +188,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         appointmentId,
         type: req.body.type && VALID_TYPES.has(req.body.type) ? req.body.type : existing.type,
         amount: updatedAmount,
-        currency: req.body.currency ? String(req.body.currency).trim().toUpperCase() : existing.currency,
+        currency: req.body.currency ? normalizarMoneda(req.body.currency) : existing.currency,
         description:
           req.body.description !== undefined
             ? (req.body.description ? String(req.body.description).trim() : null)
@@ -200,13 +209,9 @@ router.put("/:id", requireAuth, async (req, res) => {
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────────────────
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, puedeEliminarMovimientos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManageBilling(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar movimientos." });
-    }
-
     const deleteId = parseId(req.params.id);
     if (!deleteId) return res.status(400).json({ ok: false, error: "ID de movimiento inválido." });
 

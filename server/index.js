@@ -21,12 +21,15 @@ const compression = require("compression");
 const prisma = require("./lib/prisma");
 const { apiLimiter, sensitiveLimiter } = require("./middleware/rate-limit");
 const clinicResolver = require("./middleware/clinic-resolver");
+const { esRutaBloqueada } = require("./lib/public-paths");
 const authRoutes = require("./routes/auth");
+const announcementRoutes = require("./routes/announcements");
 const appointmentRoutes = require("./routes/appointments");
 const billingRoutes = require("./routes/billing");
 const budgetRoutes = require("./routes/budgets");
 const clinicalImageRoutes = require("./routes/clinical-images");
 const clinicalRecordRoutes = require("./routes/clinical-records");
+const clinicRoutes = require("./routes/clinic");
 const contactRoutes = require("./routes/contact");
 const patientRoutes = require("./routes/patients");
 const prescriptionRoutes = require("./routes/prescriptions");
@@ -35,12 +38,26 @@ const treatmentRoutes = require("./routes/treatments");
 const userRoutes = require("./routes/users");
 const platformRoutes = require("./routes/platform");
 const { startReminderScheduler, sendPendingReminders } = require("./lib/reminder-scheduler");
-const { purgeExpiredRevokedTokens } = require("./lib/token-revocation");
+const { startBackupScheduler } = require("./lib/backup-scheduler");
+const { startTokenPurgeScheduler } = require("./lib/token-revocation");
 const { getMissingEmailVars } = require("./lib/email");
 
 const app = express();
 app.set("trust proxy", 1); // necesario para rate-limit detrás de reverse proxy (Hostinger, nginx)
-app.use(compression()); // gzip para HTML/CSS/JS/JSON — reduce ~80% el peso de los assets
+// gzip para HTML/CSS/JS/JSON — reduce ~80% el peso de los assets.
+//
+// Los ZIP quedan afuera: un JPG o un PDF ya vienen comprimidos, así que
+// gzipearlos quema CPU sin bajar el tamaño, y el buffer intermedio que agrega
+// anula el streaming de la exportación de historias clínicas.
+app.use(
+  compression({
+    filter: (req, res) => {
+      const tipo = String(res.getHeader("Content-Type") || "");
+      if (tipo.includes("application/zip")) return false;
+      return compression.filter(req, res);
+    },
+  }),
+);
 const PORT = Number(process.env.PORT || 3001);
 const HOST = "0.0.0.0";
 const WEB_ROOT = path.resolve(__dirname, "..");
@@ -86,7 +103,15 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://challenges.cloudflare.com"], // SPA + Turnstile
+        // Sin 'unsafe-inline': un XSS que inyecte una etiqueta <script> queda
+        // bloqueado por el navegador. Para lograrlo, los cuatro bloques inline
+        // que tenía index.html se movieron a js/boot/head.js y js/boot/tail.js.
+        scriptSrc: ["'self'", "https://challenges.cloudflare.com"], // SPA + Turnstile
+        // Los handlers onclick generados por la SPA (unos 140) siguen
+        // necesitando esto. Es un permiso bastante más débil que el anterior:
+        // un atacante ya no puede ejecutar código con solo inyectar HTML, tiene
+        // que lograr además que la víctima haga clic en el elemento inyectado.
+        // Quitarlo requiere pasar todo a delegación de eventos.
         scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
@@ -125,9 +150,12 @@ app.use((req, res, next) => {
 });
 app.use(express.urlencoded({ extended: true, limit: "200kb" }));
 
-// Bloquear acceso a directorios de código fuente del servidor
+// Bloquear acceso a código y archivos de desarrollo.
+//
+// La regla vive en lib/public-paths para poder probarla sin levantar el
+// servidor; el detalle de por qué es lista blanca está documentado ahí.
 app.use((req, res, next) => {
-  if (/^\/(server|prisma|node_modules)(\/|$)/i.test(req.path)) {
+  if (esRutaBloqueada(req.path, { esLanding: isLandingHost(req) })) {
     return res.status(404).end();
   }
   next();
@@ -157,6 +185,38 @@ app.use(clinicResolver);
 
 // --- Rate limiting global para todas las rutas /api ---
 app.use("/api", apiLimiter);
+
+// --- Precios públicos para la landing ---
+// Sin autenticación y solo con lo que ya se muestra en la web pública: nombre,
+// precio y moneda. Existe para que la landing tome los precios del panel en vez
+// de tenerlos escritos a mano en el HTML, que era la causa de que quedaran
+// desactualizados al cambiarlos en la plataforma.
+//
+// Va DESPUÉS del rate limiter a propósito: es público y consulta la base en cada
+// request, así que sin límite sería una forma barata de saturar el servidor.
+app.get("/api/public/plans", async (_req, res) => {
+  try {
+    const rows = await prisma.plan.findMany({ orderBy: { sortOrder: "asc" } });
+    // Ventana corta a propósito: con un cache largo, cambiar un precio en el
+    // panel y no verlo reflejado en la web parece un error del sistema. Un
+    // minuto alcanza para amortiguar las visitas y mantiene la sensación de que
+    // el cambio es inmediato.
+    res.set("Cache-Control", "public, max-age=60");
+    return res.json({
+      ok: true,
+      plans: rows.map((row) => ({
+        code: row.code,
+        label: row.label,
+        priceMonthly: Number(row.priceMonthly),
+        currency: row.currency,
+      })),
+    });
+  } catch (_error) {
+    // La landing tiene los precios actuales escritos como respaldo en el HTML,
+    // así que si esto falla la página sigue mostrando algo coherente.
+    return res.status(503).json({ ok: false, error: "No se pudieron obtener los planes." });
+  }
+});
 
 app.get("/health", async (req, res) => {
   // En producción solo se expone el status básico (sin info de DB)
@@ -195,11 +255,13 @@ app.get("/health", async (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/announcements", announcementRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/budgets", budgetRoutes);
 app.use("/api/clinical-images", clinicalImageRoutes);
 app.use("/api/clinical-records", clinicalRecordRoutes);
+app.use("/api/clinic", clinicRoutes);              // configuración de la propia clínica
 app.use("/api/contact", contactRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/prescriptions", prescriptionRoutes);
@@ -288,9 +350,13 @@ app.use((err, req, res, _next) => {
 app.listen(PORT, HOST, () => {
   console.log(`Odentara escuchando en http://${HOST}:${PORT}`);
   startReminderScheduler();
-  // Las revocaciones de tokens ya vencidos no sirven para nada: se limpian acá
-  // en vez de dejar la tabla creciendo para siempre.
-  purgeExpiredRevokedTokens();
+  // Backup automático. Es seguro arrancarlo en todos los workers: la reserva de
+  // turno por unicidad de BackupRun.slot hace que solo uno lo ejecute.
+  startBackupScheduler();
+  // Las revocaciones y las autorizaciones de descarga ya vencidas no sirven
+  // para nada: se limpian al arrancar y cada seis horas, para que un worker
+  // que quede levantado semanas no deje crecer las tablas indefinidamente.
+  startTokenPurgeScheduler();
 
   // El envío de mails falla en silencio por diseño (recuperar contraseña
   // devuelve 200 aunque no mande nada, para no revelar qué mails existen). Si

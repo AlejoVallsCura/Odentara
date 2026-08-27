@@ -110,6 +110,19 @@ function applyAuthenticatedUiState() {
     // Restaurar el tema preferido del usuario al entrar a la app
     applyTheme(localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light', false);
 
+    // El control del timbre depende de QUIÉN entró, y ensureThemeControls solo
+    // corre en el DOMContentLoaded —cuando todavía no hay sesión—. Sin esta
+    // llamada el botón no aparecía nunca. Va acá y no allá porque también tiene
+    // que reevaluarse al cambiar de clínica o al entrar otro usuario.
+    ensureChimeControl();
+
+    // Historial propio + ayuda contextual: se arman recién con sesión activa,
+    // porque el atrás del navegador en el login tiene que seguir siendo el del
+    // navegador.
+    if (typeof clearNavHistory === 'function')    clearNavHistory();
+    if (typeof armNavHistoryGuard === 'function') armNavHistoryGuard();
+    if (typeof ensureHelpButton === 'function')   ensureHelpButton();
+
     if (isSelfPlatformAdmin()) {
         loadView('platform-clinics', 'Panel de Plataforma', { skipSync: true });
     } else {
@@ -156,7 +169,7 @@ function renderSidebar() {
     sidebarNav.innerHTML = '';
 
     // ── Banner "Volver a plataforma" cuando se está impersonando ─────────────
-    const platformBackup = localStorage.getItem('odentara_platform_auth_backup');
+    const platformBackup = localStorage.getItem(PLATFORM_AUTH_BACKUP_KEY);
     if (platformBackup && !isSelfPlatformAdmin()) {
         const banner = document.createElement('div');
         banner.className = 'pa-impersonate-banner';
@@ -172,6 +185,10 @@ function renderSidebar() {
     if (isSelfPlatformAdmin()) {
         const PLATFORM_NAV = [
             { id: 'platform-clinics', icon: 'fa-hospital',   label: 'Clínicas' },
+            { id: 'platform-plans',   icon: 'fa-layer-group', label: 'Planes' },
+            { id: 'platform-announcements', icon: 'fa-bullhorn', label: 'Avisos' },
+            { id: 'platform-backups', icon: 'fa-database', label: 'Backups' },
+            { id: 'platform-expenses', icon: 'fa-receipt',   label: 'Gastos' },
             { id: 'platform-stats',   icon: 'fa-chart-bar',  label: 'Estadísticas' },
             { id: 'platform-audit',   icon: 'fa-clipboard-list', label: 'Auditoría' },
         ];
@@ -189,14 +206,6 @@ function renderSidebar() {
         });
         return;
     }
-
-    const SETTINGS_SUB_ITEMS = [
-        { id: 'clinic-settings',      icon: 'fa-hospital',     label: 'Clínica' },
-        { id: 'create-user',          icon: 'fa-user-plus',    label: 'Crear usuario' },
-        { id: 'create-professional',  icon: 'fa-user-doctor',  label: 'Crear profesional' },
-        { id: 'users-list',           icon: 'fa-users-gear',   label: 'Usuarios existentes' },
-        { id: 'professionals-list',   icon: 'fa-address-card', label: 'Profesionales existentes' },
-    ];
 
     const BILLING_SUB_ITEMS = [
         { id: 'movements', icon: 'fa-clock-rotate-left', label: 'Últimos movimientos' },
@@ -238,9 +247,11 @@ function renderSidebar() {
         sidebarNav.appendChild(link);
 
         if (item.id === 'settings' && state.currentView === 'settings') {
-            const _isAdminNav = state.user.roles.some(r => ['superadmin', 'admin'].includes(r));
-            const _adminOnlyItems = new Set(['create-user', 'create-professional', 'users-list', 'professionals-list']);
-            SETTINGS_SUB_ITEMS.filter(sub => _isAdminNav || !_adminOnlyItems.has(sub.id)).forEach(sub => {
+            // Misma lista que usa la pantalla de Configuracion, ya filtrada por
+            // permisos. Antes acá había una copia escrita a mano y un set de
+            // "solo admin" en paralelo: al agregar una seccion nueva quedaba
+            // visible en la pantalla pero sin entrada en el menu.
+            getSettingsSections().forEach(sub => {
                 const subLink = document.createElement('a');
                 subLink.className = `nav-sub-item ${sub.id === state.settingsSubView ? 'active' : ''}`;
                 subLink.dataset.settingsView = sub.id;
@@ -264,6 +275,16 @@ function renderSidebar() {
 }
 
 function refreshCurrentView() {
+    // La historia clínica no se re-renderiza con loadView: esa rama deja el
+    // contenedor vacío a propósito porque el contenido lo inyecta
+    // loadClinicalHistory, que necesita saber qué paciente está abierto. Pasar
+    // por loadView acá dejaba la pantalla en blanco con solo el sidebar —se veía
+    // al cambiar de tema estando dentro de una ficha, que es el caso que llama a
+    // refreshCurrentView sin haber navegado.
+    if (state.currentView === 'patient-history' && state.currentPatientId) {
+        loadClinicalHistory(state.currentPatientId, { skipUnsavedCheck: true, skipSync: true });
+        return;
+    }
     // skipSync: true porque las mutaciones que llaman a refreshCurrentView ya hicieron su propio sync
     loadView(state.currentView, getPageTitle(), { skipUnsavedCheck: true, skipSync: true });
 }
@@ -271,6 +292,36 @@ function refreshCurrentView() {
 // Normalizes locale date strings to consistent sentence case.
 // On Windows, toLocaleDateString('es-AR') returns title-cased strings
 // like "Jueves, 14 De Mayo De 2026". This converts to "Jueves, 14 de mayo de 2026".
+
+/**
+ * Devuelve la sesión de Ultra Admin cuando se navega a una vista de plataforma.
+ *
+ * Al entrar a una clínica (login-as), la sesión de plataforma se guarda en
+ * `odentara_platform_auth_backup` y la activa pasa a ser la del usuario de
+ * clínica. Las vistas de plataforma necesitan la primera: el backend autoriza
+ * por la columna `isPlatformAdmin` del usuario, no por su rol.
+ *
+ * Solo restaura si el backup dice `isPlatformAdmin`, así que un backup viejo o
+ * manipulado no sirve para escalar: el servidor revalida contra la base en cada
+ * pedido y un token de clínica seguiría dando 403.
+ */
+function restaurarSesionDePlataforma(viewId) {
+    if (!String(viewId || '').startsWith('platform-')) return;
+    if (isSelfPlatformAdmin()) return;
+
+    const backup = localStorage.getItem(PLATFORM_AUTH_BACKUP_KEY);
+    if (!backup) return;
+
+    try {
+        const auth = JSON.parse(backup);
+        if (auth?.token && auth?.user?.isPlatformAdmin) {
+            localStorage.setItem('odentara_auth_v1', backup);
+            state.user = mapApiUserToLegacyUser(auth.user);
+            state.authToken = auth.token;
+            localStorage.removeItem(PLATFORM_AUTH_BACKUP_KEY);
+        }
+    } catch (_) { /* backup ilegible: se sigue con la sesión actual */ }
+}
 
 async function loadView(viewId, title = 'Dashboard', options = {}) {
     const navId = ++_loadViewSeq;
@@ -301,8 +352,22 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     if (typeof stopNowIndicator === 'function') stopNowIndicator();
     // Cerrar cualquier menú de estado abierto antes de limpiar el DOM
     _closeStatusMenu();
+    if (typeof resetHelpGuideForView === 'function') resetHelpGuideForView();
     mainContent.innerHTML = '';
     syncSidebarLayout();
+
+    // Volver a la sesión de plataforma antes de pedirle datos a la API.
+    //
+    // Esto vivía adentro de la rama de `platform-clinics` únicamente, así que
+    // las otras cinco vistas de plataforma —avisos, planes, suscripciones,
+    // estadísticas, auditoría— se dibujaban pero pedían con el token del usuario
+    // de clínica, y el backend contestaba 403 "Acceso restringido a
+    // administradores de plataforma". El panel entero funcionaba solo si antes
+    // se pasaba por Clínicas.
+    //
+    // Además va ANTES del sync, no después: el sync usa el token, y con el
+    // equivocado traía o fallaba con los datos de la clínica impersonada.
+    restaurarSesionDePlataforma(viewId);
 
     // Sincronizar datos frescos desde la API antes de renderizar cualquier vista,
     // excepto cuando el llamador ya hizo un sync (e.g. post-mutación via refreshCurrentView).
@@ -321,43 +386,60 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     content.className = 'animate-fade-in';
 
     if (viewId === 'platform-clinics') {
-        // Si hay backup de sesión de plataforma pendiente de restaurar, restaurarlo antes
-        if (!isSelfPlatformAdmin()) {
-            const backup = localStorage.getItem('odentara_platform_auth_backup');
-            if (backup) {
-                try {
-                    const auth = JSON.parse(backup);
-                    if (auth?.token && auth?.user?.isPlatformAdmin) {
-                        localStorage.setItem('odentara_auth_v1', backup);
-                        state.user = mapApiUserToLegacyUser(auth.user);
-                        state.authToken = auth.token;
-                        localStorage.removeItem('odentara_platform_auth_backup');
-                    }
-                } catch(_) {}
-            }
-        }
         applyPlatformTheme(true);
         content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
         mainContent.appendChild(content);
         renderPlatformClinics(content);
+        if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
+        return true;
+    } else if (viewId === 'platform-announcements') {
+        applyPlatformTheme(true);
+        content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
+        mainContent.appendChild(content);
+        renderPlatformAnnouncements(content);
+        if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
+        return true;
+    } else if (viewId === 'platform-backups') {
+        applyPlatformTheme(true);
+        content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
+        mainContent.appendChild(content);
+        renderPlatformBackups(content);
+        if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
+        return true;
+    } else if (viewId === 'platform-plans') {
+        applyPlatformTheme(true);
+        content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
+        mainContent.appendChild(content);
+        renderPlatformPlans(content);
+        if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
         return true;
     } else if (viewId === 'platform-subscriptions') {
         applyPlatformTheme(true);
         content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
         mainContent.appendChild(content);
         renderPlatformSubscriptions(content);
+        if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
+        return true;
+    } else if (viewId === 'platform-expenses') {
+        applyPlatformTheme(true);
+        content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
+        mainContent.appendChild(content);
+        renderPlatformExpenses(content);
+        if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
         return true;
     } else if (viewId === 'platform-stats') {
         applyPlatformTheme(true);
         content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
         mainContent.appendChild(content);
         renderPlatformStats(content);
+        if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
         return true;
     } else if (viewId === 'platform-audit') {
         applyPlatformTheme(true);
         content.innerHTML = '<div style="height:100%;background:#0f1117"></div>';
         mainContent.appendChild(content);
         renderPlatformAudit(content);
+        if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
         return true;
     } else {
         applyPlatformTheme(false);
@@ -366,7 +448,7 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     if (viewId === 'dashboard') content.innerHTML = renderDashboard();
     else if (viewId === 'appointments') {
         try { content.innerHTML = renderAppointments(); }
-        catch(e) { console.error('[renderAppointments]', e); content.innerHTML = `<div class="card p-6" style="color:var(--danger)"><b>Error al renderizar turnos:</b> ${e.message}</div>`; }
+        catch(e) { console.error('[renderAppointments]', e); content.innerHTML = `<div class="card p-6" style="color:var(--danger)"><b>Error al renderizar turnos:</b> ${escapeHtml(e.message)}</div>`; }
     }
     else if (viewId === 'professionals') content.innerHTML = renderProfessionals();
     else if (viewId === 'patients') content.innerHTML = renderPatients();
@@ -378,7 +460,13 @@ async function loadView(viewId, title = 'Dashboard', options = {}) {
     mainContent.appendChild(content);
     // Iniciar indicador de hora actual DESPUÉS del appendChild, cuando el DOM ya está disponible
     if (viewId === 'appointments' && typeof startNowIndicator === 'function') startNowIndicator();
+    // La vista previa del mensaje se calcula recién con el DOM montado; si no,
+    // la sección se abre con el recuadro vacío hasta que alguien toque una tecla.
+    if (viewId === 'settings' && typeof actualizarVistaPreviaMensaje === 'function') {
+        actualizarVistaPreviaMensaje();
+    }
     renderSidebar();
+    if (typeof recordNavEntry === 'function') recordNavEntry(viewId, title);
     return true;
 }
 

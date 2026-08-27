@@ -22,6 +22,58 @@ function normalizePatientName(value = "") {
     .replace(/\s+/g, " ");
 }
 
+// Partículas que van en minúscula cuando no abren el nombre: "Juan de la Cruz",
+// no "Juan De La Cruz". Si la partícula es la primera palabra sí se capitaliza
+// ("De la Cruz, María" cargado en ese orden), porque un nombre no puede empezar
+// en minúscula.
+const PARTICULAS_MINUSCULA = new Set([
+  "de", "del", "la", "las", "lo", "los", "y", "e", "da", "das", "do", "dos",
+  "van", "von", "der", "den", "di", "du", "le", "el", "al", "bin", "ibn",
+]);
+
+/**
+ * Deja el nombre en "Primera Letra Mayúscula" sin importar cómo lo hayan
+ * tipeado: MARÍA GARCÍA, maría garcía y María garcía terminan todos en
+ * "María García".
+ *
+ * Se aplica en la escritura y no en el render a propósito. Normalizar solo al
+ * mostrar deja la base sucia, y el nombre no sale únicamente por la pantalla de
+ * pacientes: también va a recetas, presupuestos, la impresión de la historia
+ * clínica y las exportaciones. Cada una de esas salidas tendría que acordarse de
+ * aplicar el mismo formato, y alguna se iba a olvidar.
+ *
+ * Ojo: NO se tocan los acentos. Eso es tarea de `normalizePatientName`, que
+ * arma la clave de búsqueda; acá se conserva el nombre tal como se escribe.
+ */
+function toDisplayCasePatientName(value = "") {
+  // El default `= ""` solo cubre `undefined`. Sin este guardia, un `fullName`
+  // null del body —que llega así desde la importación cuando la celda está
+  // vacía— pasa por String() y se convierte en el nombre "Null".
+  if (value === null || value === undefined) return "";
+
+  const limpio = String(value).trim().replace(/\s+/g, " ");
+  if (!limpio) return "";
+
+  return limpio
+    .split(" ")
+    .map((palabra, indice) => {
+      const minuscula = palabra.toLocaleLowerCase("es");
+
+      if (indice > 0 && PARTICULAS_MINUSCULA.has(minuscula)) {
+        return minuscula;
+      }
+
+      // Se capitaliza después de cada guion y de cada apóstrofo, no solo al
+      // principio de la palabra: "ana-maría" → "Ana-María" y "d'angelo" →
+      // "D'Angelo". Sin esto quedarían "Ana-maría" y "D'angelo".
+      return minuscula.replace(
+        /(^|[-'’])(\p{L})/gu,
+        (_, separador, letra) => separador + letra.toLocaleUpperCase("es")
+      );
+    })
+    .join(" ");
+}
+
 // -----------------------------------------------------------------------------
 // Antecedentes médicos (cuestionario de la ficha)
 // -----------------------------------------------------------------------------
@@ -87,7 +139,7 @@ function serializePatient(patient) {
 function getPatientPayload(body = {}) {
   const trim = (val, max) => (val ? String(val).trim().slice(0, max) : null);
   return {
-    fullName:          String(body.fullName || "").trim().slice(0, 255),
+    fullName:          toDisplayCasePatientName(body.fullName).slice(0, 255),
     dni:               normalizeDni(body.dni || "").slice(0, 20),
     birthDate:         (() => {
                          if (!body.birthDate) return null;
@@ -161,6 +213,7 @@ const PATIENT_INCLUDE = {
 module.exports = {
   normalizeDni,
   normalizePatientName,
+  toDisplayCasePatientName,
   serializePatient,
   getPatientPayload,
   validatePatientUniqueness,

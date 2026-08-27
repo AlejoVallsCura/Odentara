@@ -4,7 +4,7 @@ const { sendAppointmentReminderEmail } = require("./email");
 
 // Horas de anticipación para enviar el recordatorio (por defecto 24h)
 const REMINDER_HOURS = Number(process.env.REMINDER_HOURS_BEFORE || 24);
-const BUSINESS_TZ = "America/Buenos_Aires";
+const { BUSINESS_TIME_ZONE: BUSINESS_TZ } = require("./business-time");
 const SEND_FROM_HOUR = 7;
 const SEND_FROM_MINUTE = 30;
 const SEND_UNTIL_HOUR = 21;
@@ -79,11 +79,15 @@ async function sendPendingReminders() {
         });
         console.log(`[reminders] ✓ ${appt.patient.fullName} <${appt.patient.email}>`);
       } catch (emailErr) {
-        // Si el envío falla, revertir para que el scheduler lo reintente
+        // Si el envío falla, revertir para que el scheduler lo reintente.
+        // Va "not_sent" y no "pending": ese valor no existe en AppointmentStatus,
+        // así que la reversión fallaba, el error moría en el .catch de abajo y el
+        // turno quedaba marcado como avisado sin que el mail hubiera salido —
+        // nunca se reintentaba y nadie se enteraba.
         console.error(`[reminders] Error enviando email para turno ${appt.id}:`, emailErr.message);
         await prisma.appointment.updateMany({
           where: { id: appt.id },
-          data: { confirmationSentAt: null, confirmationChannel: null, status: "pending" },
+          data: { confirmationSentAt: null, confirmationChannel: null, status: "not_sent" },
         }).catch((e) => console.error(`[reminders] Error al revertir turno ${appt.id}:`, e.message));
       }
     } catch (err) {
@@ -92,7 +96,21 @@ async function sendPendingReminders() {
   }
 }
 
+// Los recordatorios automáticos por mail están APAGADOS: la confirmación de
+// turnos se hace por WhatsApp desde el dashboard, que es manual y a cargo de la
+// secretaria. El código se conserva funcionando —no comentado— para poder
+// encenderlo cuando haga falta, poniendo REMINDERS_EMAIL_ENABLED=true en el
+// entorno. No requiere tocar código ni volver a deployar.
+function remindersEnabled() {
+  return String(process.env.REMINDERS_EMAIL_ENABLED || "").toLowerCase() === "true";
+}
+
 function startReminderScheduler() {
+  if (!remindersEnabled()) {
+    console.log("[reminders] Recordatorios por mail desactivados (REMINDERS_EMAIL_ENABLED no está en true). La confirmación se hace por WhatsApp.");
+    return;
+  }
+
   // Ejecuta cada 15 minutos
   cron.schedule("*/15 * * * *", async () => {
     try {

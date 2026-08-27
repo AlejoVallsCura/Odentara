@@ -316,7 +316,7 @@
     records: `
       <div class="app-clinical-card">
         <header>
-          <img src="assets/odentara-logo.svg" alt="" />
+          <img src="assets/logo-teal2-64.png?v=20260813b" alt="" />
           <div><strong>Circulo Odontologico</strong><span>Ficha Clinica Odontologica</span></div>
           <button type="button"><i class="fa-solid fa-print"></i> Imprimir</button>
         </header>
@@ -596,5 +596,84 @@
     goTo(0);
     startAuto();
   }
+
+  // ── Precios ────────────────────────────────────────────────────────────────
+  // El importe NO está escrito en el HTML: la tabla Plan es la fuente de verdad
+  // y se edita desde el panel de plataforma. Cuando el número vivía también en
+  // el marcado, quedaba viejo apenas se cambiaba el precio, se mostraba en cada
+  // visita mientras llegaba la respuesta, y quedaba fijo si la API fallaba —
+  // publicando un precio más bajo que el vigente.
+  //
+  // Hasta que responde la API se ve un esqueleto; si no responde, "A consultar".
+  (async function cargarPrecios() {
+    const nodos = document.querySelectorAll("[data-plan-price]");
+    if (nodos.length === 0) return;
+
+    // Meses que se pagan al contratar el año completo. Dos meses sin cargo es
+    // la diferencia contra pagar mes a mes, y es lo que dice el cartelito de la
+    // tarjeta: si esto cambia, hay que cambiar los dos.
+    const MESES_POR_ANO = 10;
+
+    const bloqueAnual = (codigo) =>
+      document.querySelector('[data-plan-annual="' + codigo + '"]');
+
+    function marcarPrecioNoDisponible(nodo) {
+      const destino = nodo.querySelector("[data-plan-amount]");
+      if (!destino) return;
+      nodo.classList.add("price-amount--sin-dato");
+      destino.classList.remove("price-amount-loading");
+      destino.textContent = "A consultar";
+
+      // Sin precio mensual no hay anual que calcular. Se mantiene oculto en vez
+      // de mostrar un importe a medias: media oferta confunde más que ninguna.
+      const anual = bloqueAnual(nodo.getAttribute("data-plan-price"));
+      if (anual) anual.hidden = true;
+    }
+
+    function sinPrecios() {
+      nodos.forEach(marcarPrecioNoDisponible);
+    }
+
+    try {
+      // cache: "no-cache" revalida contra el servidor en vez de servir una copia
+      // guardada. Sin esto, un visitante que ya estuvo en la página seguía
+      // viendo el precio viejo aunque se hubiera cambiado en el panel.
+      const res = await fetch("/api/public/plans", {
+        headers: { Accept: "application/json" },
+        cache: "no-cache",
+      });
+      // Cada salida temprana tiene que dejar la tarjeta en un estado final. Sin
+      // esto, un 500 dejaba el esqueleto girando para siempre.
+      if (!res.ok) return sinPrecios();
+
+      const data = await res.json();
+      if (!data || !Array.isArray(data.plans)) return sinPrecios();
+
+      const porCodigo = Object.fromEntries(data.plans.map((p) => [p.code, p]));
+      nodos.forEach((nodo) => {
+        const plan = porCodigo[nodo.getAttribute("data-plan-price")];
+        const destino = nodo.querySelector("[data-plan-amount]");
+        if (!destino) return;
+        if (!plan || typeof plan.priceMonthly !== "number") {
+          marcarPrecioNoDisponible(nodo);
+          return;
+        }
+        destino.textContent = plan.priceMonthly.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+        destino.classList.remove("price-amount-loading");
+
+        // El anual se deriva del mensual, no viene de la API: así un cambio de
+        // precio en el panel arrastra los dos números y no pueden discrepar.
+        const anual = bloqueAnual(nodo.getAttribute("data-plan-price"));
+        const montoAnual = anual && anual.querySelector("[data-plan-annual-amount]");
+        if (montoAnual) {
+          montoAnual.textContent = (plan.priceMonthly * MESES_POR_ANO)
+            .toLocaleString("es-AR", { maximumFractionDigits: 0 });
+          anual.hidden = false;
+        }
+      });
+    } catch (_e) {
+      sinPrecios();
+    }
+  })();
 
 })();

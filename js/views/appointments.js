@@ -90,41 +90,203 @@ window.selectStatusOpt = async function(btn, aptId, newStatus) {
 };
 
 // ── Presencia en sala ──────────────────────────────────────────────────────
+// El estado vive en el turno (campo `presence` en la base), no en el navegador.
+// Antes se guardaba en localStorage y por eso no salía de la máquina de quien lo
+// marcaba: la secretaria ponía "En sala" y el profesional seguía viendo
+// "Sin llegar", porque su navegador nunca se enteraba.
 const PRESENCE_STATES = [
-    { key: '',             label: 'Sin llegar',     icon: 'fa-circle-minus',    cls: 'presence-none'        },
+    { key: 'none',         label: 'Sin llegar',      icon: 'fa-circle-minus',    cls: 'presence-none'        },
     { key: 'waiting',      label: 'En sala',         icon: 'fa-couch',           cls: 'presence-waiting'     },
     { key: 'consulting',   label: 'En consultorio',  icon: 'fa-user-doctor',     cls: 'presence-consulting'  },
     { key: 'done',         label: 'Finalizado',      icon: 'fa-circle-check',    cls: 'presence-done'        },
 ];
 
+function getPresenceMeta(key) {
+    return PRESENCE_STATES.find(s => s.key === (key || 'none')) || PRESENCE_STATES[0];
+}
+
 function getPresenceState(aptId) {
-    return localStorage.getItem(`apt_presence_${aptId}`) || '';
+    const apt = DB.get('appointments').find(a => a.id === aptId);
+    return apt?.presence || 'none';
 }
 
 function renderPresenceBtnHtml(aptId) {
-    const key   = getPresenceState(aptId);
-    const state = PRESENCE_STATES.find(s => s.key === key) || PRESENCE_STATES[0];
-    return `<button type="button" class="presence-btn ${state.cls}" onclick="cyclePresence(${aptId})" title="${state.label}"><i class="fa-solid ${state.icon}"></i><span>${state.label}</span></button>`;
+    const state = getPresenceMeta(getPresenceState(aptId));
+    return `<button type="button" class="presence-btn ${state.cls}" data-presence-apt="${aptId}" onclick="cyclePresence(${aptId})" title="${state.label}"><i class="fa-solid ${state.icon}"></i><span>${state.label}</span></button>`;
 }
 
-window.cyclePresence = function(aptId) {
+// Pinta el botón sin re-renderizar la vista. La usa tanto el click propio como
+// el refresco periódico, para que el cambio hecho por otra persona aparezca sin
+// que la pantalla parpadee.
+function paintPresenceBtn(aptId, key) {
+    const btn = document.querySelector(`.presence-btn[data-presence-apt="${aptId}"]`);
+    if (!btn) return;
+    const state = getPresenceMeta(key);
+    PRESENCE_STATES.forEach(s => btn.classList.remove(s.cls));
+    btn.classList.add(state.cls);
+    btn.title = state.label;
+    btn.innerHTML = `<i class="fa-solid ${state.icon}"></i><span>${state.label}</span>`;
+}
+
+window.cyclePresence = async function(aptId) {
     const current = getPresenceState(aptId);
     const idx     = PRESENCE_STATES.findIndex(s => s.key === current);
     const next    = PRESENCE_STATES[(idx + 1) % PRESENCE_STATES.length];
-    if (next.key === '') {
-        localStorage.removeItem(`apt_presence_${aptId}`);
-    } else {
-        localStorage.setItem(`apt_presence_${aptId}`, next.key);
-    }
-    // Actualizar solo el botón sin re-renderizar toda la vista
-    const btn = document.querySelector(`.presence-btn[onclick="cyclePresence(${aptId})"]`);
-    if (btn) {
-        PRESENCE_STATES.forEach(s => btn.classList.remove(s.cls));
-        btn.classList.add(next.cls);
-        btn.title = next.label;
-        btn.innerHTML = `<i class="fa-solid ${next.icon}"></i><span>${next.label}</span>`;
+
+    // Optimista: se pinta primero para que el click responda al instante, y se
+    // revierte si el servidor lo rechaza.
+    paintPresenceBtn(aptId, next.key);
+
+    // Se anota el cambio propio para que el siguiente ciclo no lo lea como una
+    // llegada nueva: si el profesional marca "En sala" él mismo, no tiene
+    // sentido que su navegador le toque un timbre por su propio click.
+    if (_presenciaVistaPreviamente) _presenciaVistaPreviamente.set(aptId, next.key);
+    try {
+        await apiFetch(`/appointments/${aptId}/presence`, {
+            method: 'PATCH',
+            body: JSON.stringify({ presence: next.key }),
+        });
+        DB.update('appointments', aptId, { presence: next.key });
+    } catch (err) {
+        paintPresenceBtn(aptId, current);
+        showToast(err.message || 'No se pudo actualizar la presencia del paciente.', 'error');
     }
 };
+
+// Aplica al DOM la presencia que llegó del servidor, tocando solo los botones
+// que cambiaron. Devuelve true si hubo algún cambio.
+function syncPresenceButtonsFromDb() {
+    let changed = false;
+    document.querySelectorAll('.presence-btn[data-presence-apt]').forEach(btn => {
+        const aptId   = Number(btn.dataset.presenceApt);
+        const meta    = getPresenceMeta(getPresenceState(aptId));
+        if (!btn.classList.contains(meta.cls)) {
+            paintPresenceBtn(aptId, meta.key);
+            changed = true;
+        }
+    });
+    return changed;
+}
+
+// ── Aviso sonoro de llegada ───────────────────────────────────────────────
+// Cuando la secretaria marca "En sala", el profesional al que está asignado ese
+// turno escucha un timbre corto. Se apoya en el mismo ciclo de refresco que ya
+// repinta los botones de presencia: no hace falta websocket, el aviso llega en
+// el próximo tick (hasta 20 s).
+
+const PRESENCE_CHIME_KEY = 'odentara_presence_chime_v1';
+
+// Presencia vista en el ciclo anterior, por turno. Empieza en null y no en un
+// Map vacío a propósito: hay que distinguir "todavía no miré nunca" de "miré y
+// no había nadie en sala". Sin esa distinción, al abrir la app con un paciente
+// ya esperando sonaría un timbre por un evento que pasó hace rato.
+let _presenciaVistaPreviamente = null;
+let _audioCtx = null;
+
+function isPresenceChimeEnabled() {
+    return localStorage.getItem(PRESENCE_CHIME_KEY) !== 'off';
+}
+
+function setPresenceChimeEnabled(activado) {
+    localStorage.setItem(PRESENCE_CHIME_KEY, activado ? 'on' : 'off');
+}
+
+// El timbre se sintetiza en vez de cargar un archivo: son dos senoidales y una
+// envolvente, así que no hay asset que versionar, que cachear ni que descargar
+// —importa en la PWA, que puede estar sin conexión— y no suma un pedido HTTP.
+async function playPresenceChime() {
+    try {
+        _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+
+        // El navegador no deja sonar hasta que hubo un gesto del usuario, y hay
+        // que ESPERAR a que resume() termine: es asincrónico, el estado no cambia
+        // en la línea siguiente. Antes se llamaba sin await y la comprobación de
+        // abajo veía el contexto todavía en "suspended", así que salía sin tocar
+        // una nota — el botón alternaba bien y no sonaba nunca.
+        if (_audioCtx.state === 'suspended') {
+            try {
+                await _audioCtx.resume();
+            } catch (_) {
+                return; // sin gesto previo: se pierde este aviso, no se rompe nada
+            }
+        }
+        if (_audioCtx.state !== 'running') return;
+
+        const ahora = _audioCtx.currentTime;
+        // Dos notas cortas ascendentes (La5 → Re6): se distingue del ruido de
+        // notificación del sistema y no se confunde con un error.
+        [{ hz: 880, t: 0 }, { hz: 1174.7, t: 0.13 }].forEach(({ hz, t }) => {
+            const osc = _audioCtx.createOscillator();
+            const gan = _audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = hz;
+
+            // La envolvente no es adorno: arrancar y cortar el volumen de golpe
+            // produce un chasquido audible. Sube en 15 ms y baja exponencialmente.
+            const inicio = ahora + t;
+            gan.gain.setValueAtTime(0.0001, inicio);
+            gan.gain.exponentialRampToValueAtTime(0.09, inicio + 0.015);
+            gan.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.32);
+
+            osc.connect(gan).connect(_audioCtx.destination);
+            osc.start(inicio);
+            osc.stop(inicio + 0.34);
+        });
+    } catch (_) { /* sin audio disponible: se sigue sin avisar */ }
+}
+
+// Turnos de HOY del profesional que ES el usuario logueado.
+//
+// Se usa getCurrentOdontoProfessionalId y NO getAccessibleProfessionalIds: la
+// segunda devuelve TODOS los profesionales cuando el usuario es superadmin o
+// admin, y en una clínica chica el dueño suele ser además el odontólogo. Con
+// esa lista le habría sonado el timbre por los pacientes de sus colegas, que es
+// exactamente lo contrario de lo pedido. Si el usuario no resuelve a un único
+// profesional, no hay "turno propio" y no suena nada.
+function profesionalDelUsuario() {
+    if (typeof getCurrentOdontoProfessionalId !== 'function') return null;
+    return getCurrentOdontoProfessionalId();
+}
+
+function _turnosPropiosDeHoy() {
+    const propio = profesionalDelUsuario();
+    if (!propio) return [];
+    const hoy = getTodayIsoLocal();
+    return DB.get('appointments').filter(
+        (apt) => apt.date === hoy && apt.professionalId === propio
+    );
+}
+
+// Se llama después de cada sincronización. Suena una sola vez por llegada:
+// compara contra el ciclo anterior y solo reacciona a la transición hacia
+// "waiting", no al hecho de que alguien esté en sala.
+function checkPresenceArrivals() {
+    const actual = new Map(_turnosPropiosDeHoy().map((apt) => [apt.id, apt.presence || 'none']));
+
+    if (_presenciaVistaPreviamente === null) {
+        _presenciaVistaPreviamente = actual;
+        return;
+    }
+
+    const llegadas = [...actual.entries()].filter(
+        ([id, presencia]) =>
+            presencia === 'waiting' && _presenciaVistaPreviamente.get(id) !== 'waiting'
+    );
+
+    _presenciaVistaPreviamente = actual;
+
+    // Si entraron tres pacientes juntos suena una vez, no tres: el aviso es "hay
+    // alguien esperando", no un contador.
+    if (llegadas.length > 0 && isPresenceChimeEnabled()) {
+        playPresenceChime();
+    }
+}
+
+// Al cerrar sesión o cambiar de clínica los turnos ya no son los mismos: se
+// olvida lo visto para no comparar contra la agenda de otra persona.
+function resetPresenceArrivalTracking() {
+    _presenciaVistaPreviamente = null;
+}
 // ──────────────────────────────────────────────────────────────────────────
 
 window.updateAppointmentStatus = async function(aptId, nextStatus) {
@@ -171,10 +333,27 @@ window.updateAppointmentStatus = async function(aptId, nextStatus) {
 
 function getWhatsAppLink(patient, apt) {
     if (!patient || !patient.phone) return '';
-    const phone = String(patient.phone).replace(/\D/g, '');
+
+    // toWhatsappNumber y no un replace de no-dígitos: wa.me necesita código de
+    // país, y en Argentina además el 9 de celular y sin el 15. Mandar
+    // "2616754184" en crudo abre WhatsApp sin encontrar el contacto, así que
+    // este enlace venía fallando para los teléfonos cargados en formato local.
+    const phone = toWhatsappNumber(patient.phone);
     if (!phone) return '';
+
     const dateLabel = parseLocalIsoDate(apt.date).toLocaleDateString('es-AR');
-    const message = `Hola ${patient.name}, te escribimos de Odentara para confirmar tu turno del ${dateLabel} a las ${apt.time} con ${getProfName(apt.professionalId)}. Por favor responde CONFIRMADO o si necesitas reprogramarlo.`;
+
+    // El mensaje lo firma la CLÍNICA, no el software, y lo redacta ella desde
+    // Configuración. Antes decía "te escribimos de Odentara": al paciente de una
+    // clínica le llegaba un mensaje de una marca que no conoce, y para la
+    // clínica es su comunicación, no la nuestra.
+    const message = renderAppointmentMessage(getAppointmentMessageTemplate(), {
+        paciente:    patient.name,
+        fecha:       dateLabel,
+        hora:        apt.time,
+        profesional: getProfName(apt.professionalId),
+        clinica:     getClinicDisplayName()
+    });
     return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
@@ -224,7 +403,16 @@ window.sendWhatsAppMessage = async function(aptId) {
     const aptLocal = DB.get('appointments').find(a => a.id === aptId);
     const patient  = getPatientByAppointment(aptLocal);
     const link     = getWhatsAppLink(patient, aptLocal);
-    if (!link) return;
+    if (!link) {
+        // Antes salía en silencio y parecía que el botón no hacía nada.
+        showAlert(
+            patient && patient.phone
+                ? `El teléfono de ${patient.name} (${patient.phone}) no tiene un formato que WhatsApp pueda abrir. Revisalo en la ficha del paciente.`
+                : 'El paciente no tiene teléfono cargado.',
+            { title: 'WhatsApp', variant: 'error' }
+        );
+        return;
+    }
 
     // Abrir WhatsApp primero
     window.open(link, '_blank', 'noopener,noreferrer');

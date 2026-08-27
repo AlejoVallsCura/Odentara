@@ -17,3 +17,20 @@ pacientes_test.csv
 
 # Docs generados
 ARQUITECTURA.pdf
+
+# Backups de base y de R2 — contienen datos de pacientes, nunca al repo
+backups/
+
+# Documentos internos — NO al repo: es público.
+# Los informes de auditoría describen vulnerabilidades todavía sin parchear de un
+# sistema en producción con datos de salud, y CLAUDE.md/PLAN-CODEX tienen rutas de
+# producción, el mecanismo de .env-secrets y el detalle de incidentes pasados.
+# Publicar eso es entregarle el mapa a cualquiera que mire el repo.
+AUDITORIA*.md
+INFORME_FINAL_PARA_CLAUDE.md
+HANDOFF-UX-SESION.md
+PLAN-CODEX.md
+CLAUDE.md
+
+# Copia duplicada de scripts/ y docs/ — se borra, no se versiona (ver OD-DEP-05)
+odentara-scripts-backup/

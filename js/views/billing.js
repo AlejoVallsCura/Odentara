@@ -30,7 +30,15 @@ function openBillingModal(preselectedPatientId = null) {
                             </select>
                         </div>
                         <div class="input-group"><label>Tipo de Registro</label><select id="tx-type" required><option value="income">Abono / Pago recibido (Ingreso)</option><option value="debt">Cargo por Tratamiento (Deuda)</option></select></div>
-                        <div class="input-group"><label>Monto ($)</label><input type="number" id="tx-amount" min="1" required></div>
+                        <div class="tx-monto-row">
+                            <div class="input-group"><label>Monto</label><input type="number" id="tx-amount" min="0.01" step="0.01" required></div>
+                            <div class="input-group">
+                                <label>Moneda</label>
+                                <select id="tx-currency">
+                                    ${MONEDAS.map(m => `<option value="${m.codigo}">${m.simbolo} ${m.label}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
                         <div class="input-group"><label>Concepto / Descripción</label><input type="text" id="tx-desc" required placeholder="Ej: Tratamiento conducto, Pago parcial..."></div>
                     </div>
                     <div class="modal-footer">
@@ -69,9 +77,22 @@ function openBillingModal(preselectedPatientId = null) {
         txResults.style.display = 'none';
     }
 
+    const etiquetaDePaciente = (p) => `${p.name} (DNI ${p.dni})`;
+
     txSearch.addEventListener('input', () => {
         const q = txSearch.value.trim().toLowerCase();
-        txHidden.value = '';
+
+        // El id elegido solo se descarta si el texto dejo de ser el del paciente
+        // que estaba seleccionado. Antes se limpiaba en cada `input`, y como el
+        // handler de `focus` re-dispara `input`, alcanzaba con tocar el campo
+        // para quedarse sin paciente: al abrir el modal desde una ficha -donde
+        // viene preseleccionado- el submit contestaba "Seleccionalo de la
+        // lista" con el nombre del paciente escrito ahi adelante, y encima el
+        // desplegable no aparecia porque la etiqueta entera no matchea ningun
+        // nombre. Habia que borrar todo y volver a buscarlo.
+        const elegido = patients.find(p => String(p.id) === txHidden.value);
+        if (!elegido || etiquetaDePaciente(elegido).toLowerCase() !== q) txHidden.value = '';
+
         if (!q) { removeTxDropdown(); return; }
         const matches = patients.filter(p =>
             p.name.toLowerCase().includes(q) || String(p.dni).includes(q)
@@ -97,7 +118,11 @@ function openBillingModal(preselectedPatientId = null) {
         });
     });
     txSearch.addEventListener('blur', () => setTimeout(removeTxDropdown, 150));
-    txSearch.addEventListener('focus', () => { if (txSearch.value) txSearch.dispatchEvent(new Event('input')); });
+    // Con un paciente ya elegido no hace falta reabrir el buscador: el valor es
+    // valido y lo unico que lograba era volver a evaluar el texto completo.
+    txSearch.addEventListener('focus', () => {
+        if (txSearch.value && !txHidden.value) txSearch.dispatchEvent(new Event('input'));
+    });
     // Limpiar el dropdown del body cuando se cierra el modal
     const _origCloseModal = typeof closeModal === 'function' ? closeModal : null;
     const _txCleanup = () => { if (txResults.parentNode) txResults.parentNode.removeChild(txResults); };
@@ -116,6 +141,7 @@ function openBillingModal(preselectedPatientId = null) {
             professionalId: parseInt(document.getElementById('tx-prof').value),
             type: document.getElementById('tx-type').value,
             amount: parseFloat(document.getElementById('tx-amount').value),
+            currency: document.getElementById('tx-currency')?.value || MONEDA_POR_DEFECTO,
             description: document.getElementById('tx-desc').value,
             date: getTodayIsoLocal()
         };
@@ -127,7 +153,7 @@ function openBillingModal(preselectedPatientId = null) {
                         method: 'POST',
                         body: JSON.stringify(data)
                     });
-                    await syncBackendSnapshotToLocalDb();
+                    await syncBillingToLocalDb();
                 } else {
                     DB.add('billing', data);
                 }
@@ -233,11 +259,11 @@ function renderBillingPatientSearchResultsMarkup(query = '', options = {}) {
 
     return matches.map((patient) => {
         const account = getPatientCurrentAccountSummary(patient.id);
-        const professionalCount = account?.byProfessional?.length || 0;
+        const professionalCount = account?.professionalCount || 0;
         return `
             <button type="button" class="billing-patient-result btn-view-patient-billing" data-id="${patient.id}">
                 <div class="billing-patient-result-main">
-                    <strong>${patient.name}</strong>
+                    <strong>${escapeHtml(patient.name)}</strong>
                     <span>DNI ${patient.dni}</span>
                 </div>
                 <div class="billing-patient-result-meta">
@@ -277,6 +303,60 @@ function filterBillingTable(query = '') {
 }
 
 
+/**
+ * Las cards de caja: una card entera por moneda, con sus tres numeros adentro.
+ *
+ * Antes habia una card por concepto (Recaudado / Cargos / Balance) y cada una
+ * apilaba los importes de las dos monedas uno sobre otro. Con pesos y dolares en
+ * el mismo periodo eso se leia como un solo numero partido al medio, que es
+ * justo el error que todo este modulo trata de evitar.
+ *
+ * Agrupar por moneda es ademas el criterio que ya usa el resto del sistema: los
+ * importes de monedas distintas no se suman nunca, asi que cada moneda es una
+ * unidad cerrada y se muestra como tal.
+ *
+ * Con una sola moneda queda una sola card, a ancho completo.
+ */
+function renderCajaCards(resumen, periodoLabel) {
+    const filas = resumen.length
+        ? resumen
+        : [{ moneda: MONEDA_POR_DEFECTO, deuda: 0, pagado: 0, balance: 0 }];
+
+    const cards = filas.map(r => {
+        const balance = r.pagado - r.deuda;
+        // El signo va delante del simbolo: "-US$650" y no "US$-650".
+        const balanceTexto = `${balance < 0 ? '-' : ''}${formatearMonto(Math.abs(balance), r.moneda)}`;
+        const nombreMoneda = (MONEDAS.find(m => m.codigo === r.moneda) || {}).label || r.moneda;
+
+        return `
+        <div class="card caja-moneda-card" data-moneda="${escapeHtml(r.moneda)}">
+            <div class="caja-moneda-head">
+                <span class="caja-moneda-simbolo">${escapeHtml(simboloDe(r.moneda))}</span>
+                <div class="caja-moneda-titulo">
+                    <h3>${escapeHtml(nombreMoneda)}</h3>
+                    <small>${escapeHtml(periodoLabel.trim())}</small>
+                </div>
+            </div>
+            <div class="caja-moneda-metricas">
+                <div class="caja-metrica">
+                    <span class="caja-metrica-label"><i class="fa-solid fa-arrow-trend-up caja-ico-verde"></i> Recaudado</span>
+                    <strong class="caja-metrica-valor caja-valor-verde">${formatearMonto(r.pagado, r.moneda)}</strong>
+                </div>
+                <div class="caja-metrica">
+                    <span class="caja-metrica-label"><i class="fa-solid fa-arrow-trend-down caja-ico-rojo"></i> Cargos emitidos</span>
+                    <strong class="caja-metrica-valor caja-valor-rojo">${formatearMonto(r.deuda, r.moneda)}</strong>
+                </div>
+                <div class="caja-metrica">
+                    <span class="caja-metrica-label"><i class="fa-solid fa-scale-balanced caja-ico-violeta"></i> Balance neto</span>
+                    <strong class="caja-metrica-valor ${balance < 0 ? 'caja-valor-rojo' : 'caja-valor-violeta'}">${balanceTexto}</strong>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    return `<div class="caja-monedas-grid${filas.length > 1 ? ' caja-monedas-varias' : ''}">${cards}</div>`;
+}
+
 function renderBilling() {
     const txs = DB.get('billing').filter(t => canAccessProfessional(t.professionalId));
     const patients = getAccessiblePatients().sort((a,b)=>a.name.localeCompare(b.name));
@@ -301,12 +381,16 @@ function renderBilling() {
                 const dateCompare = coerceAppointmentDate(a.date).localeCompare(coerceAppointmentDate(b.date));
                 return dateCompare || (a.id - b.id);
             });
+            // El acumulado se lleva por profesional Y MONEDA. Con una sola clave por
+            // profesional, un cargo en dólares y un pago en pesos se restaban entre
+            // sí y el saldo de cada fila quedaba sin sentido.
             const runningBalanceByProfessional = new Map();
             const enriched = chronological.map((entry) => {
-                const previousBalance = runningBalanceByProfessional.get(entry.professionalId) || 0;
+                const clave = `${entry.professionalId}|${normalizarMoneda(entry.currency)}`;
+                const previousBalance = runningBalanceByProfessional.get(clave) || 0;
                 const delta = entry.type === 'debt' ? entry.amount : -entry.amount;
                 const nextBalance = previousBalance + delta;
-                runningBalanceByProfessional.set(entry.professionalId, nextBalance);
+                runningBalanceByProfessional.set(clave, nextBalance);
                 return {
                     ...entry,
                     runningBalance: nextBalance
@@ -327,19 +411,18 @@ function renderBilling() {
         const d = new Date(); d.setDate(d.getDate() - (cajaPeriodDays - 1)); return formatDateToLocalIso(d);
     })();
     const cajaTxs = txs.filter(t => coerceAppointmentDate(t.date) >= cajaCutoff);
-    const cajaIngresos = cajaTxs.filter(t => ['income', 'payment'].includes(t.type)).reduce((sum,t)=>sum+t.amount,0);
-    const cajaCargos = cajaTxs.filter(t => t.type === 'debt').reduce((sum,t)=>sum+t.amount,0);
-    const cajaBalance = cajaIngresos - cajaCargos;
-
-    const ingresos = todaysTxs.filter(t => ['income', 'payment'].includes(t.type)).reduce((sum,t)=>sum+t.amount,0);
-    const deudas = todaysTxs.filter(t=>t.type==='debt').reduce((sum,t)=>sum+t.amount,0);
+    // Los totales de caja salen separados por moneda. Antes se sumaba con un
+    // reduce sobre `amount` sin mirar `currency`: con pesos y dólares en la misma
+    // caja, "Recaudado $500.000" podía ser $200.000 más US$300 sumados como si
+    // fueran lo mismo. Es el mismo criterio que ya usa la cuenta corriente.
+    const cajaPorMoneda = resumirPorMoneda(cajaTxs);
 
     const patientAccountHero = selectedAccount?.patient ? `
         <div class="card mt-6 mb-6 billing-summary-card">
             <div class="section-headline">
                 <div>
                     <span class="section-eyebrow">Cuenta corriente por paciente</span>
-                    <h3 class="section-title section-title-sm">${selectedAccount.patient.name}</h3>
+                    <h3 class="section-title section-title-sm">${escapeHtml(selectedAccount.patient.name)}</h3>
                     <p class="section-subtitle">DNI ${selectedAccount.patient.dni} · Seguimiento individual de movimientos, cargos y pagos.</p>
                 </div>
                 <div class="flex gap-2 flex-wrap">
@@ -352,24 +435,30 @@ function renderBilling() {
             </div>
             <div class="table-container shadow-sm border border-gray-100 mt-4">
                 <table class="w-full text-left bg-white">
-                    <thead class="bg-gray-50 text-gray-600"><tr><th>Profesional</th><th>Cargos</th><th>Pagos</th><th>Saldo</th></tr></thead>
+                    <thead class="bg-gray-50 text-gray-600"><tr><th>Profesional</th><th>Moneda</th><th>Cargos</th><th>Pagos</th><th>Saldo</th></tr></thead>
                     <tbody>
-                        ${selectedAccount.byProfessional.map((item) => `
+                        ${selectedAccount.byProfessional.map((item) => {
+                            const saldo = etiquetaDeSaldo(item.balance, item.moneda);
+                            return `
                             <tr>
-                                <td class="font-medium">${item.professionalName}</td>
-                                <td>$${item.deuda.toLocaleString()}</td>
-                                <td class="text-success font-semibold">$${item.pagado.toLocaleString()}</td>
+                                <td class="font-medium">${escapeHtml(item.professionalName)}</td>
+                                <td><span class="badge badge-gray text-xs">${item.moneda}</span></td>
+                                <td>${formatearMonto(item.deuda, item.moneda)}</td>
+                                <td class="text-success font-semibold">${formatearMonto(item.pagado, item.moneda)}</td>
                                 <td>
-                                    ${item.balance > 0
-                                        ? `<span class="badge badge-warning text-xs">Debe $${item.balance.toLocaleString()}</span>`
-                                        : `<span class="badge badge-success text-xs">${item.balance < 0 ? `A favor $${Math.abs(item.balance).toLocaleString()}` : 'Al día'}</span>`}
+                                    <span class="badge ${saldo.estado === 'debe' ? 'badge-warning' : 'badge-success'} text-xs">${saldo.texto}</span>
                                 </td>
-                            </tr>
-                        `).join('')}
-                        ${selectedAccount.byProfessional.length === 0 ? '<tr><td colspan="4" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos en cuenta corriente.</td></tr>' : ''}
+                            </tr>`;
+                        }).join('')}
+                        ${selectedAccount.byProfessional.length === 0 ? `<tr><td colspan="5" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos.${canManagePatientBillingUi() ? ' Usá <strong>Agregar movimiento</strong> para registrar el primer cargo o pago.' : ''}</td></tr>` : ''}
                     </tbody>
                 </table>
             </div>
+            <!-- El detalle completo solo tiene sentido si hay movimientos: sin ellos
+                 repetía casi textualmente el mismo cartel de "no hay nada" que ya
+                 muestra la tabla de arriba, con dos encabezados de tabla y un título
+                 de sección que no describían ningún dato. -->
+            ${selectedPatientDetailedMovements.length === 0 ? '' : `
             <div class="card mt-4">
                 <div class="section-headline">
                     <div>
@@ -388,6 +477,7 @@ function renderBilling() {
                                 <th class="col-hide-sm">Concepto</th>
                                 <th class="col-hide-sm">Cargo</th>
                                 <th>Monto</th>
+                                <th>Moneda</th>
                                 <th class="col-hide-sm">Saldo</th>
                             </tr>
                         </thead>
@@ -401,30 +491,29 @@ function renderBilling() {
                                         ? 'Pago'
                                         : 'Ingreso';
                                 const movementDate = coerceAppointmentDate(movement.date);
-                                const montoDisplay = `$${movement.amount.toLocaleString()}`;
+                                const moneda = normalizarMoneda(movement.currency);
+                                const montoDisplay = formatearMonto(movement.amount, moneda);
+                                const saldoFila = etiquetaDeSaldo(movement.runningBalance, moneda);
                                 return `
                                     <tr>
                                         <td class="text-sm text-gray-500">${movementDate}</td>
-                                        <td class="font-medium col-hide-xs">${professionalName}</td>
+                                        <td class="font-medium col-hide-xs">${escapeHtml(professionalName)}</td>
                                         <td><span class="badge ${isPositiveMovement ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
-                                        <td class="text-gray-700 col-hide-sm">${movement.description || 'Sin descripción'}</td>
+                                        <td class="text-gray-700 col-hide-sm">${escapeHtml(movement.description || 'Sin descripción')}</td>
                                         <td class="font-semibold text-warning col-hide-sm">${movement.type === 'debt' ? montoDisplay : '-'}</td>
                                         <td class="font-semibold ${isPositiveMovement ? 'text-success' : 'text-warning'}">${montoDisplay}</td>
+                                        <td><span class="badge badge-gray text-xs">${moneda}</span></td>
                                         <td class="col-hide-sm">
-                                            ${movement.runningBalance > 0
-                                                ? `<span class="badge badge-warning text-xs">Debe $${movement.runningBalance.toLocaleString()}</span>`
-                                                : movement.runningBalance < 0
-                                                    ? `<span class="badge badge-success text-xs">A favor $${Math.abs(movement.runningBalance).toLocaleString()}</span>`
-                                                    : `<span class="badge badge-gray text-xs">Al día</span>`}
+                                            <span class="badge ${saldoFila.estado === 'debe' ? 'badge-warning' : saldoFila.estado === 'a-favor' ? 'badge-success' : 'badge-gray'} text-xs">${saldoFila.texto}</span>
                                         </td>
                                     </tr>
                                 `;
                             }).join('')}
-                            ${selectedPatientDetailedMovements.length === 0 ? '<tr><td colspan="7" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos registrados.</td></tr>' : ''}
+                            ${selectedPatientDetailedMovements.length === 0 ? '<tr><td colspan="8" class="text-center py-4 text-gray-400">Este paciente todavía no tiene movimientos registrados.</td></tr>' : ''}
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div>`}
         </div>
     ` : '';
 
@@ -455,31 +544,8 @@ function renderBilling() {
             </div>
         </div>
 
-        <div class="metrics-grid mt-4 mb-6">
-            <div class="card metric-card">
-                <div class="metric-icon metric-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
-                <div class="metric-info">
-                    <h3>Recaudado</h3>
-                    <p>$${cajaIngresos.toLocaleString()}</p>
-                    <small class="text-xs text-gray-400">${cajaPeriodLabel}</small>
-                </div>
-            </div>
-            <div class="card metric-card">
-                <div class="metric-icon metric-red"><i class="fa-solid fa-arrow-trend-down"></i></div>
-                <div class="metric-info">
-                    <h3>Cargos emitidos</h3>
-                    <p>$${cajaCargos.toLocaleString()}</p>
-                    <small class="text-xs text-gray-400">${cajaPeriodLabel}</small>
-                </div>
-            </div>
-            <div class="card metric-card">
-                <div class="metric-icon metric-purple"><i class="fa-solid fa-scale-balanced"></i></div>
-                <div class="metric-info">
-                    <h3>Balance neto</h3>
-                    <p>$${Math.abs(cajaBalance).toLocaleString()}</p>
-                    <small class="text-xs text-gray-400">${cajaPeriodLabel}</small>
-                </div>
-            </div>
+        <div class="mt-4 mb-6">
+            ${renderCajaCards(cajaPorMoneda, cajaPeriodLabel)}
         </div>
 
         <div class="input-group mb-3">
@@ -498,11 +564,11 @@ function renderBilling() {
                         return `
                         <tr>
                             <td class="text-sm text-gray-500">${coerceAppointmentDate(t.date)}</td>
-                            <td class="font-medium">${pName}</td>
-                            <td class="text-sm text-gray-600 col-hide-xs">${professionalName}</td>
+                            <td class="font-medium">${escapeHtml(pName)}</td>
+                            <td class="text-sm text-gray-600 col-hide-xs">${escapeHtml(professionalName)}</td>
                             <td><span class="badge ${isPago ? 'badge-success' : 'badge-warning'}">${typeLabel}</span></td>
-                            <td class="text-gray-700 col-hide-sm">${t.description || 'Sin descripción'}</td>
-                            <td class="font-bold ${isPago ? 'text-success' : 'text-warning'}">$${t.amount.toLocaleString()}</td>
+                            <td class="text-gray-700 col-hide-sm">${escapeHtml(t.description || 'Sin descripción')}</td>
+                            <td class="font-bold ${isPago ? 'text-success' : 'text-warning'}">${formatearMonto(t.amount, t.currency)}</td>
                             <td>
                                 ${state.user.roles.some(r => ['superadmin', 'admin'].includes(r)) ?
                                 `<button class="btn btn-icon btn-delete-tx" data-id="${t.id}" title="Eliminar" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>` : ''}

@@ -91,6 +91,27 @@ async function requireAuth(req, res, next) {
       });
     }
 
+    // Renovación deslizante: si el token ya pasó la mitad de su vida y la
+    // persona sigue trabajando, se emite uno nuevo y se manda en un header. Así
+    // la sesión dura 24 horas en lugar de 7 días —un token robado caduca mucho
+    // antes— sin que nadie tenga que volver a iniciar sesión cada mañana.
+    // Quien deja de usar la app simplemente deja de renovar y expira solo.
+    if (payload.exp && payload.iat) {
+      const vidaMs = (payload.exp - payload.iat) * 1000;
+      const transcurridoMs = Date.now() - payload.iat * 1000;
+      if (transcurridoMs > vidaMs / 2) {
+        try {
+          const { signToken } = require("../lib/auth");
+          const { jti: _viejo, iat: _i, exp: _e, ...datos } = payload;
+          res.set("X-Renewed-Token", signToken(datos));
+          res.set("Access-Control-Expose-Headers", "X-Renewed-Token");
+        } catch (_error) {
+          // Si la renovación falla, el token actual sigue siendo válido: no es
+          // motivo para cortarle el paso a nadie.
+        }
+      }
+    }
+
     req.user = user;
     req.rawToken = token;
     req.impersonatedBy = payload.impersonatedBy || null;

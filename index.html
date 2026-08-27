@@ -14,39 +14,30 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-    <link rel="stylesheet" href="/css/variables.css?v=20260803a">
-    <link rel="stylesheet" href="/css/base.css?v=20260803a">
-    <link rel="stylesheet" href="/css/components.css?v=20260803a">
-    <link rel="stylesheet" href="/css/layout.css?v=20260803a">
-    <link rel="stylesheet" href="/css/calendar.css?v=20260803a">
-    <link rel="stylesheet" href="/css/refresh.css?v=20260803a">
-    <link rel="stylesheet" href="/css/dark-theme.css?v=20260803a">
-    <link rel="stylesheet" href="/css/patches.css?v=20260803a">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="/css/variables.css?v=20260827b">
+    <link rel="stylesheet" href="/css/base.css?v=20260827b">
+    <link rel="stylesheet" href="/css/components.css?v=20260827b">
+    <link rel="stylesheet" href="/css/layout.css?v=20260827b">
+    <link rel="stylesheet" href="/css/calendar.css?v=20260827b">
+    <link rel="stylesheet" href="/css/refresh.css?v=20260827b">
+    <link rel="stylesheet" href="/css/dark-theme.css?v=20260827b">
+    <link rel="stylesheet" href="/css/patches.css?v=20260827b">
+    <!-- Favicon: se usa la variante `principal` porque la pestaña del navegador es
+         clara u oscura según el sistema, y el tile violeta con diente blanco
+         es el que se distingue sobre ambas. -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/logo-principal-32.png?v=20260827b">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/logo-principal-16.png?v=20260827b">
     <!-- PWA: manifest + íconos de instalación -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#4f46e5">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="theme-color" content="#4c40e6">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260827b">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- _turnstileOnLoad debe existir antes de que el script de CF lo llame (async).
          Si CF carga antes que app.js, el flag queda en true y app.js lo lee al arrancar. -->
-    <script>
-    /* Aplica theme-dark en <html> antes de que el DOM renderice — evita FOUC */
-    (function () {
-        try {
-            var t = localStorage.getItem('theme');
-            if (t === 'dark' || t === null) document.documentElement.setAttribute('data-theme', 'dark');
-        } catch (e) {}
-    })();
-    </script>
-    <script>
-    window._turnstileReadyFlag = false;
-    window._turnstileOnLoad = function() {
-        window._turnstileReadyFlag = true;
-        if (typeof window._renderTurnstile === 'function') window._renderTurnstile();
-    };
-    </script>
+    <!-- Sin defer: el tema debe aplicarse antes del primer render. Archivo
+         externo (no inline) para permitir una CSP sin 'unsafe-inline'. -->
+    <script src="/js/boot/head.js?v=20260827b"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=_turnstileOnLoad" async defer></script>
 </head>
 
@@ -58,11 +49,7 @@
         <div class="login-brand-side">
             <div class="login-brand-inner">
                 <div class="login-brand-logo-wrap">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="13 14 38 40" class="login-brand-logo-svg" aria-label="Odentara">
-                        <path d="M21.5 17.5c-2.9 0-5.2 2.3-5.2 5.2 0 3.8 2 6.6 3.8 9 1.3 1.9 2.5 3.6 2.5 5.5V42c0 4.8 3.9 8.7 8.7 8.7h1.3c4.8 0 8.7-3.9 8.7-8.7v-4.8c0-1.9 1.2-3.6 2.5-5.5 1.8-2.4 3.8-5.2 3.8-9 0-2.9-2.3-5.2-5.2-5.2-2 0-3.6.8-4.9 1.6-1.6 1-2.7 1.6-5.5 1.6s-3.9-.6-5.5-1.6c-1.3-.8-2.9-1.6-4.9-1.6Z" fill="white"/>
-                        <path d="M28 32.7c-1.2 0-2.1.9-2.1 2.1V47c0 1.9 1.6 3.5 3.5 3.5h1.1V35.4c0-1.5-1.1-2.7-2.5-2.7Z" fill="rgba(15,118,110,0.45)"/>
-                        <path d="M36 32.7c-1.4 0-2.5 1.2-2.5 2.7v15.1h1.1c1.9 0 3.5-1.6 3.5-3.5V34.8c0-1.2-.9-2.1-2.1-2.1Z" fill="rgba(15,118,110,0.45)"/>
-                    </svg>
+                    <img src="/icons/logo-teal2-128.png?v=20260827b" alt="Odentara" class="login-brand-logo-img">
                 </div>
                 <h1 class="login-brand-name">Odentara</h1>
                 <p class="login-brand-tagline">El sistema de gestión diseñado para tu clínica odontológica.</p>
@@ -105,11 +92,7 @@
                     <!-- Mobile: logo -->
                     <div class="login-mobile-logo">
                         <div class="login-mobile-logo-mark">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="13 14 38 40" class="login-brand-logo-svg" style="width:19px;height:19px" aria-label="Odentara">
-                                <path d="M21.5 17.5c-2.9 0-5.2 2.3-5.2 5.2 0 3.8 2 6.6 3.8 9 1.3 1.9 2.5 3.6 2.5 5.5V42c0 4.8 3.9 8.7 8.7 8.7h1.3c4.8 0 8.7-3.9 8.7-8.7v-4.8c0-1.9 1.2-3.6 2.5-5.5 1.8-2.4 3.8-5.2 3.8-9 0-2.9-2.3-5.2-5.2-5.2-2 0-3.6.8-4.9 1.6-1.6 1-2.7 1.6-5.5 1.6s-3.9-.6-5.5-1.6c-1.3-.8-2.9-1.6-4.9-1.6Z" fill="white"/>
-                                <path d="M28 32.7c-1.2 0-2.1.9-2.1 2.1V47c0 1.9 1.6 3.5 3.5 3.5h1.1V35.4c0-1.5-1.1-2.7-2.5-2.7Z" fill="rgba(15,118,110,0.45)"/>
-                                <path d="M36 32.7c-1.4 0-2.5 1.2-2.5 2.7v15.1h1.1c1.9 0 3.5-1.6 3.5-3.5V34.8c0-1.2-.9-2.1-2.1-2.1Z" fill="rgba(15,118,110,0.45)"/>
-                            </svg>
+                            <img src="/icons/logo-teal2-128.png?v=20260827b" alt="Odentara" class="login-brand-logo-img">
                         </div>
                         <span>Odentara</span>
                     </div>
@@ -236,7 +219,7 @@
         <aside id="app-sidebar" class="w-64 bg-white border-r border-gray-200 flex flex-col transition-all duration-300">
             <div class="app-brand p-6 border-b border-gray-100 flex items-center gap-3">
                 <div class="app-brand-mark w-8 h-8 rounded bg-primary-600 text-white flex items-center justify-center">
-                    <img src="favicon.svg" alt="Odentara" class="brand-logo-img">
+                    <img src="/icons/logo-principal-128.png?v=20260827b" alt="Odentara" class="brand-logo-img" data-brand-logo>
                 </div>
                 <div class="app-brand-copy">
                     <h1 class="font-bold text-lg text-gray-800 tracking-tight">Odentara</h1>
@@ -259,7 +242,7 @@
                         <p class="text-sm font-medium text-gray-900 truncate" id="user-name">Dr. Admin</p>
                         <p class="text-xs text-gray-500 truncate" id="user-role-display">Superadmin</p>
                     </div>
-                    <button id="logout-btn" class="sidebar-logout-btn text-gray-400 hover:text-red-500 transition-colors" title="Cerrar sesión">
+                    <button type="button" id="logout-btn" class="sidebar-logout-btn text-gray-400 hover:text-red-500 transition-colors" title="Cerrar sesión">
                         <i class="fa-solid fa-arrow-right-from-bracket"></i>
                     </button>
                 </div>
@@ -275,7 +258,7 @@
                     </button>
                     <div class="mobile-header-brand">
                         <div class="mobile-header-brand-mark">
-                            <img src="favicon.svg" alt="Odentara" class="brand-logo-img">
+                            <img src="/icons/logo-principal-128.png?v=20260827b" alt="Odentara" class="brand-logo-img" data-brand-logo>
                         </div>
                         <div class="mobile-header-brand-text">
                             <span>Odentara</span>
@@ -286,6 +269,9 @@
                 <div class="header-actions flex items-center"></div>
             </header>
 
+            <!-- Avisos de plataforma (mantenimiento, caídas). Lo completa
+                 renderAnnouncements() desde el refresco periódico; vacío no ocupa espacio. -->
+            <div id="platform-announcements"></div>
             <div id="main-content" class="flex-1 overflow-y-auto p-6 scroll-smooth">
             </div>
         </main>
@@ -294,46 +280,41 @@
     <div id="modals-container"></div>
 
     <!-- Si app.js no carga en un subdominio de clínica, redirigir al login. -->
-    <script>
-    (function() {
-        var parts = window.location.hostname.split('.');
-        var PLATFORM = ['www','admin','platform','api','app'];
-        var isClinic = parts.length >= 3 && !PLATFORM.includes(parts[0]);
-        if (isClinic && new URLSearchParams(window.location.search).has('__exchange')) {
-            window.__clinicFallback = setTimeout(function() {
-                window.location.href = window.location.protocol + '//app.' + parts.slice(-2).join('.') + '/';
-            }, 8000);
-        }
-    })();
-    </script>
-    <!-- PWA: registro del service worker (no bloquea la carga) -->
-    <script>
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js').catch(() => {});
-        });
-    }
-    </script>
-    <script src="/xlsx.full.min.js?v=20260803a"></script>
+    <!-- Fallback de subdominio + registro del service worker. En archivo
+         externo para que script-src no necesite 'unsafe-inline'. -->
+    <script src="/js/boot/tail.js?v=20260827b"></script>
+    <script src="/xlsx.full.min.js?v=20260827b"></script>
     <!-- core modules (orden importa) -->
-    <script src="/js/core/state.js?v=20260803a"></script>
-    <script src="/js/core/utils.js?v=20260803a"></script>
-    <script src="/js/core/mappers.js?v=20260803a"></script>
-    <script src="/js/core/permissions.js?v=20260803a"></script>
-    <script src="/js/core/ui.js?v=20260803a"></script>
-    <script src="/js/core/api.js?v=20260803a"></script>
-    <script src="/js/core/db-local.js?v=20260803a"></script>
-    <script src="/js/core/auth.js?v=20260803a"></script>
-    <script src="/js/core/helpers.js?v=20260803a"></script>
-    <script src="/js/core/router.js?v=20260803a"></script>
-    <script src="/js/views/platform.js?v=20260803a"></script>
-    <script src="/js/views/clinical.js?v=20260803a"></script>
-    <script src="/js/views/appointments.js?v=20260803a"></script>
-    <script src="/js/views/patients.js?v=20260803a"></script>
-    <script src="/js/views/billing.js?v=20260803a"></script>
-    <script src="/js/views/dashboard.js?v=20260803a"></script>
-    <script src="/js/views/settings.js?v=20260803a"></script>
-    <script src="app.js?v=20260803a" onerror="(function(){
+        <!-- Compartido con el servidor: el mismo archivo valida en el backend y
+         arma el mensaje acá, para que la vista previa no pueda diferir de
+         lo que recibe el paciente. -->
+    <script src="/shared/appointment-message.js?v=20260827b"></script>
+    <script src="/shared/money.js?v=20260827b"></script>
+    <script src="/shared/plan-pricing.js?v=20260827b"></script>
+<script src="/js/core/state.js?v=20260827b"></script>
+    <script src="/js/core/utils.js?v=20260827b"></script>
+    <script src="/js/core/mappers.js?v=20260827b"></script>
+    <script src="/js/core/permissions.js?v=20260827b"></script>
+    <script src="/js/core/ui.js?v=20260827b"></script>
+    <script src="/js/core/api.js?v=20260827b"></script>
+    <script src="/js/core/announcements.js?v=20260827b"></script>
+    <script src="/js/core/pwa-install.js?v=20260827b"></script>
+    <script src="/js/core/db-local.js?v=20260827b"></script>
+    <script src="/js/core/auth.js?v=20260827b"></script>
+    <script src="/js/core/helpers.js?v=20260827b"></script>
+    <script src="/js/core/nav-history.js?v=20260827b"></script>
+    <script src="/js/core/help-guide.js?v=20260827b"></script>
+    <script src="/js/core/router.js?v=20260827b"></script>
+    <script src="/js/views/platform.js?v=20260827b"></script>
+    <script src="/js/views/platform-backups.js?v=20260827b"></script>
+    <script src="/js/views/platform-expenses.js?v=20260827b"></script>
+    <script src="/js/views/clinical.js?v=20260827b"></script>
+    <script src="/js/views/appointments.js?v=20260827b"></script>
+    <script src="/js/views/patients.js?v=20260827b"></script>
+    <script src="/js/views/billing.js?v=20260827b"></script>
+    <script src="/js/views/dashboard.js?v=20260827b"></script>
+    <script src="/js/views/settings.js?v=20260827b"></script>
+    <script src="app.js?v=20260827b" onerror="(function(){
         clearTimeout(window.__clinicFallback);
         var parts = window.location.hostname.split('.');
         var PLATFORM = ['www','admin','platform','api','app'];

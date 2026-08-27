@@ -1,46 +1,73 @@
 const express = require("express");
 
 const mainPrisma = require("../lib/prisma");
+const { getClinicPrisma } = require("../lib/clinic-prisma");
 const { requireAuth } = require("../middleware/auth");
-const { buildPatientAccessWhere } = require("../lib/access");
-const { canEditClinicalData, canViewClinicalData, canAccessWholeClinic, getAccessibleProfessionalIds } = require("../lib/permissions");
+const { buildPatientAccessWhere, buildSharedRecordWhere } = require("../lib/access");
+const { canEditClinicalData, canViewClinicalData, canAccessWholeClinic } = require("../lib/permissions");
 const { checkClinicalImagesFeature } = require("../lib/plan-limits");
-const { uploadFile, getFileStream, deleteFile, isR2Key, isStorageConfigured, ALLOWED_MIME_TYPES } = require("../lib/storage");
+const {
+  uploadFile,
+  getFileReadable,
+  deleteFile,
+  isR2Key,
+  isStorageConfigured,
+  ALLOWED_MIME_TYPES,
+} = require("../lib/storage");
+const { signToken, verifyToken } = require("../lib/signed-token");
+const { requirePermission } = require("../middleware/require-permission");
+const { exportLimiter } = require("../middleware/rate-limit");
+const { logSecurityEvent } = require("../lib/security-logger");
+const {
+  buildArchiveFileName,
+  checkExportLimits,
+  writeClinicalExportZip,
+  MAX_FILES,
+} = require("../lib/zip-export");
 const crypto = require("crypto");
 
 const router = express.Router();
 
-function getServeSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("[FATAL] JWT_SECRET no configurado.");
-  return secret;
+// Los archivos se muestran en un <img src> o en un <iframe>, que no admiten un
+// header de autorización: el permiso viaja en la URL. Una hora alcanza para ver
+// la ficha sin que el link quede utilizable indefinidamente si se comparte.
+const SERVE_TTL_SECONDS = 3600;
+
+// Los cuatro comparten canEditClinicalData salvo el primero: lo que cambia es
+// el mensaje, que nombra la acción concreta que se intentó.
+const puedeVerArchivos = requirePermission(
+  canViewClinicalData,
+  "No tenes permisos para ver archivos clínicos.",
+);
+const puedeCargarArchivos = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para cargar archivos clínicos.",
+);
+const puedeEditarArchivos = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para editar archivos clínicos.",
+);
+const puedeEliminarArchivos = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para eliminar archivos clínicos.",
+);
+
+// La clínica entra en la firma además del id de la imagen. Sin ella, las
+// clínicas con base dedicada comparten espacio de ids: un token emitido para la
+// imagen 5 de una clínica serviría para la imagen 5 de otra, que es un archivo
+// distinto. El clinicId viaja en la URL porque el verificador necesita
+// conocerlo para recalcular el HMAC; alterarlo invalida la firma.
+function signServeToken(clinicId, imageId) {
+  return signToken({ scope: "serve", parts: [clinicId, imageId], ttlSeconds: SERVE_TTL_SECONDS });
 }
 
-function signServeToken(imageId) {
-  const exp = Math.floor(Date.now() / 1000) + 3600;
-  const sig = crypto
-    .createHmac("sha256", getServeSecret())
-    .update(`serve:${imageId}:${exp}`)
-    .digest("hex")
-    .slice(0, 32);
-  return `${exp}.${sig}`;
+function verifyServeToken(clinicId, imageId, token) {
+  return verifyToken({ scope: "serve", parts: [clinicId, imageId], token });
 }
 
-function verifyServeToken(imageId, token) {
-  if (!token) return false;
-  const [exp, sig] = token.split(".");
-  if (!exp || !sig || Date.now() / 1000 > Number(exp)) return false;
-  const expected = crypto
-    .createHmac("sha256", getServeSecret())
-    .update(`serve:${imageId}:${exp}`)
-    .digest("hex")
-    .slice(0, 32);
-  return sig === expected;
-}
-
-function serializeImage(image) {
+function serializeImage(image, clinicId) {
   const fileUrl = isR2Key(image.imageUrl)
-    ? `/api/clinical-images/serve/${image.id}?t=${signServeToken(image.id)}`
+    ? `/api/clinical-images/serve/${image.id}?c=${clinicId}&t=${signServeToken(clinicId, image.id)}`
     : image.imageUrl;
 
   return {
@@ -72,11 +99,16 @@ function getProfessionalIdFilter(permissions, overrideId) {
 router.get("/serve/:id", async (req, res) => {
   try {
     const imageId = Number(req.params.id);
-    if (!verifyServeToken(imageId, req.query.t)) {
+    const clinicId = Number(req.query.c);
+    if (!Number.isInteger(clinicId) || !verifyServeToken(clinicId, imageId, req.query.t)) {
       return res.status(401).send("Token inválido o expirado.");
     }
 
-    const image = await mainPrisma.clinicalImage.findFirst({
+    // El archivo se busca en la base de SU clínica, no en la principal: con una
+    // clínica de base dedicada, el mismo id apunta a un archivo distinto en cada
+    // base y se serviría el de otra clínica.
+    const prisma = await getClinicPrisma(clinicId);
+    const image = await prisma.clinicalImage.findFirst({
       where: { id: imageId, deletedAt: null },
     });
 
@@ -84,11 +116,14 @@ router.get("/serve/:id", async (req, res) => {
       return res.status(404).send("Archivo no encontrado.");
     }
 
-    const { body, contentType } = await getFileStream(image.imageUrl);
+    // Streaming y no Buffer.concat: una radiografía de 20 MB no tiene por qué
+    // pasar entera por la memoria del servidor para llegar al navegador.
+    const { body, contentType, contentLength } = await getFileReadable(image.imageUrl);
     const isPdf = (image.mimeType || contentType) === "application/pdf";
 
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "private, max-age=3600");
+    if (contentLength !== null) res.setHeader("Content-Length", contentLength);
 
     if (isPdf) {
       const name = image.fileName || `documento-${image.id}.pdf`;
@@ -96,19 +131,259 @@ router.get("/serve/:id", async (req, res) => {
       res.setHeader("Content-Disposition", `${disposition}; filename="${encodeURIComponent(name)}"`);
     }
 
-    return res.send(body);
+    // Si el navegador corta la descarga hay que cerrar el stream de R2: sin
+    // esto se sigue bajando (y pagando egress) un archivo que nadie recibe.
+    res.on("close", () => {
+      if (!res.writableFinished) body.destroy();
+    });
+
+    body.on("error", (error) => {
+      console.error("[clinical-images serve] stream:", error.message);
+      // Con los headers ya enviados no se puede responder un error: cortar la
+      // conexión es lo único que le avisa al navegador que quedó incompleto.
+      res.destroy();
+    });
+
+    return body.pipe(res);
   } catch (e) {
     console.error("[clinical-images serve]", e.message);
     return res.status(500).send("Error al obtener el archivo.");
   }
 });
 
-router.get("/", requireAuth, async (req, res) => {
+// ── Exportación masiva ───────────────────────────────────────────────────────
+//
+// Dos pasos a propósito:
+//
+//   1. POST /export/token  — autenticado por header. Valida permisos, plan y
+//      límites, y congela la lista de archivos. Todavía puede responder JSON.
+//   2. GET  /export/:token — sin header (es una navegación del navegador, que
+//      no puede mandar Authorization). Solo streamea lo ya autorizado.
+//
+// El token es opaco y los parámetros viven en la base: no hay nada manipulable
+// en la URL, ni nada sensible que pueda terminar en los logs del reverse proxy.
+
+const EXPORT_TTL_SECONDS = 300;
+// Se permite usarlo dos veces dentro del TTL: con un solo uso, un reintento del
+// navegador ante un corte de red dejaba al usuario sin poder bajar el archivo.
+const EXPORT_MAX_USES = 2;
+
+// El limitador va después de requireAuth: agrupa por usuario, así una clínica
+// entera detrás de la misma IP no se bloquea entre sí.
+router.post("/export/token", requireAuth, exportLimiter, puedeVerArchivos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canViewClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver archivos clínicos." });
+
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: req.user.clinicId },
+      select: { plan: true },
+    });
+    const planCheck = checkClinicalImagesFeature(clinic?.plan);
+    if (!planCheck.allowed) {
+      return res.status(403).json({ ok: false, error: planCheck.error, code: "PLAN_LIMIT" });
     }
+
+    const patientId = Number(req.body?.patientId);
+    if (!Number.isInteger(patientId)) {
+      return res.status(400).json({ ok: false, error: "Falta el paciente." });
+    }
+
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
+      select: { id: true },
+    });
+    if (!patient) {
+      return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
+    }
+
+    const desde = parseFechaOpcional(req.body?.from);
+    const hasta = parseFechaOpcional(req.body?.to);
+
+    const images = await prisma.clinicalImage.findMany({
+      where: {
+        patientId,
+        deletedAt: null,
+        ...buildSharedRecordWhere(req.permissions),
+        patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
+        ...(desde || hasta
+          ? { createdAt: { ...(desde ? { gte: desde } : {}), ...(hasta ? { lte: hasta } : {}) } }
+          : {}),
+      },
+      select: { id: true, fileSizeBytes: true },
+      orderBy: [{ createdAt: "asc" }],
+    });
+
+    const limites = checkExportLimits(images);
+    if (!limites.ok) {
+      return res.status(400).json({ ok: false, error: limites.error });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    await mainPrisma.clinicalExportToken.create({
+      data: {
+        token,
+        clinicId:  req.user.clinicId,
+        userId:    req.user.id,
+        patientId,
+        imageIds:  images.map((image) => image.id),
+        expiresAt: new Date(Date.now() + EXPORT_TTL_SECONDS * 1000),
+      },
+    });
+
+    // Se devuelve el token y no una URL armada: el cliente ya sabe dónde está
+    // la API (API_BASE_URL), y mandarle una ruta absoluta lo obligaría a
+    // recortarle el prefijo con una expresión regular.
+    return res.json({
+      ok:        true,
+      token,
+      fileCount: images.length,
+      expiresIn: EXPORT_TTL_SECONDS,
+    });
+  } catch (error) {
+    console.error("[clinical-images export/token]", error);
+    return res.status(500).json({ ok: false, error: "No se pudo preparar la descarga." });
+  }
+});
+
+// El token va en la query string y NO en el path (…/export/<token>) por una
+// razón concreta: security-logger sanea los valores de la query pero no puede
+// adivinar qué segmento de una ruta es un secreto. Con el token en el path
+// quedaba escrito entero en securityEvent.path, que es la tabla de auditoría.
+router.get("/export", async (req, res) => {
+  let autorizacion = null;
+
+  try {
+    autorizacion = await mainPrisma.clinicalExportToken.findUnique({
+      where: { token: String(req.query.t || "") },
+    });
+
+    if (!autorizacion || autorizacion.expiresAt.getTime() < Date.now()) {
+      return res.status(401).send("El enlace de descarga venció. Volvé a generarlo.");
+    }
+
+    // El uso se reclama con un UPDATE condicional y se decide por el resultado,
+    // en vez de leer usedCount y después incrementarlo. Con esos dos pasos
+    // separados, dos descargas simultáneas leían el mismo valor y las dos
+    // pasaban el control: el tope de usos no se respetaba.
+    const reclamo = await mainPrisma.clinicalExportToken.updateMany({
+      where: { token: autorizacion.token, usedCount: { lt: EXPORT_MAX_USES } },
+      data:  { usedCount: { increment: 1 } },
+    });
+    if (reclamo.count === 0) {
+      return res.status(401).send("Este enlace de descarga ya se usó. Volvé a generarlo.");
+    }
+
+    const imageIds = Array.isArray(autorizacion.imageIds) ? autorizacion.imageIds : [];
+
+    // La base de la clínica que pidió la exportación, no la principal: con una
+    // clínica de base dedicada, estos ids existen en su base y en la compartida
+    // apuntan a archivos de otra clínica.
+    const prisma = await getClinicPrisma(autorizacion.clinicId);
+
+    // No se vuelve a decidir qué se incluye: los permisos ya se evaluaron al
+    // emitir el token. Solo se re-consultan los datos de los archivos.
+    const images = await prisma.clinicalImage.findMany({
+      where:   { id: { in: imageIds }, deletedAt: null },
+      include: {
+        professional:   { select: { fullName: true } },
+        uploadedByUser: { select: { fullName: true } },
+      },
+      orderBy: [{ createdAt: "asc" }],
+    });
+
+    const patient = await prisma.patient.findUnique({
+      where:  { id: autorizacion.patientId },
+      select: { fullName: true, dni: true },
+    });
+
+    // Todo lo que puede fallar con un JSON ya pasó. A partir de acá se escribe.
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${buildArchiveFileName(patient)}"`,
+    );
+    // Sin esto nginx acumula la respuesta entera antes de mandarla, y se pierde
+    // todo el beneficio de streamear.
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const resultado = await writeClinicalExportZip({
+      destination: res,
+      images,
+      openSource:  abrirArchivoParaZip,
+      describeForIndex: (image) => ({
+        fecha:           (image.takenAt || image.createdAt)?.toISOString?.().slice(0, 10) || "",
+        descripcion:     image.description || "",
+        nombre_original: image.fileName || "",
+        profesional:     image.professional?.fullName || "",
+        subido_por:      image.uploadedByUser?.fullName || "",
+        subido_el:       image.createdAt?.toISOString?.().slice(0, 10) || "",
+      }),
+    });
+
+    logSecurityEvent("CLINICAL_EXPORT", req, {
+      patientId:  autorizacion.patientId,
+      exportedBy: autorizacion.userId,
+      fileCount:  resultado.incluidos,
+      skipped:    resultado.omitidos,
+      totalBytes: resultado.bytes,
+      outcome:    "completed",
+    });
+
+    return undefined;
+  } catch (error) {
+    console.error("[clinical-images export]", error.message);
+
+    logSecurityEvent("CLINICAL_EXPORT", req, {
+      patientId:  autorizacion?.patientId ?? null,
+      exportedBy: autorizacion?.userId ?? null,
+      outcome:    "failed",
+    });
+
+    if (res.headersSent) {
+      // El ZIP quedó a medias. Cortar la conexión es lo correcto: un archivo
+      // que parece completo y no lo está es peor que una descarga rota.
+      return res.destroy();
+    }
+    return res.status(500).send("No se pudo generar la descarga.");
+  }
+});
+
+/**
+ * Abre un archivo clínico para meterlo en el ZIP.
+ *
+ * Contempla los tres formatos que conviven en imageUrl: claves de R2, data URLs
+ * de antes de R2, y URLs externas. Estas últimas no se descargan a propósito
+ * (sería una puerta a SSRF) y quedan asentadas en el índice.
+ */
+async function abrirArchivoParaZip(image) {
+  if (isR2Key(image.imageUrl)) {
+    try {
+      const { body } = await getFileReadable(image.imageUrl);
+      return { source: body };
+    } catch (error) {
+      console.error(`[clinical-images export] archivo ${image.id} ilegible:`, error.message);
+      return { source: null, motivoOmision: "no se pudo leer del almacenamiento" };
+    }
+  }
+
+  if (typeof image.imageUrl === "string" && image.imageUrl.startsWith("data:")) {
+    const match = image.imageUrl.match(/^data:[^;]+;base64,(.+)$/);
+    if (!match) return { source: null, motivoOmision: "formato interno inválido" };
+    return { source: Buffer.from(match[1], "base64") };
+  }
+
+  return { source: null, motivoOmision: "archivo externo, no incluido" };
+}
+
+function parseFechaOpcional(value) {
+  if (!value) return null;
+  const fecha = new Date(value);
+  return Number.isNaN(fecha.getTime()) ? null : fecha;
+}
+
+router.get("/", requireAuth, puedeVerArchivos, async (req, res) => {
+  try {
+    const prisma = req.prisma;
 
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
     // Los archivos clínicos son parte de la ficha del paciente: se comparten
@@ -127,18 +402,15 @@ router.get("/", requireAuth, async (req, res) => {
       orderBy: [{ createdAt: "desc" }],
     });
 
-    return res.json({ ok: true, images: images.map(serializeImage) });
+    return res.json({ ok: true, images: images.map((img) => serializeImage(img, req.user.clinicId)) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudieron listar los archivos clínicos." });
   }
 });
 
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, puedeCargarArchivos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para cargar archivos clínicos." });
-    }
 
     const clinic = await prisma.clinic.findUnique({ where: { id: req.user.clinicId }, select: { plan: true } });
     const planCheck = checkClinicalImagesFeature(clinic?.plan);
@@ -165,6 +437,7 @@ router.post("/", requireAuth, async (req, res) => {
 
       let storedUrl = String(item.imageUrl).trim();
       let detectedMime = item.mimeType || "image/jpeg";
+      let fileSizeBytes = null;
       const fileName = item.fileName ? String(item.fileName).slice(0, 255) : null;
 
       // Detectar MIME desde data URL
@@ -185,8 +458,9 @@ router.post("/", requireAuth, async (req, res) => {
           clinicId:  req.user.clinicId,
           patientId,
         });
-        storedUrl    = result.key;
-        detectedMime = result.mimeType;
+        storedUrl     = result.key;
+        detectedMime  = result.mimeType;
+        fileSizeBytes = result.sizeBytes;
       } else if (!isStorageConfigured() && storedUrl.startsWith("data:")) {
         return res.status(503).json({ ok: false, error: "El almacenamiento de archivos no está configurado en el servidor." });
       }
@@ -199,13 +473,14 @@ router.post("/", requireAuth, async (req, res) => {
           imageUrl:         storedUrl,
           mimeType:         detectedMime,
           fileName:         fileName,
+          fileSizeBytes:    fileSizeBytes,
           description:      item.description ? String(item.description).trim() : null,
           takenAt:          item.takenAt ? new Date(item.takenAt) : null,
           deletedAt:        null,
         },
       });
 
-      createdItems.push(serializeImage(created));
+      createdItems.push(serializeImage(created, req.user.clinicId));
     }
 
     return res.status(201).json({ ok: true, images: createdItems });
@@ -215,13 +490,9 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
-router.put("/:id", requireAuth, async (req, res) => {
+router.put("/:id", requireAuth, puedeEditarArchivos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para editar archivos clínicos." });
-    }
-
     const existing = await prisma.clinicalImage.findFirst({
       where: {
         id: Number(req.params.id),
@@ -229,9 +500,7 @@ router.put("/:id", requireAuth, async (req, res) => {
         // Un archivo asignado a un profesional puntual no lo puede tocar otro
         // colega — los archivos sin profesional (professionalId null) siguen
         // siendo compartidos y cualquiera con permiso de edición los maneja.
-        ...(canAccessWholeClinic(req.permissions)
-          ? {}
-          : { OR: [{ professionalId: { in: getAccessibleProfessionalIds(req.permissions) } }, { professionalId: null }] }),
+        ...buildSharedRecordWhere(req.permissions),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });
@@ -254,19 +523,15 @@ router.put("/:id", requireAuth, async (req, res) => {
       },
     });
 
-    return res.json({ ok: true, image: serializeImage(updated) });
+    return res.json({ ok: true, image: serializeImage(updated, req.user.clinicId) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo actualizar el archivo clínico." });
   }
 });
 
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, puedeEliminarArchivos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar archivos clínicos." });
-    }
-
     const existing = await prisma.clinicalImage.findFirst({
       where: {
         id: Number(req.params.id),
@@ -274,9 +539,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
         // Un archivo asignado a un profesional puntual no lo puede tocar otro
         // colega — los archivos sin profesional (professionalId null) siguen
         // siendo compartidos y cualquiera con permiso de edición los maneja.
-        ...(canAccessWholeClinic(req.permissions)
-          ? {}
-          : { OR: [{ professionalId: { in: getAccessibleProfessionalIds(req.permissions) } }, { professionalId: null }] }),
+        ...buildSharedRecordWhere(req.permissions),
         patient: buildPatientAccessWhere(req.permissions, req.user.clinicId),
       },
     });

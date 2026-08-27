@@ -1,6 +1,7 @@
 const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
+const { requirePermission } = require("../middleware/require-permission");
 const {
   canManageAppointments,
   canEditAppointments,
@@ -9,6 +10,7 @@ const { buildAppointmentAccessWhere } = require("../lib/access");
 const {
   VALID_STATUSES,
   VALID_CHANNELS,
+  VALID_PRESENCE,
   APPOINTMENT_INCLUDE,
   parseDateOnly,
   formatLocalDate,
@@ -20,6 +22,26 @@ const {
 } = require("../services/appointment.service");
 
 const router = express.Router();
+
+const puedeCrearTurnos = requirePermission(
+  canManageAppointments,
+  "No tenes permisos para crear turnos.",
+);
+
+const puedeEditarTurnos = requirePermission(
+  canEditAppointments,
+  "No tenes permisos para editar turnos.",
+);
+
+const puedeEliminarTurnos = requirePermission(
+  canManageAppointments,
+  "No tenes permisos para eliminar turnos.",
+);
+
+const puedeMarcarLaPresenciaDelPaciente = requirePermission(
+  canEditAppointments,
+  "No tenés permisos para marcar la presencia del paciente.",
+);
 
 // ── GET / ─────────────────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req, res) => {
@@ -79,14 +101,48 @@ router.get("/:id", requireAuth, async (req, res) => {
   }
 });
 
-// ── POST / ────────────────────────────────────────────────────────────────────
-router.post("/", requireAuth, async (req, res) => {
+// ── PATCH /:id/presence ───────────────────────────────────────────────────────
+// Presencia del paciente en la clínica (sala / consultorio / finalizado).
+// La marca tanto quien recibe al paciente como quien lo atiende, así que el
+// permiso es canEditAppointments (secretaria, profesional y superadmin). El
+// where de acceso limita al profesional a sus propios turnos.
+router.patch("/:id/presence", requireAuth, puedeMarcarLaPresenciaDelPaciente, async (req, res) => {
   try {
-    const prisma = req.prisma;
-    if (!canManageAppointments(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para crear turnos." });
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: "ID de turno inválido." });
     }
 
+    const presence = String(req.body?.presence || "");
+    if (!VALID_PRESENCE.has(presence)) {
+      return res.status(400).json({ ok: false, error: "Estado de presencia inválido." });
+    }
+
+    const prisma = req.prisma;
+    const existing = await prisma.appointment.findFirst({
+      where: { id, ...buildAppointmentAccessWhere(req.permissions, req.user.clinicId) },
+      select: { id: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: "Turno no encontrado o sin acceso." });
+    }
+
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { presence, presenceUpdatedAt: new Date() },
+      include: APPOINTMENT_INCLUDE,
+    });
+
+    return res.json({ ok: true, appointment: serializeAppointment(updated) });
+  } catch (_error) {
+    return res.status(500).json({ ok: false, error: "No se pudo actualizar la presencia del paciente." });
+  }
+});
+
+// ── POST / ────────────────────────────────────────────────────────────────────
+router.post("/", requireAuth, puedeCrearTurnos, async (req, res) => {
+  try {
+    const prisma = req.prisma;
     const payload = buildAppointmentPayload(req.body);
 
     const validationError = await validateAppointmentPayload(
@@ -124,13 +180,9 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 // ── PUT /:id ──────────────────────────────────────────────────────────────────
-router.put("/:id", requireAuth, async (req, res) => {
+router.put("/:id", requireAuth, puedeEditarTurnos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditAppointments(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para editar turnos." });
-    }
-
     const appointmentId = Number(req.params.id);
     const existing = await prisma.appointment.findFirst({
       where: {
@@ -179,13 +231,9 @@ router.put("/:id", requireAuth, async (req, res) => {
 });
 
 // ── PATCH /:id ────────────────────────────────────────────────────────────────
-router.patch("/:id", requireAuth, async (req, res) => {
+router.patch("/:id", requireAuth, puedeEditarTurnos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditAppointments(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para editar turnos." });
-    }
-
     const appointmentId = Number(req.params.id);
     const existing = await prisma.appointment.findFirst({
       where: {
@@ -241,13 +289,9 @@ router.patch("/:id", requireAuth, async (req, res) => {
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────────────────
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, puedeEliminarTurnos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canManageAppointments(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar turnos." });
-    }
-
     const appointment = await prisma.appointment.findFirst({
       where: {
         id: Number(req.params.id),

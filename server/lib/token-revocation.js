@@ -51,4 +51,52 @@ async function purgeExpiredRevokedTokens() {
   }
 }
 
-module.exports = { revokeToken, isRevoked, purgeExpiredRevokedTokens };
+/**
+ * Borra las autorizaciones de descarga vencidas. Viven cinco minutos: si no se
+ * limpian, la tabla crece indefinidamente con filas que ya no sirven para nada.
+ */
+async function purgeExpiredExportTokens() {
+  try {
+    const { count } = await prisma.clinicalExportToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    if (count > 0) console.log(`[export] ${count} autorizaciones de descarga vencidas eliminadas`);
+  } catch (error) {
+    console.error("[export] No se pudieron limpiar autorizaciones vencidas:", error.message);
+  }
+}
+
+// Cada seis horas. No hace falta más seguido: son filas inertes, lo único que
+// importa es que la tabla no crezca sin techo.
+const PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Limpieza al arrancar y después cada seis horas.
+ *
+ * El barrido único al arranque alcanzaba mientras los procesos se reciclaban
+ * seguido, pero un worker que queda levantado semanas nunca volvía a limpiar y
+ * las dos tablas seguían creciendo. Las autorizaciones de descarga son el caso
+ * peor: viven cinco minutos y se emite una por cada exportación.
+ */
+function startTokenPurgeScheduler() {
+  const purgar = () => {
+    purgeExpiredRevokedTokens();
+    purgeExpiredExportTokens();
+  };
+
+  purgar();
+
+  // unref para que este temporizador no le impida al proceso terminar cuando
+  // ya no queda nada más que hacer.
+  const timer = setInterval(purgar, PURGE_INTERVAL_MS);
+  if (typeof timer.unref === "function") timer.unref();
+  return timer;
+}
+
+module.exports = {
+  revokeToken,
+  isRevoked,
+  purgeExpiredRevokedTokens,
+  purgeExpiredExportTokens,
+  startTokenPurgeScheduler,
+};

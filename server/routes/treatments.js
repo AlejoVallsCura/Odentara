@@ -1,7 +1,8 @@
 const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
-const { buildPatientAccessWhere } = require("../lib/access");
+const { requirePermission } = require("../middleware/require-permission");
+const { buildPatientAccessWhere, buildOwnedRecordWhere, canUseProfessional } = require("../lib/access");
 const {
   canEditClinicalData,
   canViewClinicalData,
@@ -10,6 +11,26 @@ const {
 } = require("../lib/permissions");
 
 const router = express.Router();
+
+const puedeCrearTratamientos = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para crear tratamientos.",
+);
+
+const puedeEditarTratamientos = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para editar tratamientos.",
+);
+
+const puedeEliminarTratamientos = requirePermission(
+  canEditClinicalData,
+  "No tenes permisos para eliminar tratamientos.",
+);
+
+const puedeVerTratamientos = requirePermission(
+  canViewClinicalData,
+  "No tenes permisos para ver tratamientos.",
+);
 
 function serializeTreatment(t) {
   return {
@@ -30,12 +51,6 @@ function serializeTreatment(t) {
   };
 }
 
-function canUseProfessional(permissions, professionalId) {
-  if (!professionalId) return true;
-  if (canAccessWholeClinic(permissions)) return true;
-  return getAccessibleProfessionalIds(permissions).includes(Number(professionalId));
-}
-
 async function ensureAccessibleAppointment(prisma, permissions, appointmentId, patientId) {
   if (!appointmentId) return true;
 
@@ -43,9 +58,9 @@ async function ensureAccessibleAppointment(prisma, permissions, appointmentId, p
     where: {
       id: Number(appointmentId),
       patientId,
-      ...(canAccessWholeClinic(permissions)
-        ? {}
-        : { professionalId: { in: getAccessibleProfessionalIds(permissions) } }),
+      // El turno al que se asocia el tratamiento tiene que ser uno que quien
+      // pide pueda ver: si no, se podría inferir la agenda de otro colega.
+      ...buildOwnedRecordWhere(permissions),
     },
     select: { id: true },
   });
@@ -53,13 +68,9 @@ async function ensureAccessibleAppointment(prisma, permissions, appointmentId, p
   return Boolean(appointment);
 }
 
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, puedeVerTratamientos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canViewClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para ver tratamientos." });
-    }
-
     const patientId = req.query.patientId ? Number(req.query.patientId) : null;
 
     // Los tratamientos son parte de la ficha clínica: se comparten con toda
@@ -88,13 +99,9 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requireAuth, puedeCrearTratamientos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para crear tratamientos." });
-    }
-
     const patientId = Number(req.body.patientId);
     const patient = await prisma.patient.findFirst({
       where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
@@ -143,13 +150,9 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
-router.put("/:id", requireAuth, async (req, res) => {
+router.put("/:id", requireAuth, puedeEditarTratamientos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para editar tratamientos." });
-    }
-
     const existing = await prisma.treatment.findFirst({
       where: {
         id: Number(req.params.id),
@@ -210,13 +213,9 @@ router.put("/:id", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/:id", requireAuth, async (req, res) => {
+router.delete("/:id", requireAuth, puedeEliminarTratamientos, async (req, res) => {
   try {
     const prisma = req.prisma;
-    if (!canEditClinicalData(req.permissions)) {
-      return res.status(403).json({ ok: false, error: "No tenes permisos para eliminar tratamientos." });
-    }
-
     const existing = await prisma.treatment.findFirst({
       where: {
         id: Number(req.params.id),

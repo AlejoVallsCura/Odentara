@@ -61,7 +61,9 @@ function focusField(field) {
     }
 }
 
-async function validatePatientForm(form, editId = null) {
+// Sincrónica a propósito: no debe haber ninguna espera entre el clic en Guardar
+// y el bloqueo de la pantalla (ver el comentario sobre duplicados más abajo).
+function validatePatientForm(form, editId = null) {
     clearFormValidation(form);
 
     const fieldMap = {
@@ -117,30 +119,14 @@ async function validatePatientForm(form, editId = null) {
         return fail('email', 'El email no tiene un formato válido.', 'Revisa el campo Email.');
     }
 
-    let allPatients = [];
-    try {
-        const patientsRes = await apiFetch('/patients');
-        allPatients = patientsRes.patients || [];
-    } catch (_e) {
-        // Si falla la carga, dejamos pasar — el backend validará duplicados al guardar
-    }
-
-    const duplicatedByName = allPatients.find((patient) =>
-        normalizePatientName(patient.fullName) === normalizedName && patient.id !== editId
-    );
-
-    if (duplicatedByName) {
-        return fail('name', 'Ya existe un paciente cargado con ese nombre.', 'Ya existe un paciente cargado con ese nombre.');
-    }
-
-    const duplicatedByDni = allPatients.find((patient) =>
-        normalizeDni(patient.dni) === normalizedDni && patient.id !== editId
-    );
-
-    if (duplicatedByDni) {
-        return fail('dni', 'Ya existe un paciente cargado con ese DNI.', 'Ya existe un paciente cargado con ese DNI.');
-    }
-
+    // La detección de duplicados la hace el backend con dos consultas puntuales
+    // (validatePatientUniqueness), y applyPatientApiErrorToForm marca el campo
+    // exacto con el mensaje que devuelve. Acá se hacía lo mismo bajando la lista
+    // COMPLETA de pacientes en cada guardado: además de pesar cada vez más con
+    // una clínica grande, ese await ocurría antes de que apareciera el overlay
+    // que bloquea la pantalla, y en esa ventana un doble clic podía crear el
+    // paciente dos veces. Sin él la validación es instantánea y la ventana no
+    // existe.
     return {
         ok: true,
         normalizedName,

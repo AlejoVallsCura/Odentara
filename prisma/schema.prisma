@@ -21,6 +21,16 @@ enum AppointmentStatus {
   cancelled
 }
 
+// Presencia del paciente el día del turno: la secretaria marca la llegada y el
+// profesional ve el cambio desde su pantalla. Es distinto de AppointmentStatus,
+// que describe la confirmación previa (si se avisó del turno y qué contestaron).
+enum AppointmentPresence {
+  none
+  waiting
+  consulting
+  done
+}
+
 enum ConfirmationChannel {
   whatsapp
   phone
@@ -72,21 +82,35 @@ enum AuditAction {
 }
 
 model Clinic {
-  id            Int      @id @default(autoincrement())
-  name          String
-  slug          String   @unique
-  address       String?
-  phone         String?
-  email         String?
-  logoUrl       String?
-  active        Boolean  @default(true)
-  plan          String?
-  aiUsage       Json?                          // uso mensual de importación con IA: { month: "2026-07", count: 42 }
-  notes         String?  @db.Text
-  dbType        String   @default("shared")   // "shared" | "dedicated"
-  databaseUrl   String?  @db.Text             // solo si dbType = "dedicated"
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          Int     @id @default(autoincrement())
+  name        String
+  slug        String  @unique
+  address     String?
+  phone       String?
+  email       String?
+  logoUrl     String?
+  active      Boolean @default(true)
+  plan        String?
+  aiUsage     Json? // uso mensual de importación con IA: { month: "2026-07", count: 42 }
+  notes       String? @db.Text
+  dbType      String  @default("shared") // "shared" | "dedicated"
+  databaseUrl String? @db.Text // solo si dbType = "dedicated"
+
+  // Mensaje de confirmación de turno que la secretaría manda por WhatsApp.
+  // Admite los marcadores {paciente} {fecha} {hora} {profesional} {clinica}.
+  // Null o vacío = se usa el texto por defecto del código. Es por clínica y no
+  // por usuario: es la voz de la clínica, no la preferencia de quien atiende
+  // el teléfono ese día.
+  appointmentMessageTemplate String?  @db.Text
+
+  // Descuento sobre el precio del plan, en porcentaje (0,1 a 100). Null = sin
+  // descuento; 100 = bonificada, no paga. Es porcentaje y no monto fijo para que
+  // el acuerdo sobreviva a los aumentos: con un monto fijo, un 10% pactado hoy
+  // se vuelve 8% solo el dia que sube el plan.
+  discountPercent            Decimal? @db.Decimal(5, 2)
+
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
   users                User[]
   professionals        Professional[]
@@ -97,12 +121,88 @@ model Clinic {
   @@index([active])
 }
 
+// Eventos de seguridad (accesos fallidos, rate limit, reseteos de contraseña).
+// Antes solo se escribían con console.warn: los logs del hosting rotan y no hay
+// alertas, así que no quedaba forma de responder "¿alguien entró donde no
+// debía?" ni de notar un ataque en curso.
+model SecurityEvent {
+  id        Int      @id @default(autoincrement())
+  type      String   @db.VarChar(40)
+  ip        String?  @db.VarChar(45)
+  method    String?  @db.VarChar(10)
+  path      String?  @db.VarChar(255)
+  userAgent String?  @db.Text
+  email     String?  @db.VarChar(255)
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([type, createdAt])
+  @@index([email, createdAt])
+}
+
+enum AnnouncementLevel {
+  info
+  warning
+  urgent
+}
+
+// Avisos que el administrador de plataforma publica para todas las clínicas
+// (mantenimiento programado, caídas, backups). Aparecen como una barra dentro
+// de la app; el refresco periódico que ya existe los trae sin recargar.
+//
+// La vigencia se define por fechas en vez de por un botón de encender y apagar,
+// para poder dejar programado "mañana de 2 a 4" sin tener que estar presente.
+model Announcement {
+  id          Int               @id @default(autoincrement())
+  message     String            @db.Text
+  level       AnnouncementLevel @default(info)
+  startsAt    DateTime
+  endsAt      DateTime
+  // Un aviso no descartable se mantiene visible aunque el usuario lo cierre:
+  // reservado para cosas que no puede perderse, como una caída inminente.
+  dismissible Boolean           @default(true)
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([active, startsAt, endsAt])
+}
+
+// Configuración de los planes comerciales. Vive en la base y no en el código
+// para poder ajustar precios y cupos desde el panel de plataforma sin deploy.
+// Antes los mismos números estaban duplicados en cinco lugares (límites del
+// backend, precios del backend, precios del frontend, textos del selector y la
+// landing) y se desincronizaban solos.
+//
+// Convenciones numéricas: -1 significa "ilimitado" (la base no puede guardar
+// Infinity) y 0 en aiExtractions significa "la función no está incluida".
+model Plan {
+  code           String   @id @db.VarChar(30) // inicial | clinica | pro
+  label          String   @db.VarChar(60)
+  priceMonthly   Decimal  @db.Decimal(10, 2)
+  currency       String   @default("ARS") @db.VarChar(3)
+  professionals  Int // -1 = ilimitado
+  aiExtractions  Int // 0 = no incluido, -1 = ilimitado
+  adminUsers     Boolean  @default(true)
+  clinicalImages Boolean  @default(true)
+  billing        Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
 model SubscriptionPayment {
   id            Int      @id @default(autoincrement())
   clinicId      Int
-  period        String   @db.VarChar(7)   // "2026-05"
+  period        String   @db.VarChar(7) // "2026-05"
   amount        Decimal  @db.Decimal(10, 2)
-  paymentMethod String   @db.VarChar(50)  // efectivo | transferencia | tarjeta | otro
+  // Sin esto el balance de la plataforma no cierra: los gastos se cargan en
+  // pesos o dolares, y un cobro sin moneda obligaria a asumir una. Lo ya
+  // registrado queda en ARS, que es lo que era.
+  currency      String   @default("ARS") @db.VarChar(3)
+  paymentMethod String   @db.VarChar(50) // efectivo | transferencia | tarjeta | otro
   paidAt        DateTime
   notes         String?  @db.Text
   createdAt     DateTime @default(now())
@@ -114,32 +214,37 @@ model SubscriptionPayment {
 }
 
 model User {
-  id                       Int                     @id @default(autoincrement())
-  email                    String
-  passwordHash             String?                 @db.VarChar(255)
-  fullName                 String
-  active                   Boolean                 @default(true)
-  isPlatformAdmin          Boolean                 @default(false)
-  clinicId                 Int?
-  deletedAt                DateTime?
+  id                     Int                     @id @default(autoincrement())
+  email                  String
+  passwordHash           String?                 @db.VarChar(255)
+  fullName               String
+  active                 Boolean                 @default(true)
+  isPlatformAdmin        Boolean                 @default(false)
+  clinicId               Int?
+  deletedAt              DateTime?
   // Cualquier token emitido antes de esta fecha se rechaza. Se actualiza al
   // cambiar la contraseña, para cerrar de una todas las sesiones abiertas
   // (incluidas las de un atacante) sin depender de estado en memoria.
-  sessionsValidFrom        DateTime?
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime                @updatedAt
-  clinic                   Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: Restrict)
-  roles                    UserRole[]
-  createdAppointments      Appointment[]           @relation("AppointmentCreatedBy")
-  assignedProfessional     Professional?           @relation("ProfessionalUser")
-  professionalScopes       UserProfessionalScope[]
-  uploadedClinicalImages   ClinicalImage[]
-  createdTreatments        Treatment[]
-  createdBillingEntries    BillingEntry[]
-  createdPrescriptions     Prescription[]
-  createdBudgets           Budget[]
-  auditLogs                AuditLog[]
-  passwordResetTokens      PasswordResetToken[]
+  sessionsValidFrom      DateTime?
+  // Bloqueo temporal por intentos fallidos. El rate limit por IP no alcanza:
+  // un atacante con IPs rotativas puede probar contraseñas comunes contra
+  // muchas cuentas sin frenarse nunca. Esto pone el freno en la cuenta.
+  failedLoginAttempts    Int                     @default(0)
+  lockedUntil            DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  clinic                 Clinic?                 @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  roles                  UserRole[]
+  createdAppointments    Appointment[]           @relation("AppointmentCreatedBy")
+  assignedProfessional   Professional?           @relation("ProfessionalUser")
+  professionalScopes     UserProfessionalScope[]
+  uploadedClinicalImages ClinicalImage[]
+  createdTreatments      Treatment[]
+  createdBillingEntries  BillingEntry[]
+  createdPrescriptions   Prescription[]
+  createdBudgets         Budget[]
+  auditLogs              AuditLog[]
+  passwordResetTokens    PasswordResetToken[]
 
   @@unique([clinicId, email])
   @@index([email])
@@ -168,31 +273,31 @@ model UserRole {
 }
 
 model Professional {
-  id                  Int                            @id @default(autoincrement())
-  clinicId            Int
-  fullName            String
-  specialty           String?
-  email               String?
-  phone               String?
-  color               String?
-  licenseNumber       String?                        // matrícula profesional (MN/MP) — obligatoria en recetas
-  active              Boolean                        @default(true)
-  deletedAt           DateTime?
-  userId              Int?                           @unique
-  createdAt           DateTime                       @default(now())
-  updatedAt           DateTime                       @updatedAt
-  clinic              Clinic                         @relation(fields: [clinicId], references: [id], onDelete: Restrict)
-  user                User?                          @relation("ProfessionalUser", fields: [userId], references: [id], onDelete: SetNull)
-  appointments        Appointment[]
-  schedules           ProfessionalAvailability[]
-  scheduleExceptions  ProfessionalScheduleException[]
-  patientTreatments   Treatment[]
-  billingEntries      BillingEntry[]
-  scopedUsers         UserProfessionalScope[]
-  clinicalRecords     ClinicalRecord[]
-  clinicalImages      ClinicalImage[]
-  prescriptions       Prescription[]
-  budgets             Budget[]
+  id                 Int                             @id @default(autoincrement())
+  clinicId           Int
+  fullName           String
+  specialty          String?
+  email              String?
+  phone              String?
+  color              String?
+  licenseNumber      String? // matrícula profesional (MN/MP) — obligatoria en recetas
+  active             Boolean                         @default(true)
+  deletedAt          DateTime?
+  userId             Int?                            @unique
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+  clinic             Clinic                          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  user               User?                           @relation("ProfessionalUser", fields: [userId], references: [id], onDelete: SetNull)
+  appointments       Appointment[]
+  schedules          ProfessionalAvailability[]
+  scheduleExceptions ProfessionalScheduleException[]
+  patientTreatments  Treatment[]
+  billingEntries     BillingEntry[]
+  scopedUsers        UserProfessionalScope[]
+  clinicalRecords    ClinicalRecord[]
+  clinicalImages     ClinicalImage[]
+  prescriptions      Prescription[]
+  budgets            Budget[]
 
   @@index([clinicId])
   @@index([clinicId, active])
@@ -226,7 +331,7 @@ model Patient {
   insurancePlan    String?
   credentialNumber String?
   chartNumber      String?
-  medicalHistory   Json?            // Antecedentes médicos (cuestionario de casilleros de la ficha)
+  medicalHistory   Json? // Antecedentes médicos (cuestionario de casilleros de la ficha)
   active           Boolean          @default(true)
   deletedAt        DateTime?
   createdAt        DateTime         @default(now())
@@ -262,6 +367,8 @@ model Appointment {
   startTime              DateTime
   durationMinutes        Int
   status                 AppointmentStatus    @default(not_sent)
+  presence               AppointmentPresence  @default(none)
+  presenceUpdatedAt      DateTime?
   isOverbook             Boolean              @default(false)
   confirmationChannel    ConfirmationChannel?
   confirmationSentAt     DateTime?
@@ -349,8 +456,8 @@ model OdontogramEntry {
   updatedAt        DateTime         @updatedAt
   clinicalRecord   ClinicalRecord   @relation(fields: [clinicalRecordId], references: [id], onDelete: Cascade)
 
-  @@index([clinicalRecordId, toothNumber])
   @@unique([clinicalRecordId, toothNumber, face])
+  @@index([clinicalRecordId, toothNumber])
 }
 
 model Treatment {
@@ -388,6 +495,12 @@ model ClinicalImage {
   imageUrl         String        @db.LongText
   mimeType         String        @default("image/jpeg") @db.VarChar(50)
   fileName         String?       @db.VarChar(255)
+  // Tamaño del archivo individual. Int alcanza de sobra (el máximo son 2,1 GB
+  // por archivo); el total de una exportación se suma en JavaScript, donde el
+  // entero seguro llega mucho más lejos. Nullable porque los archivos subidos
+  // antes de esta columna no lo tienen: para esos el contador de bytes durante
+  // el stream es el único control.
+  fileSizeBytes    Int?
   description      String?       @db.Text
   takenAt          DateTime?
   deletedAt        DateTime?
@@ -404,24 +517,24 @@ model ClinicalImage {
 }
 
 model BillingEntry {
-  id               Int              @id @default(autoincrement())
-  patientId        Int
-  professionalId   Int
-  appointmentId    Int?
-  createdByUserId  Int?
-  type             BillingEntryType
-  amount           Decimal          @db.Decimal(12, 2)
-  currency         String           @default("ARS") @db.VarChar(3)
-  description      String?          @db.Text
-  date             DateTime
-  deletedAt        DateTime?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  patient          Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  professional     Professional     @relation(fields: [professionalId], references: [id], onDelete: Restrict)
-  appointment      Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  createdByUser    User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
-  budget           Budget?
+  id              Int              @id @default(autoincrement())
+  patientId       Int
+  professionalId  Int
+  appointmentId   Int?
+  createdByUserId Int?
+  type            BillingEntryType
+  amount          Decimal          @db.Decimal(12, 2)
+  currency        String           @default("ARS") @db.VarChar(3)
+  description     String?          @db.Text
+  date            DateTime
+  deletedAt       DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  patient         Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional    Professional     @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  appointment     Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdByUser   User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  budget          Budget?
 
   @@index([patientId, date])
   @@index([professionalId, date])
@@ -503,19 +616,119 @@ model RevokedToken {
   @@index([expiresAt])
 }
 
+/**
+ * Autorización de un solo uso para descargar el ZIP de archivos clínicos de un
+ * paciente.
+ * El token es opaco y no lleva información: los parámetros de la exportación
+ * viven acá, del lado del servidor. Eso evita tres problemas a la vez —
+ * nada que manipular en la URL, nada sensible que pueda terminar en los logs
+ * de acceso, y la lista de archivos queda congelada al momento de autorizar
+ * (si alguien sube o borra algo entre el click y la descarga, el ZIP no cambia).
+ * Va en la base y no en un Map en memoria por la misma razón que RevokedToken:
+ * la plataforma levanta varios procesos worker y el que autoriza la descarga
+ * no es necesariamente el que la sirve.
+ */
+model ClinicalExportToken {
+  token     String   @id @db.VarChar(64)
+  clinicId  Int
+  userId    Int
+  patientId Int
+  // IDs de ClinicalImage autorizados, resueltos ya con los permisos de quien
+  // pidió la exportación. Al descargar no se vuelve a decidir qué se incluye.
+  imageIds  Json
+  usedCount Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+/// Gastos de la plataforma: lo que cuesta hacer funcionar Odentara.
+///
+/// Es la unica tabla del sistema SIN clinicId, y es a proposito: estos gastos
+/// son del duenio de la plataforma (hosting, dominio, API de IA, contador), no
+/// de ninguna clinica. Por eso tampoco pasa por access.js — no hay nada que
+/// aislar, y solo la ve el administrador de plataforma.
+model Expense {
+  id          Int      @id @default(autoincrement())
+  description String   @db.VarChar(200)
+  category    String   @default("otros") @db.VarChar(30)
+  amount      Decimal  @db.Decimal(12, 2)
+  currency    String   @default("ARS") @db.VarChar(3)
+  paidAt      DateTime
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([paidAt])
+  @@index([category])
+}
+
 model AuditLog {
-  id          Int         @id @default(autoincrement())
-  userId      Int?
-  clinicId    Int?
-  entityType  String
-  entityId    String
-  action      AuditAction
-  beforeData  Json?
-  afterData   Json?
-  createdAt   DateTime    @default(now())
-  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id         Int         @id @default(autoincrement())
+  userId     Int?
+  clinicId   Int?
+  entityType String
+  entityId   String
+  action     AuditAction
+  beforeData Json?
+  afterData  Json?
+  createdAt  DateTime    @default(now())
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId])
   @@index([userId, createdAt])
   @@index([clinicId, createdAt])
+}
+
+// -----------------------------------------------------------------------------
+// Backups de la base
+// -----------------------------------------------------------------------------
+
+// Configuración del backup automático. UNA sola fila (id = 1).
+//
+// Es global y no por clínica porque el backup es de toda la base: las clínicas
+// comparten esquema y archivo. Restaurar afecta a todas por igual.
+model BackupSchedule {
+  id        Int      @id @default(1)
+  enabled   Boolean  @default(false)
+  // "daily" | "weekdays" (lunes a viernes) | "weekly"
+  frequency String   @default("daily") @db.VarChar(16)
+  hour      Int      @default(3)
+  minute    Int      @default(0)
+  // Solo se usa con frequency = "weekly". 1 = lunes … 7 = domingo (ISO).
+  weekday   Int      @default(1)
+  // Cuántos backups conservar. Sin retención, uno diario llena el disco.
+  keepLast  Int      @default(10)
+  updatedAt DateTime @updatedAt
+}
+
+// Historial de backups ejecutados.
+//
+// `slot` es único y ahí está la clave del diseño: la plataforma levanta varios
+// procesos worker del mismo build, y un cron en proceso se dispara una vez por
+// worker. El primero que inserta su slot gana; los demás chocan contra la
+// restricción de unicidad y se retiran. Sin eso, tres workers producirían tres
+// dumps simultáneos peleando por el disco y por la base.
+//
+// Para los manuales el slot lleva la marca temporal completa, así nunca colisiona.
+model BackupRun {
+  id          Int       @id @default(autoincrement())
+  slot        String    @unique @db.VarChar(40)
+  // "manual" | "scheduled"
+  trigger     String    @default("manual") @db.VarChar(16)
+  // "running" | "ok" | "error"
+  status      String    @default("running") @db.VarChar(16)
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  fileName    String?   @db.VarChar(255)
+  bytes       Int?
+  totalRows   Int?
+  totalTables Int?
+  error       String?   @db.Text
+  // Usuario que lo disparó a mano. Null en los automáticos.
+  userId      Int?
+
+  @@index([startedAt])
+  @@index([status])
 }
