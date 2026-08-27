@@ -382,4 +382,7 @@ module.exports = {
   serializeAppointment,
   buildAppointmentPayload,
   validateAppointmentPayload,
+  // Se exporta para poder testear la precedencia de las excepciones sin
+  // levantar la base: es una función pura sobre horarios y excepciones.
+  scheduleAllowsAppointment,
 };

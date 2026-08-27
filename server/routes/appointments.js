@@ -217,34 +217,45 @@ router.put("/:id", requireAuth, puedeEditarTurnos, async (req, res) => {
 
     const payload = buildAppointmentPayload(req.body, existing);
 
-    const validationError = await validateAppointmentPayload(
-      prisma, payload, req.permissions, req.user.clinicId, appointmentId, existing
-    );
-    if (validationError) {
-      return res.status(400).json({ ok: false, error: validationError });
-    }
+    // Mismo lock que en el POST: mover un turno a otro horario tiene exactamente
+    // la misma carrera que crearlo. Se bloquea el profesional DESTINO, que es la
+    // agenda contra la que se valida el solapamiento.
+    const resultado = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Professional WHERE id = ${payload.professionalId} FOR UPDATE`;
 
-    const appointment = await prisma.appointment.update({
-      where: { id: appointmentId },
-      data: {
-        patientId: payload.patientId,
-        professionalId: payload.professionalId,
-        date: parseDateOnly(payload.date),
-        startTime: parseDateTime(payload.date, payload.time),
-        durationMinutes: payload.durationMinutes,
-        status: payload.status,
-        isOverbook: payload.isOverbook,
-        confirmationChannel: payload.confirmationChannel,
-        confirmationSentAt: payload.confirmationSentAt,
-        confirmationResponseAt: payload.confirmationResponseAt,
-        cancellationReason: payload.cancellationReason,
-        notes: payload.notes,
-        deletedAt: null,
-      },
-      include: APPOINTMENT_INCLUDE,
+      const validationError = await validateAppointmentPayload(
+        tx, payload, req.permissions, req.user.clinicId, appointmentId, existing
+      );
+      if (validationError) return { error: validationError };
+
+      const actualizado = await tx.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          patientId: payload.patientId,
+          professionalId: payload.professionalId,
+          date: parseDateOnly(payload.date),
+          startTime: parseDateTime(payload.date, payload.time),
+          durationMinutes: payload.durationMinutes,
+          status: payload.status,
+          isOverbook: payload.isOverbook,
+          confirmationChannel: payload.confirmationChannel,
+          confirmationSentAt: payload.confirmationSentAt,
+          confirmationResponseAt: payload.confirmationResponseAt,
+          cancellationReason: payload.cancellationReason,
+          notes: payload.notes,
+          deletedAt: null,
+        },
+        include: APPOINTMENT_INCLUDE,
+      });
+
+      return { appointment: actualizado };
     });
 
-    return res.json({ ok: true, appointment: serializeAppointment(appointment) });
+    if (resultado.error) {
+      return res.status(400).json({ ok: false, error: resultado.error });
+    }
+
+    return res.json({ ok: true, appointment: serializeAppointment(resultado.appointment) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo actualizar el turno." });
   }
