@@ -145,35 +145,55 @@ router.post("/", requireAuth, puedeCrearTurnos, async (req, res) => {
     const prisma = req.prisma;
     const payload = buildAppointmentPayload(req.body);
 
-    const validationError = await validateAppointmentPayload(
-      prisma, payload, req.permissions, req.user.clinicId
-    );
-    if (validationError) {
-      return res.status(400).json({ ok: false, error: validationError });
-    }
+    // Validar y crear dentro de UNA transacción, con la fila del profesional
+    // bloqueada.
+    //
+    // Antes la comprobación de solapamiento era un findMany y la creación venía
+    // después, en operaciones separadas: dos pedidos simultáneos para el mismo
+    // horario pasaban los dos por la validación antes de que alguno escribiera,
+    // y quedaban dos turnos encima. Con secretaría y profesional cargando a la
+    // vez, o con un doble clic, es un caso real.
+    //
+    // El lock es sobre el profesional y no sobre la tabla de turnos: serializa
+    // solo las altas de esa agenda, así que dos profesionales distintos siguen
+    // pudiendo cargar en paralelo.
+    const resultado = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Professional WHERE id = ${payload.professionalId} FOR UPDATE`;
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        clinicId: req.user.clinicId,
-        patientId: payload.patientId,
-        professionalId: payload.professionalId,
-        createdByUserId: req.user.id,
-        date: parseDateOnly(payload.date),
-        startTime: parseDateTime(payload.date, payload.time),
-        durationMinutes: payload.durationMinutes,
-        status: payload.status,
-        isOverbook: payload.isOverbook,
-        confirmationChannel: payload.confirmationChannel,
-        confirmationSentAt: payload.confirmationSentAt,
-        confirmationResponseAt: payload.confirmationResponseAt,
-        cancellationReason: payload.cancellationReason,
-        notes: payload.notes,
-        deletedAt: null,
-      },
-      include: APPOINTMENT_INCLUDE,
+      const validationError = await validateAppointmentPayload(
+        tx, payload, req.permissions, req.user.clinicId
+      );
+      if (validationError) return { error: validationError };
+
+      const creado = await tx.appointment.create({
+        data: {
+          clinicId: req.user.clinicId,
+          patientId: payload.patientId,
+          professionalId: payload.professionalId,
+          createdByUserId: req.user.id,
+          date: parseDateOnly(payload.date),
+          startTime: parseDateTime(payload.date, payload.time),
+          durationMinutes: payload.durationMinutes,
+          status: payload.status,
+          isOverbook: payload.isOverbook,
+          confirmationChannel: payload.confirmationChannel,
+          confirmationSentAt: payload.confirmationSentAt,
+          confirmationResponseAt: payload.confirmationResponseAt,
+          cancellationReason: payload.cancellationReason,
+          notes: payload.notes,
+          deletedAt: null,
+        },
+        include: APPOINTMENT_INCLUDE,
+      });
+
+      return { appointment: creado };
     });
 
-    return res.status(201).json({ ok: true, appointment: serializeAppointment(appointment) });
+    if (resultado.error) {
+      return res.status(400).json({ ok: false, error: resultado.error });
+    }
+
+    return res.status(201).json({ ok: true, appointment: serializeAppointment(resultado.appointment) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo crear el turno." });
   }

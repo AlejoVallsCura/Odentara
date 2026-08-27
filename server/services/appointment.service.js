@@ -145,11 +145,52 @@ function getAppointmentEndMinutes(payload) {
   return start + duration;
 }
 
-function scheduleAllowsAppointment(schedules = [], payload) {
+/**
+ * ¿El horario del profesional admite este turno?
+ *
+ * Las excepciones se cargaban, se guardaban y se devolvían por la API, pero
+ * NUNCA participaban de esta validación: un día bloqueado o un feriado seguía
+ * aceptando turnos. El `select` de validateAppointmentPayload ni siquiera las
+ * traía.
+ *
+ * El orden de precedencia sale del enum ScheduleExceptionType:
+ *   1. `unavailable`   — bloquea. Sin franja horaria, bloquea el día entero.
+ *   2. `special_hours` — REEMPLAZA el horario semanal para esa fecha (no se
+ *                        suma: si ese día se atiende distinto, lo habitual no
+ *                        corre).
+ *   3. sin excepciones — vale el horario semanal de siempre.
+ */
+function scheduleAllowsAppointment(schedules = [], payload, excepciones = []) {
   const start = timeToMinutes(payload.time);
   const end = getAppointmentEndMinutes(payload);
   if (start === null || end === null) return false;
 
+  const delDia = (excepciones || []).filter(
+    (item) => item?.date && formatLocalDate(item.date) === payload.date
+  );
+
+  // 1. Lo no disponible manda sobre todo lo demás.
+  for (const item of delDia) {
+    if (item.type !== "unavailable") continue;
+    const desde = timeToMinutes(item.startTime);
+    const hasta = timeToMinutes(item.endTime);
+    if (desde === null || hasta === null) return false; // día entero bloqueado
+    if (start < hasta && end > desde) return false;     // se pisa con la franja
+  }
+
+  // 2. Horario especial: reemplaza al semanal para esa fecha.
+  const especiales = delDia.filter(
+    (item) => item.type === "special_hours" && item.startTime && item.endTime
+  );
+  if (especiales.length > 0) {
+    return especiales.some((item) => {
+      const desde = timeToMinutes(item.startTime);
+      const hasta = timeToMinutes(item.endTime);
+      return desde !== null && hasta !== null && start >= desde && end <= hasta;
+    });
+  }
+
+  // 3. Horario semanal habitual.
   const weekday = parseDateOnly(payload.date).getDay();
   return schedules.some((item) => {
     if (!item.active || item.weekday !== weekday) return false;
@@ -200,7 +241,12 @@ async function validateAppointmentPayload(
 
   const professional = await prisma.professional.findFirst({
     where: { id: payload.professionalId, clinicId },
-    select: { id: true, active: true, deletedAt: true, schedules: true },
+    select: {
+      id: true, active: true, deletedAt: true, schedules: true,
+      // Las excepciones no se traían, y por eso no se aplicaban nunca. Se acotan
+      // a la fecha del turno: un profesional puede acumular muchas con los años.
+      scheduleExceptions: { where: { date: parseDateOnly(payload.date) } },
+    },
   });
 
   const validDurations = payload.isOverbook ? [15] : [30, 60, 90, 120];
@@ -239,7 +285,7 @@ async function validateAppointmentPayload(
     }
   }
 
-  if (!scheduleAllowsAppointment(professional.schedules || [], payload)) {
+  if (!scheduleAllowsAppointment(professional.schedules || [], payload, professional.scheduleExceptions || [])) {
     return "La duración elegida no entra dentro del horario disponible del profesional.";
   }
 

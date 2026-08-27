@@ -167,7 +167,7 @@ function syncBrandLogos() {
     const isDark = document.body.classList.contains('theme-dark');
     // La versión acompaña a la del CSS/JS de index.html. Sin ella, el servidor
     // cachea las imágenes 7 días y un logo nuevo no le llega a quien ya entró.
-    const src = `/icons/logo-${isDark ? 'oscura' : 'principal'}-128.png?v=20260827f`;
+    const src = `/icons/logo-${isDark ? 'oscura' : 'principal'}-128.png?v=20260827g`;
     document.querySelectorAll('[data-brand-logo]').forEach((img) => {
         if (img.getAttribute('src') !== src) img.setAttribute('src', src);
     });
