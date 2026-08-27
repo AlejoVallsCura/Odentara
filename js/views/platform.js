@@ -1880,9 +1880,13 @@ window.platformLoginAsClinic = async function(clinicId, clinicName) {
         }
     } catch(_) { /* silencioso */ }
 
+    // html:true porque el <strong> es intencional, y por eso los dos valores
+    // interpolados se escapan a mano: el nombre de la clínica y el email del
+    // superadmin salen de la base, así que son datos de usuario. Es el único
+    // lugar de la app que necesita este opt-in.
     const confirmed = await showConfirm(
-        `Vas a ingresar a "${clinicName}" como <strong>${adminLabel}</strong>. Tu sesión de plataforma quedará guardada y podrás volver desde el banner superior.`,
-        { title: 'Ingresar como clínica', variant: 'info', confirmText: 'Ingresar' }
+        `Vas a ingresar a "${escapeHtml(clinicName)}" como <strong>${escapeHtml(adminLabel)}</strong>. Tu sesión de plataforma quedará guardada y podrás volver desde el banner superior.`,
+        { title: 'Ingresar como clínica', variant: 'info', confirmText: 'Ingresar', html: true }
     );
     if (!confirmed) return;
     try {
