@@ -9,7 +9,6 @@ node_modules
 
 # Deployment artifacts
 *.zip
-make_zip.ps1
 deploy-temp/
 
 # Test/local data
