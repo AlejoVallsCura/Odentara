@@ -451,12 +451,15 @@ model OdontogramEntry {
   clinicalRecordId Int
   toothNumber      String
   face             ToothFace?
+  // MySQL permite varios NULL en un índice UNIQUE. Esta clave no nula distingue
+  // cada cara y usa "_" para la pieza completa, de modo que la unicidad sea real.
+  positionKey      String           @db.VarChar(32)
   status           OdontogramStatus
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   clinicalRecord   ClinicalRecord   @relation(fields: [clinicalRecordId], references: [id], onDelete: Cascade)
 
-  @@unique([clinicalRecordId, toothNumber, face])
+  @@unique([clinicalRecordId, positionKey])
   @@index([clinicalRecordId, toothNumber])
 }
 

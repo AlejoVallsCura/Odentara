@@ -2,8 +2,12 @@ const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
 const { requirePermission } = require("../middleware/require-permission");
-const { buildPatientAccessWhere } = require("../lib/access");
+const { buildPatientAccessWhere, canUseProfessional } = require("../lib/access");
 const { canEditClinicalData, canViewClinicalData } = require("../lib/permissions");
+const {
+  normalizarCaraDental,
+  clavePosicionOdontograma,
+} = require("../../shared/tooth-faces");
 
 const router = express.Router();
 
@@ -18,14 +22,44 @@ const puedeVerHistoriaClinica = requirePermission(
 );
 
 // La ficha clínica (odontograma, notas, alergias) es UNA sola por paciente,
-// compartida por toda la clínica — no hay un registro distinto por
-// profesional. professionalId queda solo como dato informativo de quién
-// hizo la última edición.
+// compartida por toda la clínica. professionalId informa quién hizo la última
+// edición, por eso debe respetar el mismo alcance que cualquier acto profesional.
 function resolveEditorProfessionalId(permissions, overrideId) {
-  if (overrideId) return Number(overrideId);
+  if (overrideId !== undefined && overrideId !== null && overrideId !== "") return Number(overrideId);
   if (permissions.assignedProfessionalId) return permissions.assignedProfessionalId;
   const scoped = permissions.allowedProfessionalIds || [];
   return scoped.length === 1 ? scoped[0] : null;
+}
+
+const ESTADOS_DENTALES_VALIDOS = new Set([
+  "healthy", "caries", "restored", "absent", "implant",
+  "crown", "crown_implant", "endodontics", "orthodontics", "sealant",
+]);
+
+function normalizarEntradasOdontograma(rawEntries) {
+  const entradas = [];
+  const posiciones = new Set();
+
+  for (const raw of rawEntries) {
+    const toothNumber = String(raw?.toothNumber || "").trim().slice(0, 10);
+    const face = normalizarCaraDental(raw?.face);
+
+    if (!toothNumber || !ESTADOS_DENTALES_VALIDOS.has(raw?.status)) {
+      return { error: "El odontograma contiene una pieza o estado inválido." };
+    }
+    if (face === undefined) {
+      return { error: `La cara dental ${String(raw?.face)} no es válida.` };
+    }
+
+    const positionKey = clavePosicionOdontograma(toothNumber, face);
+    if (posiciones.has(positionKey)) {
+      return { error: `La posición ${positionKey} está repetida en el odontograma.` };
+    }
+    posiciones.add(positionKey);
+    entradas.push({ toothNumber, face, positionKey, status: raw.status });
+  }
+
+  return { entradas };
 }
 
 function serializeRecord(record) {
@@ -73,7 +107,11 @@ router.get("/:patientId", requireAuth, puedeVerHistoriaClinica, async (req, res)
     });
   } catch (_error) {
     console.error("[clinical-records GET] error:", _error?.message, "| code:", _error?.code);
-    return res.status(500).json({ ok: false, error: "No se pudo obtener la historia clínica.", ...(process.env.NODE_ENV !== 'production' ? { debug: _error?.code || _error?.message } : {}) });
+    return res.status(500).json({
+      ok: false,
+      error: "No se pudo obtener la historia clínica.",
+      ...(process.env.NODE_ENV !== "production" ? { debug: _error?.code || _error?.message } : {}),
+    });
   }
 });
 
@@ -83,103 +121,83 @@ router.put("/:patientId", requireAuth, puedeEditarHistoriaClinica, async (req, r
     const patientId = Number(req.params.patientId);
     const editorProfessionalId = resolveEditorProfessionalId(req.permissions, req.body.professionalId);
 
+    if (editorProfessionalId !== null && !Number.isInteger(editorProfessionalId)) {
+      return res.status(400).json({ ok: false, error: "ID de profesional editor inválido." });
+    }
+    if (!canUseProfessional(req.permissions, editorProfessionalId)) {
+      return res.status(403).json({ ok: false, error: "No tenes acceso al profesional editor indicado." });
+    }
+
     const patient = await prisma.patient.findFirst({
       where: { id: patientId, ...buildPatientAccessWhere(req.permissions, req.user.clinicId) },
       select: { id: true },
     });
-
     if (!patient) {
       return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
     }
 
-    const rawEntries = Array.isArray(req.body.odontogramEntries) ? req.body.odontogramEntries : [];
+    if (editorProfessionalId !== null) {
+      const editor = await prisma.professional.findFirst({
+        where: { id: editorProfessionalId, clinicId: req.user.clinicId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!editor) {
+        return res.status(400).json({ ok: false, error: "El profesional editor no pertenece a esta clínica." });
+      }
+    }
 
-    // Whitelist de valores válidos — previene XSS stored si el front renderiza sin escapar
-    const VALID_TOOTH_STATUS = new Set([
-      "healthy", "caries", "restored", "absent", "implant",
-      "crown", "crown_implant", "endodontics", "orthodontics", "sealant",
-    ]);
-    const VALID_TOOTH_FACES = new Set(["V", "L", "M", "D", "O", "I", null, undefined, ""]);
+    const reemplazaOdontograma = Object.hasOwn(req.body, "odontogramEntries");
+    if (reemplazaOdontograma && !Array.isArray(req.body.odontogramEntries)) {
+      return res.status(400).json({ ok: false, error: "odontogramEntries debe ser una lista." });
+    }
+    const normalizado = reemplazaOdontograma
+      ? normalizarEntradasOdontograma(req.body.odontogramEntries)
+      : { entradas: [] };
+    if (normalizado.error) {
+      return res.status(400).json({ ok: false, error: normalizado.error });
+    }
 
-    // Deduplicar entradas por (toothNumber, face) para evitar violaciones de constraint único
-    const seen = new Set();
-    const odontogramEntries = rawEntries
-      .filter((e) => e?.toothNumber && VALID_TOOTH_STATUS.has(e?.status))
-      .filter((e) => {
-        const key = `${e.toothNumber}|${e.face ?? "__null__"}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .map((e) => ({
-        toothNumber: String(e.toothNumber).slice(0, 10),
-        face: VALID_TOOTH_FACES.has(e.face) ? (e.face || null) : null,
-        status: e.status,
-      }));
+    // Los campos ausentes conservan su valor. Un cliente que cambia solo una
+    // nota no debe borrar alergias ni observaciones cargadas por otro flujo.
+    const textData = { professionalId: editorProfessionalId };
+    for (const campo of ["summaryNotes", "allergies", "medicalNotes"]) {
+      if (Object.hasOwn(req.body, campo)) textData[campo] = req.body[campo] ?? null;
+    }
 
-    // Operaciones separadas (sin transacción anidada) para evitar problemas de
-    // InnoDB/MariaDB con DELETE+INSERT en la misma TX sobre índices únicos con NULL.
-    const textData = {
-      summaryNotes: req.body.summaryNotes ?? null,
-      allergies:    req.body.allergies    ?? null,
-      medicalNotes: req.body.medicalNotes ?? null,
-      professionalId: editorProfessionalId,
-    };
+    // positionKey elimina el NULL del índice único que motivó la separación
+    // anterior. Así el snapshot completo puede reemplazarse dentro de la misma
+    // transacción: si falla createMany, también se revierten notas y deleteMany.
+    const record = await prisma.$transaction(async (tx) => {
+      const existing = await tx.clinicalRecord.upsert({
+        where: { patientId },
+        create: { patientId, ...textData },
+        update: textData,
+        select: { id: true },
+      });
 
-    let existing = await prisma.clinicalRecord.findUnique({
-      where: { patientId },
-      select: { id: true },
-    });
-
-    if (!existing) {
-      try {
-        existing = await prisma.clinicalRecord.create({
-          data: { patientId, ...textData },
-          select: { id: true },
-        });
-      } catch (createErr) {
-        if (createErr?.code === "P2002") {
-          // Carrera: otra request creó el registro justo antes — lo buscamos de nuevo
-          console.warn("[clinical-records PUT] P2002 al crear. meta:", JSON.stringify(createErr?.meta), "patientId:", patientId);
-          existing = await prisma.clinicalRecord.findUnique({
-            where: { patientId },
-            select: { id: true },
+      if (reemplazaOdontograma) {
+        await tx.odontogramEntry.deleteMany({ where: { clinicalRecordId: existing.id } });
+        if (normalizado.entradas.length > 0) {
+          await tx.odontogramEntry.createMany({
+            data: normalizado.entradas.map((entry) => ({ ...entry, clinicalRecordId: existing.id })),
           });
-        } else {
-          throw createErr;
         }
       }
-    } else {
-      await prisma.clinicalRecord.update({
-        where: { id: existing.id },
-        data: textData,
+
+      return tx.clinicalRecord.findUnique({
+        where: { patientId },
+        include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
       });
-    }
-
-    if (!existing?.id) {
-      console.error("[clinical-records PUT] existing es null después de create/update. patientId:", patientId);
-      return res.status(500).json({ ok: false, error: "No se pudo resolver el registro clínico. Intentá de nuevo." });
-    }
-
-    // Reemplazar entradas de odontograma: borrar y recrear por separado
-    await prisma.odontogramEntry.deleteMany({ where: { clinicalRecordId: existing.id } });
-
-    if (odontogramEntries.length > 0) {
-      await prisma.odontogramEntry.createMany({
-        data: odontogramEntries.map((e) => ({ ...e, clinicalRecordId: existing.id })),
-        skipDuplicates: true,
-      });
-    }
-
-    const record = await prisma.clinicalRecord.findFirst({
-      where: { id: existing.id },
-      include: { odontogramEntries: { orderBy: [{ toothNumber: "asc" }] } },
     });
 
     return res.json({ ok: true, record: record ? serializeRecord(record) : null });
   } catch (_error) {
     console.error("[clinical-records PUT] error:", _error?.message, "| code:", _error?.code, "| meta:", JSON.stringify(_error?.meta));
-    return res.status(500).json({ ok: false, error: "No se pudo actualizar la historia clínica.", ...(process.env.NODE_ENV !== 'production' ? { debug: _error?.code || _error?.message } : {}) });
+    return res.status(500).json({
+      ok: false,
+      error: "No se pudo actualizar la historia clínica.",
+      ...(process.env.NODE_ENV !== "production" ? { debug: _error?.code || _error?.message } : {}),
+    });
   }
 });
 

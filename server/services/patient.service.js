@@ -106,8 +106,8 @@ function sanitizeMedicalHistory(raw) {
 // Serialización
 // -----------------------------------------------------------------------------
 
-function serializePatient(patient) {
-  return {
+function serializePatient(patient, { includeClinicalData = false } = {}) {
+  const dto = {
     id: patient.id,
     fullName: patient.fullName,
     normalizedName: patient.normalizedName,
@@ -120,7 +120,6 @@ function serializePatient(patient) {
     insurancePlan: patient.insurancePlan,
     credentialNumber: patient.credentialNumber,
     chartNumber: patient.chartNumber,
-    medicalHistory: patient.medicalHistory ?? null,
     active: patient.active,
     createdAt: patient.createdAt,
     updatedAt: patient.updatedAt,
@@ -130,6 +129,11 @@ function serializePatient(patient) {
       images: patient._count?.clinicalImages || 0,
     },
   };
+
+  // El directorio de pacientes también lo usan roles administrativos. Los
+  // antecedentes se agregan únicamente cuando la ruta ya autorizó datos clínicos.
+  if (includeClinicalData) dto.medicalHistory = patient.medicalHistory ?? null;
+  return dto;
 }
 
 // -----------------------------------------------------------------------------
@@ -154,11 +158,17 @@ function getPatientPayload(body = {}) {
     credentialNumber:  trim(body.credentialNumber, 100),
     chartNumber:       trim(body.chartNumber, 50),
     active:            body.active !== undefined ? Boolean(body.active) : true,
-    summaryNotes:      trim(body.summaryNotes, 5000),
-    allergies:         trim(body.allergies, 2000),
-    medicalNotes:      trim(body.medicalNotes, 5000),
-    medicalHistory:    sanitizeMedicalHistory(body.medicalHistory),
   };
+}
+
+function getPatientClinicalPayload(body = {}) {
+  const payload = {};
+  // La ausencia significa "no tocar". Un null explícito, en cambio, permite
+  // limpiar el cuestionario desde una pantalla clínica autorizada.
+  if (Object.hasOwn(body, "medicalHistory")) {
+    payload.medicalHistory = sanitizeMedicalHistory(body.medicalHistory);
+  }
+  return payload;
 }
 
 // -----------------------------------------------------------------------------
@@ -216,6 +226,7 @@ module.exports = {
   toDisplayCasePatientName,
   serializePatient,
   getPatientPayload,
+  getPatientClinicalPayload,
   validatePatientUniqueness,
   PATIENT_INCLUDE,
 };

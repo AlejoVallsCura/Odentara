@@ -2,7 +2,11 @@ const express = require("express");
 
 const { requireAuth } = require("../middleware/auth");
 const { requirePermission, requireAnyPermission } = require("../middleware/require-permission");
-const { buildPatientAccessWhere, buildOwnedRecordWhere } = require("../lib/access");
+const {
+  buildPatientAccessWhere,
+  buildOwnedRecordWhere,
+  canUseProfessional,
+} = require("../lib/access");
 const { parseId } = require("../lib/parse-id");
 const {
   canViewClinicalData,
@@ -95,6 +99,12 @@ router.post("/", requireAuth, puedeCrearPresupuestos, async (req, res) => {
     });
     if (!patient) {
       return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
+    }
+
+    // El permiso clínico habilita la acción, pero no permite atribuirla a un
+    // colega fuera del alcance profesional asignado al usuario.
+    if (!canUseProfessional(req.permissions, payload.professionalId)) {
+      return res.status(403).json({ ok: false, error: "No tenes acceso al profesional indicado." });
     }
 
     const professional = await prisma.professional.findFirst({

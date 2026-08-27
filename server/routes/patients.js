@@ -8,6 +8,8 @@ const {
   canManagePatients,
   canEditPatient,
   canDeletePatient,
+  canEditClinicalData,
+  canViewClinicalData,
   canAccessWholeClinic,
   getAccessibleProfessionalIds,
 } = require("../lib/permissions");
@@ -17,6 +19,7 @@ const {
   normalizePatientName,
   serializePatient,
   getPatientPayload,
+  getPatientClinicalPayload,
   validatePatientUniqueness,
   PATIENT_INCLUDE,
 } = require("../services/patient.service");
@@ -43,8 +46,13 @@ const puedeCrearPacientes = requirePermission(
 );
 
 const puedeEditarLaHistoriaClinica = requirePermission(
-  canManagePatients,
+  canEditClinicalData,
   "No tenés permisos para editar la historia clínica.",
+);
+
+const puedeVerLaHistoriaClinica = requirePermission(
+  canViewClinicalData,
+  "No tenés permisos para ver la historia clínica.",
 );
 
 const puedeEditarPacientes = requirePermission(
@@ -63,6 +71,10 @@ const puedeImportarPacientes = requirePermission(
 );
 
 // Etiquetas legibles del cuestionario médico (para armar el dossier del resumen).
+function serializePatientForPermissions(patient, permissions) {
+  return serializePatient(patient, { includeClinicalData: canViewClinicalData(permissions) });
+}
+
 const MH_LABELS = {
   cardiacos: "problemas cardíacos", presionAlta: "presión alta", presionBaja: "presión baja",
   hepatitis: "hepatitis", ulcerasEstomago: "úlceras de estómago", diabetes: "diabetes",
@@ -177,7 +189,7 @@ router.get("/ai/status", requireAuth, async (req, res) => {
 });
 
 // ── POST /:id/ai-summary — resumen/alerta pre-consulta desde la ficha ──────────
-router.post("/:id/ai-summary", sensitiveLimiter, requireAuth, async (req, res) => {
+router.post("/:id/ai-summary", sensitiveLimiter, requireAuth, puedeVerLaHistoriaClinica, async (req, res) => {
   try {
     const patientId = parseId(req.params.id);
     if (!patientId) return res.status(400).json({ ok: false, error: "ID de paciente inválido." });
@@ -185,10 +197,9 @@ router.post("/:id/ai-summary", sensitiveLimiter, requireAuth, async (req, res) =
     const gate = await requireAiPlan(req.prisma, req.user.clinicId);
     if (!gate.ok) return res.status(403).json({ ok: false, error: gate.error, code: "plan-not-included" });
 
-    // La ficha clínica (antecedentes/notas) y los tratamientos son compartidos
-    // por toda la clínica — cualquier profesional con acceso al paciente los ve.
-    // Presupuestos y recetas siguen siendo privados: un profesional solo ve los
-    // propios; superadmin/admin/secretary con acceso a toda la clínica ven todo.
+    // La ficha clínica y los tratamientos son compartidos por la clínica, pero
+    // esta ruta ya excluyó roles administrativos. Presupuestos y recetas siguen
+    // limitados al profesional salvo para el superadmin de la clínica.
     const wholeClinic = canAccessWholeClinic(req.permissions);
     const ownIds = getAccessibleProfessionalIds(req.permissions);
     const ownOnlyWhere = wholeClinic ? {} : { professionalId: { in: ownIds } };
@@ -316,7 +327,10 @@ router.get("/", requireAuth, async (req, res) => {
       // Evita 3 subconsultas por paciente en cada carga. Las stats se calculan en GET /:id.
     });
 
-    return res.json({ ok: true, patients: patients.map(serializePatient) });
+    return res.json({
+      ok: true,
+      patients: patients.map((patient) => serializePatientForPermissions(patient, req.permissions)),
+    });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudieron listar los pacientes." });
   }
@@ -341,7 +355,7 @@ router.get("/:id", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "Paciente no encontrado o sin acceso." });
     }
 
-    return res.json({ ok: true, patient: serializePatient(patient) });
+    return res.json({ ok: true, patient: serializePatientForPermissions(patient, req.permissions) });
   } catch (_error) {
     return res.status(500).json({ ok: false, error: "No se pudo obtener el paciente." });
   }
@@ -352,6 +366,9 @@ router.post("/", requireAuth, puedeCrearPacientes, async (req, res) => {
   try {
     const prisma = req.prisma;
     const payload = getPatientPayload(req.body);
+    const clinicalPayload = canEditClinicalData(req.permissions)
+      ? getPatientClinicalPayload(req.body)
+      : {};
 
     if (!payload.fullName || !payload.dni) {
       return res.status(400).json({ ok: false, error: "Nombre completo y DNI son obligatorios." });
@@ -384,7 +401,7 @@ router.post("/", requireAuth, puedeCrearPacientes, async (req, res) => {
             insurancePlan: payload.insurancePlan,
             credentialNumber: payload.credentialNumber,
             chartNumber: payload.chartNumber,
-            medicalHistory: payload.medicalHistory ?? undefined,
+            ...clinicalPayload,
             active: true,
             deletedAt: null,
           },
@@ -404,14 +421,17 @@ router.post("/", requireAuth, puedeCrearPacientes, async (req, res) => {
             insurancePlan: payload.insurancePlan,
             credentialNumber: payload.credentialNumber,
             chartNumber: payload.chartNumber,
-            medicalHistory: payload.medicalHistory ?? undefined,
+            ...clinicalPayload,
             active: payload.active,
             deletedAt: null,
           },
           include: PATIENT_INCLUDE,
         });
 
-    return res.status(201).json({ ok: true, patient: serializePatient(patient) });
+    return res.status(201).json({
+      ok: true,
+      patient: serializePatientForPermissions(patient, req.permissions),
+    });
   } catch (error) {
     if (error.code === "P2002") {
       return res.status(409).json({ ok: false, error: "Ya existe un paciente con ese DNI o número de ficha." });
@@ -527,7 +547,6 @@ router.post("/import", sensitiveLimiter, requireAuth, puedeCrearPacientes, async
               insurancePlan:    payload.insurancePlan,
               credentialNumber: payload.credentialNumber,
               chartNumber:      payload.chartNumber,
-              medicalHistory:   payload.medicalHistory ?? undefined,
               active:           true,
               deletedAt:        null,
             },
@@ -586,6 +605,9 @@ router.put("/:id", requireAuth, puedeEditarPacientes, async (req, res) => {
     }
 
     const payload = getPatientPayload(req.body);
+    const clinicalPayload = canEditClinicalData(req.permissions)
+      ? getPatientClinicalPayload(req.body)
+      : {};
 
     if (!payload.fullName || !payload.dni) {
       return res.status(400).json({ ok: false, error: "Nombre completo y DNI son obligatorios." });
@@ -610,14 +632,14 @@ router.put("/:id", requireAuth, puedeEditarPacientes, async (req, res) => {
         insurancePlan:    payload.insurancePlan,
         credentialNumber: payload.credentialNumber,
         chartNumber:      payload.chartNumber,
-        medicalHistory:   payload.medicalHistory ?? undefined,
+        ...clinicalPayload,
         active:           payload.active,
         deletedAt:        null,
       },
       include: PATIENT_INCLUDE,
     });
 
-    return res.json({ ok: true, patient: serializePatient(patient) });
+    return res.json({ ok: true, patient: serializePatientForPermissions(patient, req.permissions) });
   } catch (error) {
     console.error("[patients PUT]", error);
     return res.status(500).json({ ok: false, error: "No se pudo actualizar el paciente." });
