@@ -46,7 +46,15 @@ $PatronesProhibidos = @(
     '\.ps1$'
 )
 
-$Destino = Join-Path (Split-Path $PSScriptRoot -Parent) 'odentara-deploy.zip'
+# Se genera DENTRO de la carpeta del proyecto, que es donde se busca al subirlo
+# por Deployments. Tres capas ya evitan que eso sea un problema:
+#   1. public-paths.js lo bloquea por HTTP (los archivos sueltos de la raíz van
+#      por lista blanca y .zip no está), por si alguna vez corre npm run dev acá.
+#   2. .gitignore tiene *.zip, así que no entra al repo.
+#   3. $PatronesProhibidos incluye \.zip$, así que un ZIP nunca entra en el ZIP
+#      siguiente.
+# Y sobre todo: este archivo no viaja al servidor. Se arma acá y se sube a mano.
+$Destino = Join-Path $PSScriptRoot 'odentara-deploy.zip'
 if (Test-Path $Destino) { Remove-Item $Destino -Force }
 
 $base = (Get-Location).Path
@@ -95,7 +103,7 @@ $mb = [Math]::Round((Get-Item $Destino).Length / 1MB, 2)
 Write-Host ""
 Write-Host "OK  $Destino" -ForegroundColor Green
 Write-Host "    $($incluidos.Count) archivos, $mb MB"
-Write-Host "    (fuera de la carpeta del proyecto, que es el web root)"
+Write-Host "    Subilo por hPanel -> Deployments"
 Write-Host ""
 Write-Host "Carpetas incluidas:"
 $incluidos | ForEach-Object { ($_ -replace '\\', '/').Split('/')[0] } |
